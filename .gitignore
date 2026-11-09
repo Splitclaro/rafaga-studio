@@ -1,0 +1,15 @@
+node_modules/
+.next/
+.env
+.env.*
+!.env.example
+*.mp4
+*.mov
+*.webm
+*.MP4
+references/
+.vercel/
+.trigger/
+supabase/.temp/
+*.dump
+.DS_Store

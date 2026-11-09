@@ -1,0 +1,42 @@
+{
+  "updated": "2026-11-09",
+  "local_project": {
+    "path": "/Users/studio/Documents/Codex/rafaga-studio",
+    "created_by_this_run": true
+  },
+  "github": {
+    "verified_account": "Splitclaro",
+    "other_logged_in_account": "Alexanderterrero",
+    "repo": null,
+    "status": "not_created"
+  },
+  "vercel": {
+    "cli": "missing",
+    "login": "none",
+    "project": null,
+    "status": "blocked_no_access"
+  },
+  "supabase": {
+    "verified_org": {
+      "name": "Splitclaro",
+      "id": "tbtlznhstpydvcvbyzbb",
+      "plan": "Free",
+      "verified_via": "supabase.com dashboard in Chrome"
+    },
+    "note": "MCP connector sees another account (Sound Republic); use dashboard/CLI for splitclaro",
+    "project": null,
+    "status": "form_prefilled_awaiting_db_password",
+    "planned_name": "rafaga-studio-beta",
+    "region": "Europe",
+    "free_plan_caveat": "Free plan Storage per-file limit is far below the 2 GB/60 min source target; Pro would need cost approval"
+  },
+  "worker": {
+    "provider": null,
+    "status": "not_created"
+  },
+  "providers": {
+    "deepgram": "no_key",
+    "anthropic": "no_key_in_env",
+    "trigger_dev": "no_login"
+  }
+}

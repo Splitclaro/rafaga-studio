@@ -1,0 +1,9 @@
+Lee íntegramente CLAUDE.md de esta carpeta y ejecuta el encargo completo. Contiene las prioridades, funciones, arquitectura, referencias y pruebas necesarias.
+
+Empieza a construir ahora: verifica el destino aislado, crea la carpeta nueva e inicializa código ejecutable. No respondas solo con un plan ni esperes otra orden para comenzar.
+
+Prioriza vídeo + brief del usuario → Detectar momentos virales → subtítulos profesionales editables → MP4 exportado fiel al editor. Después completa todas las demás funciones obligatorias.
+
+Crea recursos NUEVOS bajo el propietario verificado splitclaro. No modifiques ni reutilices el proyecto existente splitclaro. Crea master/ dentro del proyecto nuevo y copia allí los seis documentos íntegros del paquete, incluido este CLAUDE.md completo. Verifica las copias y registra master/manifest.json. Crea un CLAUDE.md breve en la raíz que exija leer master/CLAUDE.md. Conserva continuidad en docs/STATUS.md.
+
+Continúa el trabajo independiente cuando falten accesos. Solo pide intervención ante bloqueos externos reales o costes que necesiten autorización. No declares la beta operativa sin las pruebas exigidas en el entorno desplegado.

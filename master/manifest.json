@@ -1,0 +1,49 @@
+{
+  "verified_at": "2026-11-09T11:57:00.285862+00:00",
+  "origin_zip": "/Users/studio/Documents/Codex/2026-11-09/q/outputs/RAFAGA_STUDIO_PAQUETE_CLAUDE_CODE.zip",
+  "origin_extracted": "temporary folder (session scratchpad)",
+  "files": [
+    {
+      "name": "CLAUDE.md",
+      "sha256_source": "5f3c7365f13039098f829e71dd1dd1d86ac62fb7d8f26a259c13505dd2ae7c26",
+      "sha256_copy": "5f3c7365f13039098f829e71dd1dd1d86ac62fb7d8f26a259c13505dd2ae7c26",
+      "match": true,
+      "bytes": 74745
+    },
+    {
+      "name": "PROMPT_MAESTRO_CLAUDE_CODE.md",
+      "sha256_source": "c8327121e3e0c2c55a7b66950ecedd715759e39749621e5422ff9e0e80e4ea6c",
+      "sha256_copy": "c8327121e3e0c2c55a7b66950ecedd715759e39749621e5422ff9e0e80e4ea6c",
+      "match": true,
+      "bytes": 56482
+    },
+    {
+      "name": "COMPROBACION_DE_TUS_REQUISITOS.md",
+      "sha256_source": "4bf14e7bfa8938403096ff558c2369432720403f7b4fc171c9509fff0cff7f1a",
+      "sha256_copy": "4bf14e7bfa8938403096ff558c2369432720403f7b4fc171c9509fff0cff7f1a",
+      "match": true,
+      "bytes": 4732
+    },
+    {
+      "name": "REVISION_REFERENCIAS_Y_DECISIONES.md",
+      "sha256_source": "344cac3f50aaca88c204cf4237e49671a105bef55174d2782c46bd4299f3b179",
+      "sha256_copy": "344cac3f50aaca88c204cf4237e49671a105bef55174d2782c46bd4299f3b179",
+      "match": true,
+      "bytes": 10659
+    },
+    {
+      "name": "LEEME_PRIMERO.md",
+      "sha256_source": "b1a3f073b5f2c370344baae78f59c28524d64da10f53a5dbb91b210140027898",
+      "sha256_copy": "b1a3f073b5f2c370344baae78f59c28524d64da10f53a5dbb91b210140027898",
+      "match": true,
+      "bytes": 4994
+    },
+    {
+      "name": "INICIO_PARA_PEGAR.txt",
+      "sha256_source": "408e5479751c24e60c72cc4ada37c2d91bbef97beac1e9940fc64c81c7b374dd",
+      "sha256_copy": "408e5479751c24e60c72cc4ada37c2d91bbef97beac1e9940fc64c81c7b374dd",
+      "match": true,
+      "bytes": 1190
+    }
+  ]
+}
