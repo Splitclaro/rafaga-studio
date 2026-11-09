@@ -2,11 +2,11 @@
   "model": "claude-sonnet-5-5",
   "first_words": "Hola a todos, bienvenidos al podcast de emprendedores. Hoy hablamos de 2 cosas muy distintas. 1º, consejos de venta para principiantes. El error más común",
   "source_seconds": 81.319002,
-  "asr_ms": 681,
+  "asr_ms": 1102,
   "language": "es",
-  "words": 199,
+  "words": 200,
   "markers": {
-    "sponsorFrom": 82,
+    "sponsorFrom": 83,
     "storyFrom": -1,
     "sponsorSec": 34.1
   },
@@ -14,12 +14,9 @@
     "ventas": {
       "selector": "lexical-v1",
       "fallbackReason": "Anthropic 400: {\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"Your credit balance is too low to access the Anthropic API. Please go to Plans",
-      "selection_ms": 197,
-      "raw": 6,
+      "selection_ms": 253,
+      "raw": 3,
       "rejected": [
-        "overlap",
-        "overlap",
-        "overlap",
         "overlap",
         "overlap"
       ],
@@ -38,11 +35,8 @@
       "selector": "lexical-v1",
       "fallbackReason": "Anthropic 400: {\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"Your credit balance is too low to access the Anthropic API. Please go to Plans",
       "selection_ms": 161,
-      "raw": 12,
+      "raw": 8,
       "rejected": [
-        "overlap",
-        "overlap",
-        "overlap",
         "overlap",
         "overlap",
         "overlap",
@@ -52,14 +46,6 @@
         "overlap"
       ],
       "accepted": [
-        {
-          "start": 35.38,
-          "end": 53.09,
-          "title": "Este episodio está patrocinado por una marca de",
-          "briefFit": "Coinciden 3 término(s) del enfoque",
-          "overall": 5.6,
-          "overlapsSponsor": true
-        },
         {
           "start": 48.36,
           "end": 65.86,
@@ -73,13 +59,13 @@
     "sin_coincidencia": {
       "selector": "lexical-v1",
       "fallbackReason": "Anthropic 400: {\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"Your credit balance is too low to access the Anthropic API. Please go to Plans",
-      "selection_ms": 156,
+      "selection_ms": 149,
       "raw": 0,
       "rejected": [],
       "accepted": []
     }
   },
-  "render_ms": 14420,
+  "render_ms": 14463,
   "render_probe": {
     "programs": [],
     "streams": [

@@ -28,11 +28,19 @@ Estado: **entrega parcial: beta aún no verificada** (sesión 1, 2026-11-09).
 - Migración 2 aplicada en Supabase (request_detection, claim_job); RLS tests 8/8 (PGlite).
 - Web: «Detectar momentos virales»/«Volver a detectar» encolan job real; muestra estado y clips con URL firmada. Sin worker activo el job permanece en cola.
 
+## Sesión 2 — V2 (2026-11-09)
+- Encargo V2 en `master/AMPLIACION_V2.md`; `CLAUDE.md` raíz actualizado; matrices `docs/PARITY_MATRIX_V2.md`, `docs/STYLE_PARITY_V2.md`; `docs/COSTS.md`, `docs/RUNBOOK.md`.
+- **Velocidad:** causa del «tarda mucho» = el cron de GitHub nunca se ejecutó. Worker ahora queda caliente 10 min (sondeo 3 s), descarga el original una vez, primer clip solo y resto de 2 en 2, x264 superfast. `/api/wake` arranca el worker al pulsar Detectar (requiere `GH_DISPATCH_TOKEN`).
+- **Fallo del usuario:** su vídeo «elio 4» dura 2,9 s → ahora se rechaza antes de subir y el worker da un mensaje claro.
+- **Autoprueba nube (run 42629711496):** Deepgram ES OK (199 palabras, 0,3–1,1 s); Anthropic sin saldo → selector léxico: ventas 6,9–19,8 s sin patrocinador, historia 48,4–65,9 s, brief sin coincidencias → 0. Render 1080×1920 h264/aac ~14 s.
+- **UI monocroma** y navegación V2 (sidebar plegable, menú de workspace, analítica interna real; módulos no hechos marcados «Pronto»).
+
 ## Bloqueos externos
-1. **Secretos del worker** en GitHub (Settings → Secrets → Actions): `SUPABASE_SECRET_KEY`, `DEEPGRAM_API_KEY`, `ANTHROPIC_API_KEY`. El asistente no puede introducir secretos. Hasta entonces: procesamiento real NO verificado.
-2. Auth: confirmación de correo activa + SMTP gratuito limitado → testers fuera del equipo no pueden registrarse.
-3. Supabase Free: 50 MB por archivo → no se pueden probar fuentes de 30/60 min (requiere Pro, coste a autorizar).
-4. Trigger.dev: abandonado (deploy rechazado).
+1. **Anthropic sin saldo** → selección con IA bloqueada (hay respaldo léxico). Requiere cargar saldo (autorización de coste).
+2. **`GH_DISPATCH_TOKEN`** (PAT de GitHub con permiso Actions: write sobre este repo) en Vercel → arranque inmediato del worker. Sin él, depende del cron de GitHub.
+3. Supabase Free: 50 MB por archivo → sin fuentes de 30/60 min (Pro con autorización).
+4. Auth: confirmación de correo + SMTP gratuito limitado → testers ajenos no reciben el correo.
+5. Lyric Studio: falta evaluar modelo de alineación para voz cantada (licencia/coste/runtime).
 
 ## Siguiente paso
-Colocar secretos → ejecutar workflow `media-worker` manualmente → E2E real (subir vídeo corto con voz, brief, detectar, ver clips). Luego editor con vídeo real + guardado de versiones, export en 1:1/16:9, descarga ZIP/SRT/VTT, automatizaciones, en vivo, cuotas, ledger, admin.
+Editor de subtítulos real sobre clips (split/merge, tiempos, offset, undo/autosave, versiones, re-render, SRT/VTT, 1:1/16:9). Después spike Lyric Studio (audio → letra alineada → MP4) y decisión de compositor por frames para Style Studio.
