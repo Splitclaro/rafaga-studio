@@ -58,12 +58,21 @@
     "verified": "16 tables in public, relrowsecurity=true (checked via SQL editor)"
   },
   "worker": {
-    "provider": null,
-    "status": "not_created"
+    "provider": "trigger.dev",
+    "org": "app clipper (app-clipper-8616)",
+    "project": {
+      "name": "rafaga-studio",
+      "ref": "proj_jykusfseqhizxclghlnx",
+      "url": "https://cloud.trigger.dev/orgs/app-clipper-8616/projects/rafaga-studio-TkSq",
+      "created_by_this_run": true
+    },
+    "extra_project_not_ours": "clippers (auto-created with the account; untouched)",
+    "status": "BLOCKED_deploy_rejected",
+    "error": "trigger deploy --env prod (depot and --native-build): 'Deployments are not available for this organization.' on Free plan, 3 attempts"
   },
   "providers": {
-    "deepgram": "no_key",
-    "anthropic": "no_key_in_env",
-    "trigger_dev": "no_login"
+    "deepgram": "console tab open, no key placed in any environment",
+    "anthropic": "console tab open, no key placed in any environment",
+    "trigger_dev": "cli logged in as app@splitclaro.com"
   }
 }

@@ -26,7 +26,8 @@ Estado: **entrega parcial: beta aún no verificada** (sesión 1, 2026-11-09).
 ## Bloqueos externos
 1. Supabase: **creado** `rafaga-studio-beta` (ref attrnwbcgascvppncucl, org Splitclaro, Free, UE) y migración core aplicada (16 tablas, RLS on). Contraseña de BD generada por Supabase y no guardada. Pendiente: claves API en Vercel/worker, Auth URLs, SMTP, prueba A/B real. Free limita tamaño por archivo; Pro requiere autorizar coste.
 2. Vercel: proyecto nuevo `rafaga-studio` creado y desplegado desde el repo (https://rafaga-studio.vercel.app, landing + /editor/demo, 200 OK). Aún sin variables de entorno, sin Auth ni worker: NO es la beta.
-3. Claves Deepgram y Anthropic; Trigger.dev o worker Docker (coste a autorizar).
+3. Worker: Trigger.dev creado pero **deploy rechazado por la organización (Free)**; plan B GitHub Actions (ver DECISIONS.md). Claves Deepgram/Anthropic: no colocadas; el asistente no puede teclear secretos en campos.
+4. Auth: confirmación de correo activa + SMTP gratuito limitado → testers ajenos al equipo no pueden registrarse todavía.
 
 ## Siguiente paso
 Crear proyecto Supabase (usuario) y aplicar migración; Auth + subida TUS; worker FFmpeg (ingest/ASR/selección con claves); editor con vídeo real; layouts, 1:1 y 16:9; revisar las 10 imágenes.
