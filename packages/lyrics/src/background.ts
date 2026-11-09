@@ -8,8 +8,17 @@ export interface BgSettings {
   filter: FilterName;
   interval: number;     // s por clip en modo secuencia
   sequence: boolean;    // varios clips que cambian cada `interval` s
+  /** band: lienzo negro con el vídeo en una banda 16:9 centrada y la letra encima (formato de referencia) · full: el fondo ocupa todo el encuadre */
+  frame: "band" | "full";
 }
-export const DEFAULT_BG: BgSettings = { dim: 0.3, bars: 0, filter: "none", interval: 5, sequence: true };
+export const DEFAULT_BG: BgSettings = { dim: 0.3, bars: 0, filter: "none", interval: 5, sequence: true, frame: "band" };
+
+/** Alto de la banda: 16:9 a ancho completo (par). Solo hay banda en encuadres más altos que 16:9. */
+export function bandHeight(W: number, H: number, frame: "band" | "full"): number {
+  if (frame !== "band") return H;
+  const b = Math.round((W * 9) / 16 / 2) * 2;
+  return b >= H ? H : b;
+}
 
 export const FILTERS: Record<FilterName, string> = {
   none: "",
@@ -48,6 +57,8 @@ export function lyricFfmpegArgs(o: {
 }): string[] {
   const a: string[] = ["-y", "-hide_banner", "-loglevel", "error"];
   const v: string[] = [];
+  const BH = o.segments.length ? bandHeight(o.W, o.H, o.settings.frame ?? "full") : o.H;   // color sólido: siempre a pantalla completa
+  const banded = BH < o.H;
   if (!o.segments.length) {
     a.push("-f", "lavfi", "-i", `color=c=0x${o.color.replace("#", "")}:s=${o.W}x${o.H}:r=30:d=${o.len}`);
     v.push("[0:v]format=yuv420p[bg]");
@@ -56,7 +67,7 @@ export function lyricFfmpegArgs(o: {
       if (s.item.kind === "photo") a.push("-loop", "1", "-t", String(s.dur), "-i", s.item.path);
       else a.push("-stream_loop", "-1", "-t", String(s.dur), "-i", s.item.path);
     });
-    o.segments.forEach((_, i) => v.push(`[${i}:v]scale=${o.W}:${o.H}:force_original_aspect_ratio=increase,crop=${o.W}:${o.H},setsar=1,fps=30,format=yuv420p[s${i}]`));
+    o.segments.forEach((_, i) => v.push(`[${i}:v]scale=${o.W}:${BH}:force_original_aspect_ratio=increase,crop=${o.W}:${BH},setsar=1,fps=30,format=yuv420p[s${i}]`));
     v.push(`${o.segments.map((_, i) => `[s${i}]`).join("")}concat=n=${o.segments.length}:v=1:a=0[bg]`);
   }
   const audioIdx = o.segments.length || 1;
@@ -64,7 +75,8 @@ export function lyricFfmpegArgs(o: {
   const post: string[] = [];
   if (FILTERS[o.settings.filter]) post.push(FILTERS[o.settings.filter]);
   if (o.settings.dim > 0) post.push(`drawbox=x=0:y=0:w=iw:h=ih:color=black@${Math.min(0.8, o.settings.dim).toFixed(2)}:t=fill`);
-  const barH = Math.round((Math.min(0.4, o.settings.bars) * o.H) / 2);
+  const barH = banded ? 0 : Math.round((Math.min(0.4, o.settings.bars) * o.H) / 2);
+  if (banded) post.push(`pad=${o.W}:${o.H}:0:${(o.H - BH) / 2}:color=black`);
   if (barH > 0) post.push(`drawbox=x=0:y=0:w=iw:h=${barH}:color=black:t=fill`, `drawbox=x=0:y=ih-${barH}:w=iw:h=${barH}:color=black:t=fill`);
   post.push(`subtitles=${o.escape(o.ass)}${o.fontsDir ? `:fontsdir=${o.escape(o.fontsDir)}` : ""}`, "format=yuv420p");
   v.push(`[bg]${post.join(",")}[v]`);

@@ -14,7 +14,7 @@ type Song = { id: string; title: string; artist: string | null; storage_path: st
 type Batch = { id: string; status: string; error_message: string | null; params: { n: number; ratio: string }; created_at: string };
 type LV = { id: string; variant: number; status: string; storage_path: string | null; params: { style: string; background: string }; url?: string };
 
-const LYRIC_STYLES = ["Letra", "Letra suave", "Karaoke", "Impacto", "Limpio"];
+const LYRIC_STYLES = ["Tune", "Palabra", "Tune mayúsculas", "Letra", "Letra suave", "Karaoke", "Impacto", "Limpio"];
 const COLORS = ["#111111", "#1E3A8A", "#7F1D1D", "#14532D", "#4C1D95", "#F5F5F5"];
 const FILTERS: [FilterName, string, string][] = [["none", "Ninguno", "none"], ["midnight", "Midnight", "saturate(.85) hue-rotate(-12deg) brightness(.92)"], ["super8", "Super 8", "sepia(.35) saturate(1.15) contrast(1.05)"], ["noir", "Noir", "grayscale(1) contrast(1.18)"], ["vaporwave", "Vaporwave", "saturate(1.35) hue-rotate(-28deg)"]];
 
@@ -44,7 +44,7 @@ export default function LyricStudio() {
   const [audioUrl, setAudioUrl] = useState("");
   const [lyrics, setLyrics] = useState("");
   const [start, setStart] = useState(0), [end, setEnd] = useState(0);
-  const [styles, setStyles] = useState<string[]>(["Letra"]);
+  const [styles, setStyles] = useState<string[]>(["Tune"]);
   const [bgMode, setBgMode] = useState<"collection" | "solid">("solid");
   const [collection, setCollection] = useState<string | null>(null);
   const [colors, setColors] = useState<string[]>(["#111111"]);
@@ -69,6 +69,17 @@ export default function LyricStudio() {
   }, []);
   const wanted = params.get("song");
   useEffect(() => { loadSongs().then((l) => { const w = l.find((x) => x.id === wanted); if (w) choose(w); }); }, [loadSongs, wanted]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [recent, setRecent] = useState<{ id: string; song: string; variant: number; url?: string; path: string }[] | null>(null);
+  const loadRecent = useCallback(async () => {
+    const [{ data: lv }, { data: so }] = await Promise.all([
+      supabase.from("lyric_videos").select("id,variant,song_id,storage_path").eq("status", "ready").order("created_at", { ascending: false }).limit(8),
+      supabase.from("songs").select("id,title"),
+    ]);
+    const names = new Map((so ?? []).map((x) => [x.id, x.title]));
+    const rows = await Promise.all((lv ?? []).filter((v) => v.storage_path).map(async (v) => ({ id: v.id, song: names.get(v.song_id) ?? "Canción", variant: v.variant, path: v.storage_path as string, url: (await supabase.storage.from("renders").createSignedUrl(v.storage_path as string, 900)).data?.signedUrl })));
+    setRecent(rows);
+  }, []);
+  useEffect(() => { loadRecent(); }, [loadRecent]);
   const loadBatches = useCallback(async (s: Song) => {
     const { data } = await supabase.from("jobs").select("id,status,error_message,params,created_at").eq("kind", "lyrics").contains("params", { song_id: s.id }).order("created_at", { ascending: false }).limit(20);
     setBatches((data ?? []) as Batch[]);
@@ -140,6 +151,7 @@ export default function LyricStudio() {
     if (data?.signedUrl) window.location.href = data.signedUrl;
   }
   const set = (p: Partial<BgSettings>) => setSettings((s) => ({ ...s, ...p }));
+  const banded = settings.frame === "band" && bgMode === "collection" && ratio !== "16:9";
   const cssFilter = FILTERS.find((f) => f[0] === settings.filter)?.[2] ?? "none";
 
   return (
@@ -174,7 +186,20 @@ export default function LyricStudio() {
         {/* Pasos */}
         <div className="space-y-5">
           {!song ? (
-            <div className="grid min-h-80 place-items-center rounded-3xl border-2 border-dashed border-[var(--border)] p-10 text-center"><p className="font-display text-2xl text-[var(--muted)]">Elige o sube una canción<br />para empezar</p></div>
+            <div className="space-y-6">
+              <div className="grid gap-3 sm:grid-cols-3">
+                {[["Canciones", songs?.length ?? "·"], ["Vídeos listos", recent?.length ?? "·"], ["Formatos", LYRIC_STYLES.length + (myStyles?.length ?? 0)]].map(([l, v]) => <div key={l as string} className="rounded-3xl bg-[var(--surface)] p-4"><div className="font-display text-3xl tnum">{v}</div><div className="text-sm text-[var(--muted)]">{l}</div></div>)}
+              </div>
+              <section aria-labelledby="fm" className="rounded-3xl border border-[var(--border)] bg-white p-5">
+                <h2 id="fm" className="text-xl">Formatos más usados</h2><p className="mb-3 text-sm text-[var(--muted)]">Letra sobre una banda de vídeo centrada. Elige uno al abrir una canción.</p>
+                <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">{LYRIC_STYLES.slice(0, 3).map((k) => <li key={k} className="overflow-hidden rounded-2xl bg-black"><div className="relative mx-auto aspect-[9/16] max-h-56 overflow-hidden"><div className="absolute inset-x-0 top-1/2 aspect-video -translate-y-1/2 bg-[#4d6b8a]" /><div className="absolute inset-x-0 top-1/2 -translate-y-1/2"><LyricSample style={PRESETS[k]} text="still do" scale={0.2} step={step} /></div></div><p className="bg-white px-3 py-2 text-sm">{k}</p></li>)}</ul>
+              </section>
+              <section aria-labelledby="rv" className="rounded-3xl border border-[var(--border)] bg-white p-5">
+                <div className="mb-3 flex items-center justify-between"><h2 id="rv" className="text-xl">Vídeos recientes</h2><a href="/app/biblioteca" className="text-sm text-[var(--muted)] underline">Ver todos</a></div>
+                {!recent ? <div className="skeleton h-40" /> : !recent.length ? <p className="rounded-2xl border border-dashed border-[var(--border)] p-6 text-center text-sm text-[var(--muted)]">Aún no has generado vídeos. Sube una canción para empezar.</p> : <ul className="grid grid-cols-2 gap-3 sm:grid-cols-4">{recent.map((v) => <li key={v.id}>{v.url && <video src={v.url} controls preload="metadata" className="aspect-[9/16] w-full rounded-xl bg-black object-cover" />}<p className="mt-1 truncate text-xs">{v.song} · #{v.variant}</p></li>)}</ul>}
+              </section>
+              {!!songs?.length && <p className="text-sm text-[var(--muted)]">Elige una canción de la izquierda o sube una nueva.</p>}
+            </div>
           ) : (<>
             <Step n={1} title={`${song.title}: elige el tramo`}>
               {audioUrl ? <RangePicker songId={song.id} audioUrl={audioUrl} start={start} end={end} onChange={(a, b) => { setStart(a); setEnd(b); }} /> : <div className="skeleton h-28" />}
@@ -212,6 +237,10 @@ export default function LyricStudio() {
             </Step>
             <Step n={5} title="Ajustes">
               <div className="grid gap-4 text-sm sm:grid-cols-2">
+                <fieldset className="rounded-2xl bg-[var(--surface)] px-4 py-3 sm:col-span-2"><legend className="sr-only">Encuadre del fondo</legend>Encuadre del fondo
+                  <div className="mt-2 grid gap-2 sm:grid-cols-2">{([["band", "Banda centrada", "Vídeo en banda 16:9 sobre lienzo negro, con la letra encima. Es el formato más usado."], ["full", "Pantalla completa", "El fondo ocupa todo el encuadre."]] as const).map(([k, l, d]) => (
+                    <button key={k} onClick={() => set({ frame: k })} aria-pressed={settings.frame === k} className={`rounded-2xl border-2 p-3 text-left ${settings.frame === k ? "border-[#111] bg-white" : "border-transparent bg-white/60"}`}><span className="flex items-center gap-3"><span className="relative grid h-14 w-8 shrink-0 place-items-center overflow-hidden rounded bg-black">{k === "band" ? <span className="h-[34%] w-full bg-[#5b7a99]" /> : <span className="h-full w-full bg-[#5b7a99]" />}</span><span><span className="block font-medium">{l}</span><span className="block text-xs text-[var(--muted)]">{d}</span></span></span></button>))}</div>
+                </fieldset>
                 <label className="flex items-center justify-between gap-3 rounded-2xl bg-[var(--surface)] px-4 py-3">Alternar clips de fondo <input type="checkbox" checked={settings.sequence} onChange={(e) => set({ sequence: e.target.checked })} /></label>
                 <label className={`rounded-2xl bg-[var(--surface)] px-4 py-3 ${settings.sequence ? "" : "opacity-50"}`}>Cambiar cada <span className="tnum">{settings.interval} s</span>
                   <input type="range" min={3} max={15} step={1} value={settings.interval} disabled={!settings.sequence} onChange={(e) => set({ interval: Number(e.target.value) })} className="w-full" /></label>
@@ -244,10 +273,12 @@ export default function LyricStudio() {
         {/* Vista previa y resultados */}
         <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
           <div className={`relative mx-auto w-full max-w-[300px] overflow-hidden rounded-[22px] bg-black ${ratio === "16:9" ? "aspect-video" : ratio === "1:1" ? "aspect-square" : ratio === "4:5" ? "aspect-[4/5]" : "aspect-[9/16]"}`} aria-label="Vista previa aproximada">
-            {bgMode === "collection" && selectedCol?.items[0] ? <Thumb item={selectedCol.items[0]} className="absolute inset-0 h-full w-full" /> : <div className="absolute inset-0" style={{ background: colors[0] ?? "#111" }} />}
-            <div className="absolute inset-0" style={{ backdropFilter: cssFilter, WebkitBackdropFilter: cssFilter }} />
-            <div className="absolute inset-0 bg-black" style={{ opacity: settings.dim }} />
-            {settings.bars > 0 && <><div className="absolute inset-x-0 top-0 bg-black" style={{ height: `${settings.bars * 50}%` }} /><div className="absolute inset-x-0 bottom-0 bg-black" style={{ height: `${settings.bars * 50}%` }} /></>}
+            <div className={`absolute inset-x-0 overflow-hidden ${banded ? "top-1/2 -translate-y-1/2" : "inset-y-0"}`} style={banded ? { aspectRatio: "16 / 9" } : undefined}>
+              {bgMode === "collection" && selectedCol?.items[0] ? <Thumb item={selectedCol.items[0]} className="absolute inset-0 h-full w-full" /> : <div className="absolute inset-0" style={{ background: colors[0] ?? "#111" }} />}
+              <div className="absolute inset-0" style={{ backdropFilter: cssFilter, WebkitBackdropFilter: cssFilter }} />
+              <div className="absolute inset-0 bg-black" style={{ opacity: settings.dim }} />
+            </div>
+            {settings.bars > 0 && !banded && <><div className="absolute inset-x-0 top-0 bg-black" style={{ height: `${settings.bars * 50}%` }} /><div className="absolute inset-x-0 bottom-0 bg-black" style={{ height: `${settings.bars * 50}%` }} /></>}
             <div className="absolute inset-x-0" style={{ top: `${previewStyle.y * 100}%`, transform: "translateY(-50%)" }}><LyricSample style={{ ...previewStyle, fontSize: previewStyle.fontSize * textScale }} text={sampleLine} scale={0.27} step={step} /></div>
           </div>
           <p className="text-center text-xs text-[var(--muted)]">Vista previa aproximada. El vídeo final usa la misma fuente, letra y tiempos.</p>

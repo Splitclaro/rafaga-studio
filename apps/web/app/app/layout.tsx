@@ -8,7 +8,6 @@ import CommandPalette, { type NavItem } from "../../components/CommandPalette";
 
 const NAV: NavItem[] = [
   { href: "/app", label: "Inicio", icon: "home", ready: true, group: "Crear" },
-  { href: "/app/proyectos", label: "Proyectos", icon: "film", ready: true, group: "Crear" },
   { href: "/app/lyric-studio", label: "Lyric Studio", icon: "music", ready: true, group: "Crear" },
   { href: "/app/style-studio", label: "Style Studio", icon: "type", ready: true, group: "Crear" },
   { href: "/app/biblioteca", label: "Biblioteca", icon: "folder", ready: true, group: "Crear" },
@@ -123,7 +122,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
           <button onClick={() => setPalette(true)} className="card ml-auto flex min-w-0 items-center gap-2 px-3 py-1.5 text-sm text-[var(--muted)] hover:bg-[var(--hover)] md:ml-6 md:w-72" aria-label="Buscar o ir a (Cmd+K)">
             <Icon n="search" className="h-4 w-4 shrink-0" /><span className="min-w-0 flex-1 truncate text-left">Buscar o ir a…</span><span className="kbd hidden md:inline">⌘K</span>
           </button>
-          {running > 0 && <Link href="/app/proyectos" className="chip" aria-label={`${running} trabajos en curso`}><span className="pulse" aria-hidden /> <span className="tnum">{running}</span> en curso</Link>}
+          {running > 0 && <Link href="/app/biblioteca" className="chip" aria-label={`${running} trabajos en curso`}><span className="pulse" aria-hidden /> <span className="tnum">{running}</span> en curso</Link>}
           <div className="relative">
             <button onClick={openBell} aria-label={`Notificaciones${unread ? `, ${unread} nuevas` : ""}`} aria-expanded={bell} className="card relative grid h-9 w-9 place-items-center hover:bg-[var(--hover)]">
               <Icon n="bell" className="h-4 w-4" />{unread > 0 && <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-[#111] px-1 text-[10px] font-medium text-white">{unread}</span>}

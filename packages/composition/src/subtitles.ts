@@ -231,4 +231,10 @@ export const PRESET_LETRA: SubtitleStyle = {
 };
 /** Variante: la frase completa visible y lo que falta por cantar, atenuado. */
 export const PRESET_LETRA_SUAVE: SubtitleStyle = { ...PRESET_LETRA, highlight: "dim" };
-export const PRESETS: Record<string, SubtitleStyle> = { Letra: PRESET_LETRA, "Letra suave": PRESET_LETRA_SUAVE, Impacto: PRESET_IMPACTO, Limpio: PRESET_LIMPIO, Karaoke: PRESET_KARAOKE };
+/** Formato LyricTune: pocas palabras por bloque, minúsculas, blanco con sombra suave, sobre la banda de vídeo. */
+export const PRESET_TUNE: SubtitleStyle = { ...PRESET_LETRA, fontSize: 84, maxWordsPerGroup: 3, maxCharsPerLine: 16, maxLines: 2, y: 0.5, highlight: "reveal" };
+/** Una palabra grande cada vez. */
+export const PRESET_PALABRA: SubtitleStyle = { ...PRESET_LETRA, fontSize: 130, maxWordsPerGroup: 1, maxCharsPerLine: 12, maxLines: 1, y: 0.5, highlight: "reveal" };
+/** Mayúsculas con la palabra cantada resaltada en amarillo y el resto atenuado. */
+export const PRESET_TUNE_MAYUS: SubtitleStyle = { ...PRESET_LETRA, fontSize: 80, uppercase: true, lowercase: false, active: "#FFE14D", maxWordsPerGroup: 4, maxCharsPerLine: 18, outlineWidth: 0, shadow: 4, y: 0.5, highlight: "dim" };
+export const PRESETS: Record<string, SubtitleStyle> = { Tune: PRESET_TUNE, Palabra: PRESET_PALABRA, "Tune mayúsculas": PRESET_TUNE_MAYUS, Letra: PRESET_LETRA, "Letra suave": PRESET_LETRA_SUAVE, Impacto: PRESET_IMPACTO, Limpio: PRESET_LIMPIO, Karaoke: PRESET_KARAOKE };

@@ -94,7 +94,7 @@ export default function Dashboard() {
               <button key={k} role="tab" aria-selected={tab === k} onClick={() => { setTab(k); setMsg(null); }} className={`flex items-center gap-2 rounded-t-xl px-4 py-2.5 text-sm font-medium ${tab === k ? "bg-white text-[var(--text)] shadow-[0_-1px_0_#fff,0_0_0_1px_var(--border)]" : "text-[var(--muted)] hover:text-[var(--text)]"}`}><Icon n={i} className="h-4 w-4" />{l}</button>
             ))}
           </div>
-          <Link href="/app/proyectos" className="mb-1 flex items-center gap-2 text-sm text-[var(--muted)] hover:text-[var(--text)]"><Icon n="grid" className="h-4 w-4" />Todos los proyectos</Link>
+          <Link href="/app/biblioteca" className="mb-1 flex items-center gap-2 text-sm text-[var(--muted)] hover:text-[var(--text)]"><Icon n="grid" className="h-4 w-4" />Todos los proyectos</Link>
         </div>
 
         <div className="card-raised dots rounded-tl-none p-5 md:p-6">
@@ -168,7 +168,7 @@ export default function Dashboard() {
       <section aria-labelledby="recientes" className="mt-12">
         <div className="mb-3 flex items-center gap-4">
           <h2 id="recientes" className="text-lg">Proyectos recientes</h2>
-          <Link href="/app/proyectos" className="text-sm text-[var(--muted)] underline underline-offset-4 hover:text-[var(--text)]">Ver todos</Link>
+          <Link href="/app/biblioteca" className="text-sm text-[var(--muted)] underline underline-offset-4 hover:text-[var(--text)]">Ver todos</Link>
         </div>
         {err && <p role="alert">No se pudieron cargar los proyectos: {err}</p>}
         {!rows && !err && <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{[0, 1, 2, 3].map((i) => <li key={i} className="skeleton aspect-[4/3]" />)}</ul>}

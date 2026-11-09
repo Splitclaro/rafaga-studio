@@ -8,13 +8,13 @@ import { useProjects } from "../../../components/ProjectList";
 import { useTextStyles } from "../../../lib/textStyles";
 import { useWorkspaceFonts } from "../../../lib/fonts";
 import { useCollections, Thumb } from "../../../components/Collections";
+import ProjectClips from "../../../components/ProjectClips";
 
-type Tab = "videos" | "clips" | "lyrics" | "songs" | "collections" | "fonts" | "styles";
-type ClipRender = { id: string; title: string; ratio: string; clip_id: string; version: number; path: string; bytes: number; created_at: string; burn: boolean };
+type Tab = "videos" | "lyrics" | "songs" | "collections" | "fonts" | "styles";
 type LyricRender = { id: string; variant: number; song: string; path: string; style: string; created_at: string; bytes: number; job_id: string };
 type SongRow = { id: string; title: string; artist: string | null; bytes: number; created_at: string; storage_path: string; lyrics: boolean };
 
-const TABS: [Tab, string, string][] = [["videos", "Vídeos", "film"], ["clips", "Clips exportados", "scissors"], ["lyrics", "Vídeos con letra", "music"], ["songs", "Canciones", "music"], ["collections", "Colecciones", "layers"], ["fonts", "Fuentes", "type"], ["styles", "Estilos", "text"]];
+const TABS: [Tab, string, string][] = [["videos", "Proyectos", "film"], ["lyrics", "Vídeos con letra", "music"], ["songs", "Canciones", "music"], ["collections", "Colecciones", "layers"], ["fonts", "Fuentes", "type"], ["styles", "Estilos", "text"]];
 const mb = (n: number) => `${(n / 1048576).toFixed(1)} MB`;
 const day = (d: string) => new Date(d).toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric" });
 
@@ -25,18 +25,10 @@ export default function Biblioteca() {
   const { saved: styles, reload: reloadStyles } = useTextStyles();
   const { fonts, reload: reloadFonts } = useWorkspaceFonts();
   const { cols, reload: reloadCols } = useCollections();
-  const [clips, setClips] = useState<ClipRender[] | null>(null);
   const [lyrics, setLyrics] = useState<LyricRender[] | null>(null);
   const [songs, setSongs] = useState<SongRow[] | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
 
-  const loadClips = useCallback(async () => {
-    const { data: rs } = await supabase.from("renders").select("id,clip_id,clip_version,ratio,storage_path,probe,created_at,burn_subtitles").eq("status", "ready").order("created_at", { ascending: false }).limit(200);
-    const ids = [...new Set((rs ?? []).map((r) => r.clip_id))];
-    const { data: cs } = ids.length ? await supabase.from("clips").select("id,title").in("id", ids) : { data: [] };
-    const t = new Map((cs ?? []).map((c) => [c.id, c.title]));
-    setClips((rs ?? []).map((r) => ({ id: r.id, title: t.get(r.clip_id) ?? "Clip", ratio: r.ratio, clip_id: r.clip_id, version: r.clip_version, path: r.storage_path, bytes: Number((r.probe as { size?: string })?.size ?? 0), created_at: r.created_at, burn: r.burn_subtitles })));
-  }, []);
   const loadLyrics = useCallback(async () => {
     const [{ data: lv }, { data: so }] = await Promise.all([
       supabase.from("lyric_videos").select("id,variant,song_id,storage_path,params,probe,created_at,job_id").eq("status", "ready").order("created_at", { ascending: false }).limit(200),
@@ -46,7 +38,7 @@ export default function Biblioteca() {
     setLyrics((lv ?? []).map((v) => ({ id: v.id, variant: v.variant, song: names.get(v.song_id) ?? "Canción", path: v.storage_path ?? "", style: (v.params as { style?: string })?.style ?? "", created_at: v.created_at, bytes: Number((v.probe as { format?: { size?: string } })?.format?.size ?? 0), job_id: v.job_id })));
     setSongs((so ?? []).map((s) => ({ id: s.id, title: s.title, artist: s.artist, bytes: Number(s.bytes), created_at: s.created_at, storage_path: s.storage_path, lyrics: !!s.lyrics_text })));
   }, []);
-  useEffect(() => { loadClips(); loadLyrics(); }, [loadClips, loadLyrics]);
+  useEffect(() => { loadLyrics(); }, [loadLyrics]);
 
   const match = (s: string) => !q.trim() || s.toLowerCase().includes(q.trim().toLowerCase());
   async function dl(bucket: string, path: string, name: string) {
@@ -54,7 +46,7 @@ export default function Biblioteca() {
     if (data?.signedUrl) window.location.href = data.signedUrl; else setMsg("No se pudo generar el enlace de descarga.");
   }
   async function delProject(id: string, name: string) {
-    if (!confirm(`¿Borrar el proyecto «${name}»? Dejará de aparecer; los clips ya exportados se conservan en Clips exportados.`)) return;
+    if (!confirm(`¿Borrar el proyecto «${name}»? Dejará de aparecer con sus clips.`)) return;
     const { error } = await supabase.from("projects").update({ deleted_at: new Date().toISOString() }).eq("id", id);
     if (error) return setMsg(error.message); reloadProjects();
   }
@@ -75,7 +67,7 @@ export default function Biblioteca() {
     await supabase.from("media_collections").delete().eq("id", id); reloadCols();
   }
 
-  const counts: Record<Tab, number | null> = { videos: projects?.length ?? null, clips: clips?.length ?? null, lyrics: lyrics?.length ?? null, songs: songs?.length ?? null, collections: cols?.length ?? null, fonts: fonts ? fonts.length + 2 : null, styles: styles?.length ?? null };
+  const counts: Record<Tab, number | null> = { videos: projects?.length ?? null, lyrics: lyrics?.length ?? null, songs: songs?.length ?? null, collections: cols?.length ?? null, fonts: fonts ? fonts.length + 2 : null, styles: styles?.length ?? null };
   const Empty = ({ text, href, cta }: { text: string; href: string; cta: string }) => <div className="card border-dashed p-10 text-center"><p className="text-[var(--muted)]">{text}</p><Link href={href} className="btn btn-primary mt-4">{cta}</Link></div>;
   const Skel = () => <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{[0, 1, 2, 3].map((i) => <li key={i} className="skeleton aspect-[4/3]" />)}</ul>;
   const list = useMemo(() => tab, [tab]);
@@ -83,7 +75,7 @@ export default function Biblioteca() {
   return (
     <main className="mx-auto max-w-6xl px-4 pb-20 pt-8 md:px-8">
       <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
-        <div><h1 className="text-3xl">Biblioteca</h1><p className="mt-1 text-[var(--muted)]">Todo lo que has creado y subido, en un solo lugar.</p></div>
+        <div><h1 className="text-3xl">Biblioteca</h1><p className="mt-1 text-[var(--muted)]">Tus proyectos con todos sus clips, canciones, colecciones, fuentes y estilos.</p></div>
         <label className="card flex w-full items-center gap-2 px-3 py-2 sm:w-72"><Icon n="search" className="h-4 w-4 text-[var(--muted)]" /><span className="sr-only">Buscar en la biblioteca</span><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nombre" className="w-full bg-transparent text-sm outline-none" /></label>
       </header>
 
@@ -93,18 +85,10 @@ export default function Biblioteca() {
       </div>
       {msg && <p role="alert" className="card mb-4 p-3 text-sm">{msg}</p>}
 
-      {list === "videos" && (!projects ? <Skel /> : !projects.filter((p) => match(p.name)).length ? <Empty text={q ? "Nada coincide con tu búsqueda." : "Aún no has subido vídeos."} href="/app" cta="Subir un vídeo" /> : (
-        <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{projects.filter((p) => match(p.name)).map((p) => (
-          <li key={p.id} className="card overflow-hidden"><Link href={`/app/p/${p.id}`} className="block"><div className="aspect-video bg-[#111]">{p.thumb ? <img src={p.thumb} alt="" className="h-full w-full object-cover" /> : <div className="dots-dark grid h-full place-items-center text-white/60"><Icon n="film" className="h-8 w-8" /></div>}</div></Link>
-            <div className="p-3"><div className="truncate text-sm font-medium">{p.name}</div><div className="mono mt-0.5 text-xs text-[var(--muted)]">{day(p.created_at)} · {p.clips} clips</div>
-              <div className="mt-2 flex gap-2"><Link href={`/app/p/${p.id}`} className="btn btn-ghost !px-3 !py-1.5 !text-xs">Abrir</Link><button onClick={() => delProject(p.id, p.name)} className="btn btn-ghost !px-3 !py-1.5 !text-xs ml-auto">Borrar</button></div></div></li>))}</ul>))}
+      {list === "videos" && (!projects ? <Skel /> : !projects.filter((p) => match(p.name)).length ? <Empty text={q ? "Nada coincide con tu búsqueda." : "Aún no tienes proyectos. Sube un vídeo y aquí verás sus clips."} href="/app" cta="Crear un proyecto" /> : (
+        <ul className="space-y-3">{projects.filter((p) => match(p.name)).map((p) => <ProjectClips key={p.id} p={p} onDelete={delProject} />)}</ul>))}
 
-      {list === "clips" && (!clips ? <Skel /> : !clips.filter((c) => match(c.title)).length ? <Empty text={q ? "Nada coincide con tu búsqueda." : "Aquí aparecerán tus clips cuando se rendericen."} href="/app" cta="Crear clips" /> : (
-        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{clips.filter((c) => match(c.title)).map((c) => (
-          <li key={c.id} className="card flex items-center gap-3 p-3"><span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#111] text-white"><Icon n="scissors" /></span>
-            <div className="min-w-0 flex-1"><div className="truncate text-sm font-medium">{c.title}</div><div className="mono text-xs text-[var(--muted)]">v{c.version} · {c.ratio} · {c.burn ? "con subtítulos" : "sin subtítulos"}{c.bytes ? ` · ${mb(c.bytes)}` : ""} · {day(c.created_at)}</div></div>
-            <div className="flex shrink-0 gap-1"><Link href={`/app/c/${c.clip_id}`} className="btn btn-ghost !px-3 !py-1.5 !text-xs">Editar</Link><button className="btn btn-primary !px-3 !py-1.5 !text-xs" onClick={() => dl("renders", c.path, `${c.title}-v${c.version}-${c.ratio.replace(":", "x")}.mp4`)} aria-label={`Descargar ${c.title}`}><Icon n="download" className="h-3.5 w-3.5" /></button></div></li>))}</ul>))}
-
+      {list === "lyrics" && !!lyrics?.length && <div className="mb-3 flex justify-end"><button className="btn btn-primary !px-3 !py-1.5 !text-xs" onClick={async () => { const l = lyrics.filter((v) => match(v.song) && v.path); setMsg(`Descargando ${l.length} vídeos… acepta las descargas múltiples si el navegador lo pide.`); for (const v of l) { await dl("renders", v.path, `${v.song}-${v.variant}.mp4`); await new Promise((r) => setTimeout(r, 900)); } }}><Icon n="download" className="h-3.5 w-3.5" />Descargar todos</button></div>}
       {list === "lyrics" && (!lyrics ? <Skel /> : !lyrics.filter((v) => match(v.song)).length ? <Empty text={q ? "Nada coincide con tu búsqueda." : "Aún no has generado vídeos con letra."} href="/app/lyric-studio" cta="Abrir Lyric Studio" /> : (
         <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{lyrics.filter((v) => match(v.song)).map((v) => (
           <li key={v.id} className="card flex items-center gap-3 p-3"><span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#111] text-white"><Icon n="music" /></span>

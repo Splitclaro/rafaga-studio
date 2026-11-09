@@ -76,3 +76,7 @@ Estado: **entrega parcial: beta aún no verificada** (sesión 1, 2026-11-09).
 
 ## Siguiente paso (anterior)
 Probar Lyric Studio con una canción real (canto + instrumental). Siguiente: Style Studio (compositor por frames compartido preview/export) y modos Text/LP Cover, fondos de vídeo/foto, ZIP.
+
+## Sesión 5 — fusión Proyectos/Biblioteca y formato LyricTune
+- `/app/proyectos` redirige a Biblioteca; pestaña **Proyectos**: cada proyecto despliega sus clips (vídeo, duración, peso), descarga individual y «Descargar todos» (descargas secuenciales; sin ZIP).
+- Lyric Studio: nuevo ajuste `frame` (banda 16:9 centrada sobre lienzo negro con la letra encima = formato visto en la landing de LyricTune; por defecto) o pantalla completa; estilos `Tune`, `Palabra`, `Tune mayúsculas`; vista inicial con formatos más usados y vídeos recientes. Cubierto por tests de ffmpeg (`pad` antes de `subtitles`). **No verificado en la nube con una canción real.**
