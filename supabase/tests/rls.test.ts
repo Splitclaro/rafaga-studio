@@ -39,6 +39,7 @@ before(async () => {
   await db.exec(readFileSync(new URL("../migrations/20261109000004_workspace_fonts.sql", import.meta.url), "utf8"));
   await db.exec("grant select, insert, delete on public.workspace_fonts to authenticated;");
   await db.exec(readFileSync(new URL("../migrations/20261109000005_lyric_studio.sql", import.meta.url), "utf8"));
+  await db.exec(readFileSync(new URL("../migrations/20261109000007_collections.sql", import.meta.url), "utf8"));
   await db.exec("grant select, insert, delete on public.songs to authenticated; grant select on public.song_alignments, public.lyric_videos to authenticated; grant execute on function public.request_lyrics(uuid, jsonb, text) to authenticated;");
   await db.exec("grant execute on function public.request_detection(uuid, text) to authenticated; grant execute on function public.request_render(uuid, int, text, boolean) to authenticated;");
   await db.exec(`insert into auth.users values ('${A}','a@test.dev'),('${B}','b@test.dev');`);
@@ -178,5 +179,20 @@ test("Lyric Studio: canciones privadas, ruta en su carpeta, petición de N valid
   await asUser(B, async () => {
     assert.equal((await db.query(`select * from songs`)).rows.length, 0);
     await rejects(`select request_lyrics('${song}','{"n":1,"ratio":"9:16"}','clave-lyr-4')`);
+  });
+});
+
+test("Custom Collections: privadas por workspace, sin mezclar colecciones ajenas", async () => {
+  let col = "";
+  await asUser(A, async () => {
+    col = (await db.query<{ id: string }>(`insert into media_collections(workspace_id,name,created_by) values ('${wsA}','Mis noches','${A}') returning id`)).rows[0].id;
+    await db.query(`insert into media_items(workspace_id,collection_id,kind,name,storage_path,mime,bytes,created_by) values ('${wsA}','${col}','video','n.mp4','${wsA}/media/${col}/1.mp4','video/mp4',10,'${A}')`);
+    await rejects(`insert into media_items(workspace_id,collection_id,kind,name,storage_path,mime,bytes,created_by) values ('${wsA}','${col}','video','x','${wsB}/media/x.mp4','video/mp4',10,'${A}')`);
+    await rejects(`insert into media_items(workspace_id,collection_id,kind,name,storage_path,mime,bytes,created_by) values ('${wsA}','${col}','video','x','${wsA}/media/x.exe','application/x-msdownload',10,'${A}')`);
+  });
+  await asUser(B, async () => {
+    assert.equal((await db.query(`select * from media_collections`)).rows.length, 0);
+    assert.equal((await db.query(`select * from media_items`)).rows.length, 0);
+    await rejects(`insert into media_items(workspace_id,collection_id,kind,name,storage_path,mime,bytes,created_by) values ('${wsB}','${col}','video','x','${wsB}/media/x.mp4','video/mp4',10,'${B}')`);
   });
 });

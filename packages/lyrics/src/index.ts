@@ -83,3 +83,4 @@ export function planVariants(n: number, styles: string[], backgrounds: string[],
   const variants = Array.from({ length: n }, (_, i) => ({ index: i + 1, style: combos[i % combos.length][0], background: combos[i % combos.length][1], seed: seed * 1000 + i }));
   return { variants, distinct: Math.min(n, combos.length), repeats: Math.max(0, n - combos.length) };
 }
+export * from "./background.ts";

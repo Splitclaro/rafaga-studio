@@ -30,3 +30,6 @@ export function fontFamily(b: Uint8Array): string | null {
 }
 /** Familia que usa el renderer: «Arial» se sirve con Liberation Sans (métricas compatibles). */
 export const renderFamily = (f: string) => (f === "Arial" ? "Liberation Sans" : f);
+
+/** Fuente del sistema servida por la plataforma (fuera del repo público). */
+export const SYSTEM_FONT = { family: "Bootzy TM", ttf: "BootzyTM.ttf", woff2: "BootzyTM.woff2", bucket: "app-fonts" } as const;

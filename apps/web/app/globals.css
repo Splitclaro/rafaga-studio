@@ -1,4 +1,7 @@
 @import "tailwindcss";
+/* Bootzy TM: fuente principal de la plataforma (servida desde el almacenamiento de la app, fuera del repo). */
+@font-face { font-family: "Bootzy TM"; src: url("https://attrnwbcgascvppncucl.supabase.co/storage/v1/object/public/app-fonts/BootzyTM.woff2") format("woff2"), url("https://attrnwbcgascvppncucl.supabase.co/storage/v1/object/public/app-fonts/BootzyTM.ttf") format("truetype"); font-display: swap; }
+@theme { --font-display: "Bootzy TM", ui-rounded, ui-sans-serif, system-ui, sans-serif; }
 /* Identidad monocroma de la interfaz (V2). Los colores elegidos por el usuario para subtítulos/letras NO dependen de estos tokens. */
 :root {
   --bg: #FFFFFF; --surface: #FAFAFA; --text: #111111; --muted: #5C5C5C; --border: #E5E5E5;
@@ -12,3 +15,10 @@ input[type="range"], input[type="checkbox"] { accent-color: #111111; }
 .tnum { font-variant-numeric: tabular-nums; }
 :focus-visible { outline: 2px solid #111111; outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+h1, h2, .font-display { font-family: var(--font-display); font-weight: 400; letter-spacing: -0.01em; }
+/* Perforaciones de película: el único gesto decorativo de la app (panel de creación). */
+.film-edge { position: relative; }
+.film-edge::before, .film-edge::after { content: ""; position: absolute; left: 14px; right: 14px; height: 8px; pointer-events: none;
+  background: radial-gradient(ellipse 4px 3px at 7px 4px, #fff 92%, transparent 100%) 0 0 / 20px 8px repeat-x; opacity: .92; }
+.film-edge::before { top: 10px; } .film-edge::after { bottom: 10px; }

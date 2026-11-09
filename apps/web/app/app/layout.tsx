@@ -48,7 +48,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
     <div className="min-h-screen md:flex">
       <aside className={`border-b border-[var(--border)] bg-[var(--surface)] md:sticky md:top-0 md:flex md:h-screen md:shrink-0 md:flex-col md:border-b-0 md:border-r ${collapsed ? "md:w-16" : "md:w-60"}`}>
         <div className="flex items-center justify-between gap-2 px-4 py-3 md:px-3 md:py-4">
-          <Link href="/app" className="flex min-w-0 items-center gap-2 font-semibold"><span aria-hidden className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-[#111] text-white">R</span><span className={collapsed ? "md:sr-only" : ""}>Ráfaga Studio</span></Link>
+          <Link href="/app" className="flex min-w-0 items-center gap-2 font-semibold"><span aria-hidden className="font-display grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#111] text-lg text-white">r</span><span className={`font-display text-lg ${collapsed ? "md:sr-only" : ""}`}>ráfaga studio</span></Link>
           <button onClick={toggle} aria-label={collapsed ? "Expandir menú" : "Plegar menú"} aria-expanded={!collapsed} className="hidden rounded p-1 text-[var(--muted)] hover:bg-[var(--hover)] md:block"><Icon n={collapsed ? "chevR" : "chevL"} className="h-4 w-4" /></button>
         </div>
         {!collapsed && (
@@ -70,7 +70,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             <Link key={n.href} href={n.href} title={collapsed ? n.label : undefined} aria-current={active(n.href) ? "page" : undefined}
               className={`flex shrink-0 items-center gap-3 rounded-lg px-3 py-2 text-sm ${active(n.href) ? "bg-black/[0.06] font-medium text-[var(--text)]" : "text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--text)]"}`}>
               <Icon n={n.icon} className="h-[18px] w-[18px] shrink-0" /><span className={collapsed ? "md:sr-only" : ""}>{n.label}</span>
-              {!n.ready && !collapsed && <span className="ml-auto hidden rounded border border-[var(--border)] px-1.5 text-[10px] uppercase tracking-wide text-[var(--muted)] md:inline">Pronto</span>}
+              {!n.ready && !collapsed && <span className="ml-auto hidden rounded border border-[var(--border)] px-1.5 text-[11px] text-[var(--muted)] md:inline">pronto</span>}
             </Link>
           ))}
         </nav>

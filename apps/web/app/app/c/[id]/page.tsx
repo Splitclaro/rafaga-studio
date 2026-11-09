@@ -3,7 +3,7 @@ import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   activeWordAt, groupWords, editText, splitWord, mergeWithNext, setTiming, offsetAll, styleForRatio, toSRT, toVTT, toTranscript,
-  PRESETS, RATIO_SIZE, type Composition, type Ratio, type SubtitleStyle, type Word,
+  PRESETS, RATIO_SIZE, caseOf, type Composition, type Ratio, type SubtitleStyle, type Word,
 } from "@rafaga/composition";
 import { supabase } from "../../../../lib/supabase";
 import { useWorkspaceFonts } from "../../../../lib/fonts";
@@ -190,8 +190,8 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
             {doc.burn && cur && (
               <div className="pointer-events-none absolute left-0 right-0 text-center leading-[1.15]" data-testid="caption"
                 style={{ bottom: (1 - eff.y) * R.height * scale, fontSize: eff.fontSize * scale, fontFamily: `"${eff.fontName}", "Liberation Sans", Arial, sans-serif`, fontWeight: eff.bold === false ? 400 : 700, padding: `0 ${R.width * 0.06 * scale}px`,
-                  WebkitTextStroke: `${eff.outlineWidth * 2 * scale}px ${eff.outline}`, paintOrder: "stroke fill", textShadow: eff.shadow ? `${eff.shadow * scale * 2}px ${eff.shadow * scale * 2}px 0 rgba(0,0,0,.5)` : "none", textTransform: eff.uppercase ? "uppercase" : "none" }}>
-                {cur.lines.map((line, li) => <div key={li}>{line.map((w) => { const i = k++; return <span key={i} style={{ color: i === act ? eff.active : eff.primary }}>{w.text} </span>; })}</div>)}
+                  WebkitTextStroke: `${eff.outlineWidth * 2 * scale}px ${eff.outline}`, paintOrder: "stroke fill", textShadow: eff.shadow ? `${eff.shadow * scale * 2}px ${eff.shadow * scale * 2}px 0 rgba(0,0,0,.5)` : "none", }}>
+                {cur.lines.map((line, li) => <div key={li}>{line.map((w) => { const i = k++; const mode = eff.highlight ?? "color"; const fut = i > act; return <span key={i} style={{ color: i === act ? eff.active : eff.primary, opacity: fut && mode === "reveal" ? 0 : fut && mode === "dim" ? 0.37 : 1 }}>{caseOf(eff, w.text)} </span>; })}</div>)}
               </div>
             )}
           </div>
@@ -252,6 +252,7 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
               <div className="grid grid-cols-[1fr_auto] items-end gap-2">
                 <label>Fuente
                   <select value={doc.style.fontName} onChange={(e) => setStyle({ fontName: e.target.value })} className="mt-1 w-full rounded border border-[var(--border)] bg-white px-2 py-1.5" style={{ fontFamily: `"${doc.style.fontName}", Arial` }}>
+                    <option value="Bootzy TM">Bootzy TM (principal)</option>
                     <option value="Arial">Arial</option>
                     {fonts?.map((f) => <option key={f.id} value={f.family} style={{ fontFamily: `"${f.family}"` }}>{f.family}</option>)}
                   </select></label>

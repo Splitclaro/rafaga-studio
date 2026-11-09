@@ -5,9 +5,9 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, writeFileSync, readFileSync, rmSync, existsSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { buildAss, buildComposition, ffmpegArgs, styleForRatio, renderFamily, groupsFrom, escapeFilterPath, PRESETS, RATIO_SIZE, type Composition, type Ratio, type Word } from "@rafaga/composition";
+import { buildAss, buildComposition, ffmpegArgs, styleForRatio, renderFamily, groupsFrom, SYSTEM_FONT, escapeFilterPath, PRESETS, RATIO_SIZE, type Composition, type Ratio, type Word } from "@rafaga/composition";
 import { transcribe, proposeClips } from "@rafaga/providers";
-import { alignLyrics, lyricsFromAsr, parseLyrics, planVariants, type TimedWord } from "@rafaga/lyrics";
+import { alignLyrics, lyricsFromAsr, parseLyrics, planVariants, lyricFfmpegArgs, sequenceFor, DEFAULT_BG, type BgItem, type BgSettings, type TimedWord } from "@rafaga/lyrics";
 import { briefHash, RUBRIC_VERSION, validateCandidates, windows, transcriptText, lexicalCandidates, LEXICAL_VERSION, type TWord, type RawCandidate } from "@rafaga/selection";
 
 const need = (k: string) => { const v = process.env[k]; if (!v) { console.error(`Falta el secreto ${k}`); process.exit(2); } return v; };
@@ -25,6 +25,16 @@ const ok = <T>(r: { data: T; error: { message: string } | null }, what: string):
 /** Descarga la fuente propia del workspace (si el estilo la usa) a un fontsdir para libass. */
 async function fontsFor(ws: string, family: string, dir: string): Promise<string | undefined> {
   if (family === "Arial") return undefined;
+  if (family === SYSTEM_FONT.family) {
+    // Fuente del sistema (bucket público app-fonts): se cachea en el disco del worker.
+    const cache = join(tmpdir(), "rafaga-system-fonts");
+    if (!existsSync(join(cache, SYSTEM_FONT.ttf))) {
+      const r = await fetch(`${process.env.SUPABASE_URL}/storage/v1/object/public/${SYSTEM_FONT.bucket}/${SYSTEM_FONT.ttf}`);
+      if (!r.ok) throw new Error(`fuente del sistema no disponible (${r.status})`);
+      mkdirSync(cache, { recursive: true }); writeFileSync(join(cache, SYSTEM_FONT.ttf), Buffer.from(await r.arrayBuffer()));
+    }
+    return cache;
+  }
   const { data } = await sb.from("workspace_fonts").select("storage_path").eq("workspace_id", ws).eq("family", family).maybeSingle();
   if (!data) throw Object.assign(new Error(`La fuente «${family}» no está en este workspace.`), { permanent: true });
   const dl = await sb.storage.from("brand-assets").download(data.storage_path);
@@ -34,7 +44,7 @@ async function fontsFor(ws: string, family: string, dir: string): Promise<string
   return fd;
 }
 
-type Job = { id: string; kind: string; workspace_id: string; project_id: string | null; clip_id: string | null; attempts: number; params: { version?: number; ratio?: Ratio; burn?: boolean; song_id?: string; n?: number; styles?: string[]; backgrounds?: string[]; seed?: number; start?: number; end?: number } };
+type Job = { id: string; kind: string; workspace_id: string; project_id: string | null; clip_id: string | null; attempts: number; params: { version?: number; ratio?: Ratio; burn?: boolean; song_id?: string; n?: number; styles?: string[]; backgrounds?: string[]; seed?: number; start?: number; end?: number; collection_id?: string | null; settings?: Partial<BgSettings> & { textScale?: number } } };
 const setStatus = (id: string, status: string, extra: Record<string, unknown> = {}) =>
   sb.from("jobs").update({ status, heartbeat_at: new Date().toISOString(), updated_at: new Date().toISOString(), ...extra }).eq("id", id);
 
@@ -114,7 +124,7 @@ async function processJob(job: Job) {
       const ass = join(dir, `c${i}.ass`), out = join(dir, `c${i}.mp4`);
       writeFileSync(ass, buildAss(comp.words, { ...styleForRatio(comp.style, comp.ratio), fontName: renderFamily(comp.style.fontName) }, RATIO_SIZE[comp.ratio]));
       const t3 = Date.now();
-      sh("ffmpeg", ffmpegArgs(comp, { input: inp, assPath: ass, output: out }));
+      sh("ffmpeg", ffmpegArgs(comp, { input: inp, assPath: ass, output: out, fontsDir: await fontsFor(project.workspace_id, comp.style.fontName, dir) }));
       const probe = JSON.parse(sh("ffprobe", ["-v", "error", "-print_format", "json", "-show_streams", "-show_format", out]));
       const rpath = `${project.workspace_id}/${clip.id}/v1-9x16.mp4`;
       const up = await sb.storage.from("renders").upload(rpath, readFileSync(out), { contentType: "video/mp4", upsert: true });
@@ -217,8 +227,22 @@ async function processLyrics(job: Job) {
       m.alignment = lines.length ? "lyrics+asr" : "asr";
     }
     m.words = words.length; m.interpolated = words.filter((w) => w.origin === "interpolated").length;
+    // Fondos: colección propia (vídeo/foto) o colores sólidos
+    const settings: BgSettings = { ...DEFAULT_BG, ...(p.settings ?? {}) };
+    const textScale = Math.min(1.6, Math.max(0.6, p.settings?.textScale ?? 1));
+    let items: BgItem[] = [];
+    if (p.collection_id) {
+      const { data: mi } = await sb.from("media_items").select("kind,storage_path").eq("collection_id", p.collection_id).eq("workspace_id", song.workspace_id);
+      if (!mi?.length) throw Object.assign(new Error("La colección elegida no tiene vídeos ni fotos."), { permanent: true });
+      for (const [i, it] of mi.entries()) {
+        const d2 = await sb.storage.from("originals").download(it.storage_path);
+        if (d2.error || !d2.data) throw new Error(`descarga de fondo: ${d2.error?.message}`);
+        const fp = join(dir, `bg${i}${it.kind === "photo" ? ".img" : ".vid"}`); writeFileSync(fp, Buffer.from(await d2.data.arrayBuffer()));
+        items.push({ path: fp, kind: it.kind as "video" | "photo" });
+      }
+    }
     // Plan exacto de N variantes
-    const plan = planVariants(p.n ?? 1, p.styles?.length ? p.styles : ["Impacto"], p.backgrounds?.length ? p.backgrounds : ["#111111"], p.seed ?? 1);
+    const plan = planVariants(p.n ?? 1, p.styles?.length ? p.styles : ["Letra"], items.length ? ["coleccion"] : p.backgrounds?.length ? p.backgrounds : ["#111111"], p.seed ?? 1);
     m.n = plan.variants.length; m.distinct = plan.distinct;
     await setStatus(job.id, "rendering");
     const byLine = new Map<number, TimedWord[]>();
@@ -228,17 +252,15 @@ async function processLyrics(job: Job) {
       if (done.has(v.index)) continue;   // reintento: no repite variantes ya listas
       const { data: cur } = await sb.from("jobs").select("status").eq("id", job.id).single();
       if (cur?.status === "cancelled") break;
-      await sb.from("lyric_videos").upsert({ workspace_id: song.workspace_id, song_id: song.id, job_id: job.id, variant: v.index, params: v, status: "rendering" }, { onConflict: "job_id,variant" });
-      const style = { ...(PRESETS[v.style] ?? PRESETS.Impacto), y: 0.5 + (v.seed % 7) * 0.01 };
-      const eff = styleForRatio(style, ratio);
+      await sb.from("lyric_videos").upsert({ workspace_id: song.workspace_id, song_id: song.id, job_id: job.id, variant: v.index, params: { ...v, settings, textScale, collection_id: p.collection_id ?? null }, status: "rendering" }, { onConflict: "job_id,variant" });
+      const base = PRESETS[v.style] ?? PRESETS.Letra;
+      const eff = styleForRatio({ ...base, fontSize: Math.round(base.fontSize * textScale) }, ratio);
       const groups = groupsFrom([...byLine.values()], eff.maxCharsPerLine);
       const ass = join(dir, `v${v.index}.ass`), out = join(dir, `v${v.index}.mp4`);
       writeFileSync(ass, buildAss(words, { ...eff, fontName: renderFamily(eff.fontName), maxLines: 3 }, { width: W, height: H }, groups));
-      const bg = /^#[0-9a-f]{6}$/i.test(v.background) ? v.background.slice(1) : "111111";
+      const fontsDir = await fontsFor(song.workspace_id, eff.fontName, dir);
       const t2 = Date.now();
-      sh("ffmpeg", ["-y", "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", `color=c=0x${bg}:s=${W}x${H}:r=30:d=${len}`, "-i", seg,
-        "-vf", `subtitles=${escapeFilterPath(ass)},format=yuv420p`, "-map", "0:v", "-map", "1:a", "-c:v", "libx264", "-preset", "superfast", "-crf", "22", "-tune", "stillimage",
-        "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart", out]);
+      sh("ffmpeg", lyricFfmpegArgs({ W, H, len, color: /^#[0-9a-f]{6}$/i.test(v.background) ? v.background : "#111111", segments: sequenceFor(items, len, settings, v.seed), settings, audio: seg, ass, fontsDir, out, escape: escapeFilterPath }));
       const probe = JSON.parse(sh("ffprobe", ["-v", "error", "-print_format", "json", "-show_entries", "stream=codec_name,width,height:format=duration,size", out]));
       const rpath = `${song.workspace_id}/lyrics/${job.id}/${v.index}.mp4`;
       const up = await sb.storage.from("renders").upload(rpath, readFileSync(out), { contentType: "video/mp4", upsert: true });

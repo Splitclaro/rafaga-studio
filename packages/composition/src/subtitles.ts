@@ -23,6 +23,9 @@ export interface SubtitleStyle {
   maxWordsPerGroup: number;
   uppercase?: boolean;
   bold?: boolean;
+  /** color: la palabra activa cambia de color · reveal: las palabras aparecen al cantarse · dim: las siguientes se ven atenuadas */
+  highlight?: "color" | "reveal" | "dim";
+  lowercase?: boolean;
 }
 
 export interface Group {
@@ -138,6 +141,11 @@ function assTime(s: number): string {
   return `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}.${String(cs % 100).padStart(2, "0")}`;
 }
 
+/** Mayúsculas/minúsculas según estilo (misma regla en preview y export). */
+export function caseOf(style: Pick<SubtitleStyle, "uppercase" | "lowercase">, text: string): string {
+  return style.uppercase ? text.toUpperCase() : style.lowercase ? text.toLowerCase() : text;
+}
+
 /** Escapa texto de usuario para ASS: sin llaves, backslashes ni saltos libres. */
 export function escapeAss(text: string): string {
   return text.replace(/\\/g, "＼").replace(/\{/g, "(").replace(/\}/g, ")").replace(/[\r\n]+/g, " ");
@@ -161,7 +169,7 @@ export function buildAss(words: Word[], style: SubtitleStyle, out: { width: numb
     "",
     "[V4+ Styles]",
     "Format: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,BorderStyle,Outline,Shadow,Alignment,MarginL,MarginR,MarginV,Encoding",
-    `Style: Default,${style.fontName},${style.fontSize},${assColor(style.primary)},${assColor(style.primary)},${assColor(style.outline)},&H80000000,${style.bold === false ? 0 : 1},0,0,0,100,100,0,0,1,${style.outlineWidth},${style.shadow},2,${Math.round(out.width * 0.06)},${Math.round(out.width * 0.06)},${marginV},1`,
+    `Style: Default,${style.fontName},${style.fontSize},${assColor(style.primary)},${assColor(style.primary)},${assColor(style.outline)},&H96000000,${style.bold === false ? 0 : 1},0,0,0,100,100,0,0,1,${style.outlineWidth},${style.shadow},2,${Math.round(out.width * 0.06)},${Math.round(out.width * 0.06)},${marginV},1`,
     "",
     "[Events]",
     "Format: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text",
@@ -175,8 +183,12 @@ export function buildAss(words: Word[], style: SubtitleStyle, out: { width: numb
           line
             .map((w) => {
               const idx = k++;
-              const t = escapeAss(style.uppercase ? w.text.toUpperCase() : w.text);
-              return idx === iv.active ? `{\\c${assColor(style.active)}}${t}{\\c${assColor(style.primary)}}` : t;
+              const t = escapeAss(caseOf(style, w.text));
+              const mode = style.highlight ?? "color";
+              if (idx === iv.active) return mode === "color" ? `{\\c${assColor(style.active)}}${t}{\\c${assColor(style.primary)}}` : `{\\c${assColor(style.active)}\\alpha&H00&}${t}{\\c${assColor(style.primary)}}`;
+              if (idx > iv.active && mode === "reveal") return `{\\alpha&HFF&}${t}{\\alpha&H00&}`;   // aún no cantada: invisible pero ocupa su sitio (sin saltos)
+              if (idx > iv.active && mode === "dim") return `{\\alpha&HA0&}${t}{\\alpha&H00&}`;
+              return t;
             })
             .join(" "),
         )
@@ -188,8 +200,9 @@ export function buildAss(words: Word[], style: SubtitleStyle, out: { width: numb
 }
 
 export const PRESET_IMPACTO: SubtitleStyle = {
-  fontName: "Arial",
+  fontName: "Bootzy TM",
   fontSize: 96,
+  bold: false,
   primary: "#FFFFFF",
   active: "#B5F36D",
   outline: "#101216",
@@ -204,11 +217,18 @@ export const PRESET_IMPACTO: SubtitleStyle = {
 };
 
 export const PRESET_LIMPIO: SubtitleStyle = {
-  fontName: "Arial", fontSize: 64, primary: "#FFFFFF", active: "#FFFFFF", outline: "#000000", outlineWidth: 3, shadow: 1,
+  fontName: "Bootzy TM", bold: false, fontSize: 64, primary: "#FFFFFF", active: "#FFFFFF", outline: "#000000", outlineWidth: 3, shadow: 1,
   x: 0.5, y: 0.82, maxLines: 2, maxCharsPerLine: 26, maxWordsPerGroup: 7, uppercase: false,
 };
 export const PRESET_KARAOKE: SubtitleStyle = {
-  fontName: "Arial", fontSize: 84, primary: "#D9D9D9", active: "#FFD400", outline: "#000000", outlineWidth: 5, shadow: 2,
+  fontName: "Bootzy TM", bold: false, fontSize: 84, primary: "#D9D9D9", active: "#FFD400", outline: "#000000", outlineWidth: 5, shadow: 2,
   x: 0.5, y: 0.7, maxLines: 2, maxCharsPerLine: 20, maxWordsPerGroup: 5, uppercase: false,
 };
-export const PRESETS: Record<string, SubtitleStyle> = { Impacto: PRESET_IMPACTO, Limpio: PRESET_LIMPIO, Karaoke: PRESET_KARAOKE };
+/** Formato de letra minimalista: minúsculas, sin contorno, sombra suave, una frase centrada; las palabras aparecen al cantarse. */
+export const PRESET_LETRA: SubtitleStyle = {
+  fontName: "Bootzy TM", bold: false, fontSize: 76, primary: "#FFFFFF", active: "#FFFFFF", outline: "#000000", outlineWidth: 0, shadow: 3,
+  x: 0.5, y: 0.53, maxLines: 2, maxCharsPerLine: 22, maxWordsPerGroup: 8, lowercase: true, highlight: "reveal",
+};
+/** Variante: la frase completa visible y lo que falta por cantar, atenuado. */
+export const PRESET_LETRA_SUAVE: SubtitleStyle = { ...PRESET_LETRA, highlight: "dim" };
+export const PRESETS: Record<string, SubtitleStyle> = { Letra: PRESET_LETRA, "Letra suave": PRESET_LETRA_SUAVE, Impacto: PRESET_IMPACTO, Limpio: PRESET_LIMPIO, Karaoke: PRESET_KARAOKE };

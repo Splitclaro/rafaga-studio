@@ -3,9 +3,10 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, writeFileSync, appendFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { buildAss, groupsFrom, escapeFilterPath, PRESETS, RATIO_SIZE, styleForRatio } from "@rafaga/composition";
+import { buildAss, groupsFrom, escapeFilterPath, PRESETS, RATIO_SIZE, styleForRatio, SYSTEM_FONT } from "@rafaga/composition";
 import { transcribe } from "@rafaga/providers";
-import { alignLyrics, parseLyrics, planVariants, type TimedWord } from "@rafaga/lyrics";
+import { alignLyrics, parseLyrics, planVariants, lyricFfmpegArgs, sequenceFor, DEFAULT_BG, type TimedWord } from "@rafaga/lyrics";
+import { mkdirSync } from "node:fs";
 
 const sh = (c: string, a: string[]) => { const r = spawnSync(c, a, { encoding: "utf8", maxBuffer: 1 << 28 }); if (r.status) throw new Error(`${c}: ${r.stderr.slice(-300)}`); return r.stdout; };
 const dir = mkdtempSync(join(tmpdir(), "ly-"));
@@ -25,19 +26,29 @@ const words: TimedWord[] = alignLyrics(parseLyrics(lyrics), tr.words);
 out.aligned = words.map((w) => `${w.text}@${w.start.toFixed(2)}-${w.end.toFixed(2)}${w.origin === "interpolated" ? "*" : ""}`).join(" ");
 out.matched = words.filter((w) => w.origin === "asr").length; out.interpolated = words.filter((w) => w.origin === "interpolated").length;
 out.keepsOriginalText = words.map((w) => w.text).join(" ") === parseLyrics(lyrics).flatMap((l) => l.words).join(" ");
-const plan = planVariants(3, ["Impacto", "Karaoke"], ["#111111", "#1E3A8A"], 42);
-out.plan = plan.variants.map((v) => `${v.index}:${v.style}/${v.background}`);
+const plan = planVariants(3, ["Letra", "Letra suave", "Karaoke"], ["coleccion"], 42);
+out.plan = plan.variants.map((v) => `${v.index}:${v.style}`);
+// Fuente del sistema desde el bucket público (igual que el worker)
+const fd = join(dir, "fonts"); mkdirSync(fd);
+const fr = await fetch(`${process.env.SUPABASE_URL}/storage/v1/object/public/${SYSTEM_FONT.bucket}/${SYSTEM_FONT.ttf}`);
+out.system_font_http = fr.status;
+writeFileSync(join(fd, SYSTEM_FONT.ttf), Buffer.from(await fr.arrayBuffer()));
+sh("ffmpeg", ["-y", "-v", "error", "-f", "lavfi", "-i", "testsrc2=s=1280x720:r=25:d=4", join(dir, "b1.mp4")]);
+sh("ffmpeg", ["-y", "-v", "error", "-f", "lavfi", "-i", "gradients=s=720x1280:r=25:d=4", join(dir, "b2.mp4")]);
+const items = [{ path: join(dir, "b1.mp4"), kind: "video" as const }, { path: join(dir, "b2.mp4"), kind: "video" as const }];
 const byLine = new Map<number, TimedWord[]>(); for (const w of words) byLine.set(w.line, [...(byLine.get(w.line) ?? []), w]);
 const renders: unknown[] = [];
 for (const v of plan.variants) {
   const { width: W, height: H } = RATIO_SIZE["9:16"];
-  const eff = styleForRatio({ ...PRESETS[v.style], y: 0.5, fontName: "Liberation Sans" }, "9:16");
+  const eff = styleForRatio(PRESETS[v.style], "9:16");
   writeFileSync(join(dir, "l.ass"), buildAss(words, { ...eff, maxLines: 3 }, { width: W, height: H }, groupsFrom([...byLine.values()], eff.maxCharsPerLine)));
+  const settings = { ...DEFAULT_BG, interval: 3, filter: (["noir", "super8", "midnight"] as const)[v.index - 1], bars: 0.1 };
   t = Date.now();
-  sh("ffmpeg", ["-y", "-v", "error", "-f", "lavfi", "-i", `color=c=0x${v.background.slice(1)}:s=${W}x${H}:r=30:d=${len}`, "-i", join(dir, "seg.m4a"), "-vf", `subtitles=${escapeFilterPath(join(dir, "l.ass"))},format=yuv420p`,
-    "-map", "0:v", "-map", "1:a", "-c:v", "libx264", "-preset", "superfast", "-tune", "stillimage", "-c:a", "aac", "-shortest", join(dir, `v${v.index}.mp4`)]);
+  const r = spawnSync("ffmpeg", lyricFfmpegArgs({ W, H, len, color: "#000", segments: sequenceFor(items, len, settings, v.seed), settings, audio: join(dir, "seg.m4a"), ass: join(dir, "l.ass"), fontsDir: fd, out: join(dir, `v${v.index}.mp4`), escape: escapeFilterPath }).map((x) => (x === "error" ? "info" : x)), { encoding: "utf8" });
+  if (r.status) throw new Error(r.stderr.slice(-400));
+  const fontLine = (r.stderr.match(/fontselect: \([^)]*\)[^\n]*/) ?? ["(sin fontselect)"])[0];
   const p = JSON.parse(sh("ffprobe", ["-v", "error", "-print_format", "json", "-show_entries", "stream=codec_name,width,height:format=duration", join(dir, `v${v.index}.mp4`)]));
-  renders.push({ variant: v.index, render_ms: Date.now() - t, streams: p.streams.map((s: { codec_name: string; width?: number; height?: number }) => [s.codec_name, s.width, s.height].filter(Boolean).join(" ")), duration: p.format.duration });
+  renders.push({ variant: v.index, style: v.style, filter: settings.filter, render_ms: Date.now() - t, font: fontLine, streams: p.streams.map((s: { codec_name: string; width?: number; height?: number }) => [s.codec_name, s.width, s.height].filter(Boolean).join(" ")), duration: p.format.duration });
 }
 out.renders = renders;
 const json = JSON.stringify(out, null, 2);

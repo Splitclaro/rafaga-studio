@@ -1,0 +1,28 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { sequenceFor, lyricFfmpegArgs, DEFAULT_BG } from "./background.ts";
+
+const items = [{ path: "a.mp4", kind: "video" as const }, { path: "b.mp4", kind: "video" as const }, { path: "c.jpg", kind: "photo" as const }];
+test("secuencia cubre la duración exacta, reproducible y sin repetir hasta agotar", () => {
+  const s = sequenceFor(items, 23, DEFAULT_BG, 9);
+  assert.equal(s.length, 5);
+  assert.equal(+s.reduce((t, x) => t + x.dur, 0).toFixed(3), 23);
+  assert.equal(new Set(s.slice(0, 3).map((x) => x.item.path)).size, 3);
+  assert.deepEqual(sequenceFor(items, 23, DEFAULT_BG, 9), s);
+  assert.notDeepEqual(sequenceFor(items, 23, DEFAULT_BG, 10).map((x) => x.item.path), s.map((x) => x.item.path));
+  assert.equal(sequenceFor(items, 23, { ...DEFAULT_BG, sequence: false }, 1).length, 1);
+  assert.ok(sequenceFor(items, 600, DEFAULT_BG, 1).length <= 60);
+});
+test("args: color sólido y ajustes aplicados al export", () => {
+  const a = lyricFfmpegArgs({ W: 1080, H: 1920, len: 10, color: "#112233", segments: [], settings: { ...DEFAULT_BG, bars: 0.2, filter: "noir", dim: 0.4 }, audio: "s.m4a", ass: "l.ass", out: "o.mp4", escape: (p) => p });
+  const fc = a[a.indexOf("-filter_complex") + 1];
+  assert.ok(a.join(" ").includes("color=c=0x112233"));
+  assert.ok(fc.includes("hue=s=0") && fc.includes("black@0.40") && fc.includes("h=192"));
+  assert.ok(a.includes("1:a:0"));
+});
+test("args: segmentos de vídeo y foto concatenados", () => {
+  const a = lyricFfmpegArgs({ W: 1080, H: 1080, len: 10, color: "#000000", segments: sequenceFor(items, 10, DEFAULT_BG, 1), settings: DEFAULT_BG, audio: "s.m4a", ass: "l.ass", fontsDir: "/f", out: "o.mp4", escape: (p) => p });
+  const fc = a[a.indexOf("-filter_complex") + 1];
+  assert.ok(fc.includes("concat=n=2:v=1:a=0") && fc.includes("fontsdir=/f"));
+  assert.ok(a.includes("2:a:0"));
+});

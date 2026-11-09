@@ -58,3 +58,14 @@ test("ASS: resolución y WrapStyle fijados", () => {
   assert.match(ass, /WrapStyle: 2/);
   assert.match(ass, /Dialogue: 0,0:00:00\.00,0:00:00\.40/);
 });
+
+import { PRESET_LETRA, PRESET_LETRA_SUAVE, caseOf } from "./subtitles.ts";
+test("formato Letra: minúsculas, sin contorno, palabras futuras invisibles pero en su sitio", () => {
+  const ass = buildAss([W("Bajo", 0, 0.5), W("la", 0.5, 0.7), W("Luna.", 0.7, 1.2)], PRESET_LETRA, { width: 1080, height: 1920 });
+  assert.match(ass, /Bootzy TM/);
+  const first = ass.split("\n").find((l) => l.startsWith("Dialogue: 0,0:00:00.00"))!;
+  assert.ok(first.includes("bajo") && first.includes("{\\alpha&HFF&}la") && first.includes("{\\alpha&HFF&}luna."), first);
+  assert.equal(caseOf(PRESET_LETRA, "Mañana"), "mañana");
+  const dim = buildAss([W("a", 0, 0.5), W("b", 0.5, 1)], PRESET_LETRA_SUAVE, { width: 1080, height: 1920 });
+  assert.match(dim, /\\alpha&HA0&}b/);
+});
