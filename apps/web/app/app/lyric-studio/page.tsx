@@ -8,7 +8,14 @@ import { STAGE } from "../../../lib/projects";
 type Song = { id: string; title: string; artist: string | null; language: string; storage_path: string; lyrics_text: string | null; created_at: string };
 type Batch = { id: string; status: string; error_message: string | null; params: { n: number }; created_at: string; metrics: Record<string, number | string> | null };
 type LV = { id: string; variant: number; status: string; storage_path: string | null; params: { style: string; background: string }; url?: string };
-const AUDIO = ["audio/mpeg", "audio/wav", "audio/x-wav", "audio/wave"];
+/** Formato por contenido (no por el tipo que declara el navegador, que en macOS puede venir vacío o distinto). */
+async function sniffAudio(f: File): Promise<"audio/wav" | "audio/mpeg" | null> {
+  const b = new Uint8Array(await f.slice(0, 12).arrayBuffer());
+  const str = (a: number, z: number) => String.fromCharCode(...b.slice(a, z));
+  if (str(0, 4) === "RIFF" && str(8, 12) === "WAVE") return "audio/wav";
+  if (str(0, 3) === "ID3" || (b[0] === 0xff && (b[1] & 0xe0) === 0xe0)) return "audio/mpeg";
+  return null;
+}
 const BG_DEFAULT = ["#111111", "#1E3A8A", "#7F1D1D", "#14532D", "#F5F5F5"];
 
 export default function LyricStudio() {
@@ -53,17 +60,19 @@ export default function LyricStudio() {
 
   async function upload(f: File | undefined, title: string, artist: string) {
     if (!f) return;
-    if (!AUDIO.includes(f.type)) return setMsg("Formato no admitido: sube MP3 o WAV.");
+    const mime = await sniffAudio(f);
+    if (!mime) return setMsg(`«${f.name}» no parece un MP3 o WAV válido.`);
     if (f.size > MAX_UPLOAD_BYTES) return setMsg(`La canción supera ${MAX_UPLOAD_BYTES / 1048576} MB.`);
     setBusy(true); setMsg("Subiendo canción…");
     try {
       const { data: s } = await supabase.auth.getSession();
       const { data: ws } = await supabase.from("workspaces").select("id").limit(1).single();
       if (!ws || !s.session) throw new Error("Sesión no válida.");
-      const path = `${ws.id}/songs/${crypto.randomUUID()}.${f.type === "audio/mpeg" ? "mp3" : "wav"}`;
-      const up = await supabase.storage.from("originals").upload(path, f, { contentType: f.type });
+      const path = `${ws.id}/songs/${crypto.randomUUID()}.${mime === "audio/mpeg" ? "mp3" : "wav"}`;
+      setMsg(`Subiendo «${f.name}» (${(f.size / 1048576).toFixed(1)} MB)…`);
+      const up = await supabase.storage.from("originals").upload(path, f, { contentType: mime });
       if (up.error) throw new Error(up.error.message);
-      const { data, error } = await supabase.from("songs").insert({ workspace_id: ws.id, title: title.trim() || f.name.replace(/\.[^.]+$/, ""), artist: artist.trim() || null, storage_path: path, mime: f.type, bytes: f.size, created_by: s.session.user.id }).select("id,title,artist,language,storage_path,lyrics_text,created_at").single();
+      const { data, error } = await supabase.from("songs").insert({ workspace_id: ws.id, title: title.trim() || f.name.replace(/\.[^.]+$/, ""), artist: artist.trim() || null, storage_path: path, mime, bytes: f.size, created_by: s.session.user.id }).select("id,title,artist,language,storage_path,lyrics_text,created_at").single();
       if (error) throw new Error(error.message);
       setMsg(null); await loadSongs(); choose(data as Song);
     } catch (e) { setMsg(e instanceof Error ? e.message : "Error al subir."); }
@@ -114,6 +123,7 @@ export default function LyricStudio() {
         <aside className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
           <h2 className="font-medium">Canciones</h2>
           <UploadSong busy={busy} onUpload={upload} />
+          {msg && !song && <p role="status" aria-live="polite" className="mt-2 text-sm">{msg}</p>}
           {songs === null && <p className="mt-3 text-sm text-[var(--muted)]">Cargando…</p>}
           {songs?.length === 0 && <p className="mt-3 text-sm text-[var(--muted)]">Aún no hay canciones.</p>}
           <ul className="mt-3 space-y-1">
@@ -201,7 +211,7 @@ function UploadSong({ busy, onUpload }: { busy: boolean; onUpload: (f: File | un
       <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Título (opcional)" className="rounded border border-[var(--border)] bg-white px-2 py-1" />
       <input value={artist} onChange={(e) => setArtist(e.target.value)} placeholder="Artista (opcional)" className="rounded border border-[var(--border)] bg-white px-2 py-1" />
       <label className={`cursor-pointer rounded-lg bg-[#111] px-3 py-2 text-center font-medium text-white ${busy ? "opacity-50" : ""}`}>{busy ? "Subiendo…" : "Subir canción (MP3/WAV)"}
-        <input type="file" accept="audio/mpeg,audio/wav,.mp3,.wav" className="sr-only" disabled={busy} onChange={(e) => { onUpload(e.target.files?.[0], title, artist); e.target.value = ""; }} /></label>
+        <input type="file" accept="audio/*,.mp3,.wav,.wave" className="sr-only" disabled={busy} onChange={(e) => { onUpload(e.target.files?.[0], title, artist); e.target.value = ""; }} /></label>
     </div>
   );
 }
