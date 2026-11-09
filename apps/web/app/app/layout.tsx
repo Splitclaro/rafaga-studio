@@ -13,7 +13,7 @@ const NAV = [
   { href: "/app/en-vivo", label: "En vivo", icon: "live", ready: false },
   { href: "/app/automatizaciones", label: "Automatizaciones", icon: "bolt", ready: false },
   { href: "/app/biblioteca", label: "Biblioteca", icon: "download", ready: false },
-  { href: "/app/brand-kits", label: "Brand kits", icon: "brand", ready: false },
+  { href: "/app/brand-kits", label: "Brand kits", icon: "brand", ready: true },
   { href: "/app/calendario", label: "Calendario", icon: "calendar", ready: false },
   { href: "/app/conexiones", label: "Conexiones", icon: "link", ready: false },
   { href: "/app/analitica", label: "Analítica", icon: "chart", ready: true },

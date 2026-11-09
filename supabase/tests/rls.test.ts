@@ -36,6 +36,8 @@ before(async () => {
   await db.exec(readFileSync(new URL("../migrations/20261109000001_core.sql", import.meta.url), "utf8").split("-- Los privilegios")[1].split("-- ───────── Storage")[0].replace(/^[^\n]*\n/, ""));
   await db.exec(readFileSync(new URL("../migrations/20261109000002_detection.sql", import.meta.url), "utf8"));
   await db.exec(readFileSync(new URL("../migrations/20261109000003_render_requests.sql", import.meta.url), "utf8"));
+  await db.exec(readFileSync(new URL("../migrations/20261109000004_workspace_fonts.sql", import.meta.url), "utf8"));
+  await db.exec("grant select, insert, delete on public.workspace_fonts to authenticated;");
   await db.exec("grant execute on function public.request_detection(uuid, text) to authenticated; grant execute on function public.request_render(uuid, int, text, boolean) to authenticated;");
   await db.exec(`insert into auth.users values ('${A}','a@test.dev'),('${B}','b@test.dev');`);
   wsA = (await db.query<{ id: string }>(`select id from workspaces where created_by='${A}'`)).rows[0].id;
@@ -144,5 +146,17 @@ test("request_render: idempotente, reutiliza export listo, solo miembros", async
   await asUser(A, async () => {
     const c = (await db.query<{ r: any }>(`select request_render('${clip}',1,'16:9',true) r`)).rows[0].r;
     assert.equal(c.reused, true);
+  });
+});
+
+test("fuentes propias: privadas por workspace y con ruta obligatoria en su carpeta", async () => {
+  await asUser(A, async () => {
+    await db.query(`insert into workspace_fonts(workspace_id,family,storage_path,bytes,created_by) values ('${wsA}','Bootzy TM','${wsA}/fonts/a.ttf',1000,'${A}')`);
+    await rejects(`insert into workspace_fonts(workspace_id,family,storage_path,bytes,created_by) values ('${wsA}','X','${wsB}/fonts/x.ttf',1000,'${A}')`);
+  });
+  await asUser(B, async () => {
+    assert.equal((await db.query(`select * from workspace_fonts`)).rows.length, 0);
+    await rejects(`insert into workspace_fonts(workspace_id,family,storage_path,bytes,created_by) values ('${wsA}','Y','${wsA}/fonts/y.ttf',1000,'${B}')`);
+    const d = await db.query(`delete from workspace_fonts returning id`); assert.equal(d.rows.length, 0);
   });
 });

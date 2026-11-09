@@ -31,10 +31,10 @@ export function buildComposition(src: { words: Word[]; startSec: number; endSec:
 }
 
 /** Argumentos de FFmpeg (sin shell). Fondo desenfocado + vídeo completo centrado, o recorte vertical. */
-export function ffmpegArgs(c: Composition, io: { input: string; assPath: string; output: string }): string[] {
+export function ffmpegArgs(c: Composition, io: { input: string; assPath: string; output: string; fontsDir?: string }): string[] {
   const { width: W, height: H } = RATIO_SIZE[c.ratio];
   const dur = c.endSec - c.startSec;
-  const sub = c.burnSubtitles ? `,subtitles=${escapeFilterPath(io.assPath)}` : "";
+  const sub = c.burnSubtitles ? `,subtitles=${escapeFilterPath(io.assPath)}${io.fontsDir ? `:fontsdir=${escapeFilterPath(io.fontsDir)}` : ""}` : "";
   const fc =
     `[0:v]split=2[bg][fg];` +
     `[bg]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},boxblur=30:5[b];` +

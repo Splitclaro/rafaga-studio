@@ -2,10 +2,10 @@
 // Secretos requeridos (variables de entorno): SUPABASE_URL, SUPABASE_SECRET_KEY, DEEPGRAM_API_KEY, ANTHROPIC_API_KEY.
 import { createClient } from "@supabase/supabase-js";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync, readFileSync, rmSync, existsSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync, rmSync, existsSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { buildAss, buildComposition, ffmpegArgs, styleForRatio, RATIO_SIZE, type Composition, type Ratio, type Word } from "@rafaga/composition";
+import { buildAss, buildComposition, ffmpegArgs, styleForRatio, renderFamily, RATIO_SIZE, type Composition, type Ratio, type Word } from "@rafaga/composition";
 import { transcribe, proposeClips } from "@rafaga/providers";
 import { briefHash, RUBRIC_VERSION, validateCandidates, windows, transcriptText, lexicalCandidates, LEXICAL_VERSION, type TWord, type RawCandidate } from "@rafaga/selection";
 
@@ -20,6 +20,18 @@ const sh = (cmd: string, args: string[]) => {
   return r.stdout.toString();
 };
 const ok = <T>(r: { data: T; error: { message: string } | null }, what: string): NonNullable<T> => { if (r.error || r.data == null) throw new Error(`${what}: ${r.error?.message ?? "sin datos"}`); return r.data as NonNullable<T>; };
+
+/** Descarga la fuente propia del workspace (si el estilo la usa) a un fontsdir para libass. */
+async function fontsFor(ws: string, family: string, dir: string): Promise<string | undefined> {
+  if (family === "Arial") return undefined;
+  const { data } = await sb.from("workspace_fonts").select("storage_path").eq("workspace_id", ws).eq("family", family).maybeSingle();
+  if (!data) throw Object.assign(new Error(`La fuente «${family}» no está en este workspace.`), { permanent: true });
+  const dl = await sb.storage.from("brand-assets").download(data.storage_path);
+  if (dl.error || !dl.data) throw new Error(`descarga de fuente: ${dl.error?.message}`);
+  const fd = join(dir, "fonts"); mkdirSync(fd, { recursive: true });
+  writeFileSync(join(fd, "font" + (data.storage_path.endsWith(".otf") ? ".otf" : ".ttf")), Buffer.from(await dl.data.arrayBuffer()));
+  return fd;
+}
 
 type Job = { id: string; kind: string; workspace_id: string; project_id: string | null; clip_id: string | null; attempts: number; params: { version?: number; ratio?: Ratio; burn?: boolean } };
 const setStatus = (id: string, status: string, extra: Record<string, unknown> = {}) =>
@@ -99,7 +111,7 @@ async function processJob(job: Job) {
       const comp = buildComposition({ words: words as Word[], startSec: c.startSec, endSec: c.endSec });
       await sb.from("clip_versions").insert({ clip_id: clip.id, workspace_id: project.workspace_id, version: 1, composition: comp });
       const ass = join(dir, `c${i}.ass`), out = join(dir, `c${i}.mp4`);
-      writeFileSync(ass, buildAss(comp.words, { ...styleForRatio(comp.style, comp.ratio), fontName: "Liberation Sans" }, RATIO_SIZE[comp.ratio]));
+      writeFileSync(ass, buildAss(comp.words, { ...styleForRatio(comp.style, comp.ratio), fontName: renderFamily(comp.style.fontName) }, RATIO_SIZE[comp.ratio]));
       const t3 = Date.now();
       sh("ffmpeg", ffmpegArgs(comp, { input: inp, assPath: ass, output: out }));
       const probe = JSON.parse(sh("ffprobe", ["-v", "error", "-print_format", "json", "-show_streams", "-show_format", out]));
@@ -142,9 +154,10 @@ async function processRender(job: Job) {
     if (dl.error || !dl.data) throw new Error(`descarga: ${dl.error?.message}`);
     const inp = join(dir, "in"), ass = join(dir, "c.ass"), out = join(dir, "o.mp4");
     writeFileSync(inp, Buffer.from(await dl.data.arrayBuffer()));
-    writeFileSync(ass, buildAss(comp.words, { ...styleForRatio(comp.style, ratio), fontName: "Liberation Sans" }, RATIO_SIZE[ratio]));
+    const fontsDir = await fontsFor(clip.workspace_id, comp.style.fontName, dir);
+    writeFileSync(ass, buildAss(comp.words, { ...styleForRatio(comp.style, ratio), fontName: renderFamily(comp.style.fontName) }, RATIO_SIZE[ratio]));
     const t1 = Date.now();
-    sh("ffmpeg", ffmpegArgs(comp, { input: inp, assPath: ass, output: out }));
+    sh("ffmpeg", ffmpegArgs(comp, { input: inp, assPath: ass, output: out, fontsDir }));
     const probe = JSON.parse(sh("ffprobe", ["-v", "error", "-print_format", "json", "-show_streams", "-show_format", out]));
     const vs = probe.streams.find((x: { codec_type: string }) => x.codec_type === "video");
     const { width, height } = RATIO_SIZE[ratio];

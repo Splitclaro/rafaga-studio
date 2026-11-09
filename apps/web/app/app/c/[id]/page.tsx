@@ -6,12 +6,14 @@ import {
   PRESETS, RATIO_SIZE, type Composition, type Ratio, type SubtitleStyle, type Word,
 } from "@rafaga/composition";
 import { supabase } from "../../../../lib/supabase";
+import { useWorkspaceFonts } from "../../../../lib/fonts";
 
 type Doc = { words: Word[]; style: SubtitleStyle; ratio: Ratio; burn: boolean; preset: string };
 type Render = { id: string; clip_version: number; ratio: string; burn_subtitles: boolean; storage_path: string; created_at: string };
 
 export default function ClipEditor({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const { fonts } = useWorkspaceFonts();
   const [meta, setMeta] = useState<{ title: string; ws: string; projectId: string; version: number; base: Composition; src: string } | null>(null);
   const [doc, setDoc] = useState<Doc | null>(null);
   const [past, setPast] = useState<Doc[]>([]);
@@ -186,8 +188,8 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
             <video ref={fg} src={meta.src} playsInline preload="auto" className="absolute inset-0 h-full w-full object-contain" onLoadedMetadata={() => seek(0)} />
             {unsafe && <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[16%] border-t-2 border-dashed border-white/70" aria-hidden />}
             {doc.burn && cur && (
-              <div className="pointer-events-none absolute left-0 right-0 text-center font-bold leading-[1.15]" data-testid="caption"
-                style={{ bottom: (1 - eff.y) * R.height * scale, fontSize: eff.fontSize * scale, fontFamily: `${eff.fontName}, "Liberation Sans", sans-serif`, padding: `0 ${R.width * 0.06 * scale}px`,
+              <div className="pointer-events-none absolute left-0 right-0 text-center leading-[1.15]" data-testid="caption"
+                style={{ bottom: (1 - eff.y) * R.height * scale, fontSize: eff.fontSize * scale, fontFamily: `"${eff.fontName}", "Liberation Sans", Arial, sans-serif`, fontWeight: eff.bold === false ? 400 : 700, padding: `0 ${R.width * 0.06 * scale}px`,
                   WebkitTextStroke: `${eff.outlineWidth * 2 * scale}px ${eff.outline}`, paintOrder: "stroke fill", textShadow: eff.shadow ? `${eff.shadow * scale * 2}px ${eff.shadow * scale * 2}px 0 rgba(0,0,0,.5)` : "none", textTransform: eff.uppercase ? "uppercase" : "none" }}>
                 {cur.lines.map((line, li) => <div key={li}>{line.map((w) => { const i = k++; return <span key={i} style={{ color: i === act ? eff.active : eff.primary }}>{w.text} </span>; })}</div>)}
               </div>
@@ -247,6 +249,15 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
                   </select></label>
                 <button onClick={() => change((d) => ({ ...d, style: { ...PRESETS[d.preset] } }))} className="rounded border border-[var(--border)] bg-white px-3 py-1.5">Restaurar preset</button>
               </div>
+              <div className="grid grid-cols-[1fr_auto] items-end gap-2">
+                <label>Fuente
+                  <select value={doc.style.fontName} onChange={(e) => setStyle({ fontName: e.target.value })} className="mt-1 w-full rounded border border-[var(--border)] bg-white px-2 py-1.5" style={{ fontFamily: `"${doc.style.fontName}", Arial` }}>
+                    <option value="Arial">Arial</option>
+                    {fonts?.map((f) => <option key={f.id} value={f.family} style={{ fontFamily: `"${f.family}"` }}>{f.family}</option>)}
+                  </select></label>
+                <label className="flex items-center gap-2 pb-1.5"><input type="checkbox" checked={doc.style.bold !== false} onChange={(e) => setStyle({ bold: e.target.checked })} /> Negrita</label>
+              </div>
+              <Link href="/app/brand-kits" className="-mt-1 text-xs text-[var(--muted)] underline">Añadir fuentes propias</Link>
               <label>Tamaño · <span className="tnum">{doc.style.fontSize}</span><input type="range" min={40} max={150} value={doc.style.fontSize} onChange={(e) => setStyle({ fontSize: Number(e.target.value) })} className="w-full" /></label>
               <div className="grid grid-cols-3 gap-2">
                 <label>Texto<input type="color" value={doc.style.primary} onChange={(e) => setStyle({ primary: e.target.value.toUpperCase() })} className="mt-1 block h-8 w-full" /></label>
