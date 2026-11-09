@@ -36,7 +36,7 @@ export function lexicalCandidates(words: TWord[], brief: string | null, o: { min
       const density = st.length ? st.filter((x) => want.includes(x)).length / st.length : 0;
       const firstSent = words.slice(a, sents[s].to + 1).map((w) => w.text).join(" ");
       const startsOnTopic = want.some((x) => terms(firstSent).includes(x));
-      const rel = want.length ? Math.min(10, 10 * (0.4 * (hits / Math.min(want.length, 6)) + 0.6 * Math.min(1, 5 * density)) + (startsOnTopic ? 1 : 0)) : 5;
+      const rel = want.length ? Math.min(10, 10 * (0.4 * (hits / Math.min(want.length, 6)) + 0.6 * Math.min(1, 5 * density)) ) * (startsOnTopic ? 1 : 0.55) : 5;
       const hook = /[?¡!]|\d/.test(firstSent) ? 7 : 5;
       const scores = { relevance: Math.round(rel * 10) / 10, hook, standalone: 6, closure: 7 };
       out.push({ startWord: a, endWord: b, title: firstSent.split(" ").slice(0, 8).join(" ").replace(/[.,;:]$/, ""),

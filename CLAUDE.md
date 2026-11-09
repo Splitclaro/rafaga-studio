@@ -1,23 +1,23 @@
 # Ráfaga Studio — entrada
 
-**Lee íntegramente `master/CLAUDE.md` antes de tocar código** y sigue el encargo completo. Especificación: `master/PROMPT_MAESTRO_CLAUDE_CODE.md`.
+**Encargo vigente:** `master/AMPLIACION_V2.md` (prevalece) + `master/CLAUDE.md` (encargo original). Léelos antes de tocar código.
 
 ## Prioridades
-1. Subtítulos y su flujo (fidelidad preview = export).
-2. Brief → «Detectar momentos virales» / «Volver a detectar» (puntuación = estimación editorial de IA).
-3. Recorrido: subir vídeo → brief → detectar → revisar → editar subtítulos/encuadre → exportar MP4 real.
-4. UI profesional, sencilla, responsive.
-5. Resto de funciones obligatorias. Sin campañas remuneradas ni comunidad.
+1. Subtítulos y su flujo (preview = export, ≤1 frame).
+2. Brief → «Detectar momentos virales» / «Volver a detectar» / «Ajustar enfoque» (estimación de IA, no garantía).
+3. Velocidad real del recorrido (worker caliente, primer clip antes del lote).
+4. Lyric Studio + Style Studio + N variantes.
+5. Paridad OpusClip, conexiones (Restream), calendario. Interfaz monocroma.
 
-## Aislamiento (obligatorio)
-Recursos NUEVOS bajo el propietario splitclaro (repo, Vercel, Supabase, worker). Nunca modificar ni reutilizar el proyecto existente `splitclaro` (repo, BD, variables, dominios). Registrar todo en `docs/provisioning-manifest.json`. Sin secretos en el repo ni en el chat. Sin force push. Sin gastos sin autorización.
+## Aislamiento
+Recursos de ESTA plataforma: repo `Splitclaro/rafaga-studio`, Supabase `rafaga-studio-beta` (attrnwbcgascvppncucl), Vercel `rafaga-studio`, worker GitHub Actions `worker.yml`. Nunca tocar el proyecto `splitclaro`. Sin secretos en repo/chat, sin force push, sin gastos sin autorización. Registro en `docs/provisioning-manifest.json`.
 
 ## Continuidad
-Lee `docs/STATUS.md`, `docs/IMPLEMENTATION_PLAN.md` y `docs/provisioning-manifest.json`; retoma lo pendiente sin duplicar recursos. Solo declarar «beta operativa verificada» con pruebas en el entorno desplegado; si no, «entrega parcial: beta aún no verificada».
+`docs/STATUS.md`, `docs/IMPLEMENTATION_PLAN.md`, `docs/PARITY_MATRIX_V2.md`. Solo «beta verificada» con pruebas en el entorno desplegado.
 
 ## Comandos reales
-- `export PATH=$HOME/.local/bin:$PATH` (pnpm 12.18, ffmpeg/ffprobe 9.0.2 con libass)
-- `node --test packages/composition/src/*.test.ts` — tests unitarios de subtítulos
-- `node scripts/spike-subs.ts` — render real ASS + comprobación frame a frame
-
-- `pnpm test` (raíz) — subtítulos + RLS en PGlite; `cd apps/web && pnpm typecheck && pnpm build`
+- `export PATH=$HOME/.local/bin:$PATH` (pnpm 12.18, ffmpeg 9.0.2)
+- `pnpm test` (raíz): subtítulos, composición, selección, RLS (PGlite)
+- `cd apps/web && pnpm typecheck && pnpm build`
+- `node scripts/spike-subs.ts` · `node scripts/test-render.ts`
+- `gh workflow run worker.yml` (worker) · `gh workflow run worker.yml -f mode=selftest` (autoprueba nube con claves reales)

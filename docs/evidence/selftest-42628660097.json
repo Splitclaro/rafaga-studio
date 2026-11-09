@@ -1,0 +1,96 @@
+{
+  "model": "claude-sonnet-5-5",
+  "first_words": "Hola a todos, bienvenidos al podcast de emprendedores. Hoy hablamos de 2 cosas muy distintas. 1º, consejos de venta para principiantes. El error más común",
+  "source_seconds": 81.319002,
+  "asr_ms": 301,
+  "language": "es",
+  "words": 199,
+  "markers": {
+    "sponsorFrom": 82,
+    "storyFrom": -1,
+    "sponsorSec": 34.1
+  },
+  "briefs": {
+    "ventas": {
+      "selector": "lexical-v1",
+      "fallbackReason": "Anthropic 400: {\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"Your credit balance is too low to access the Anthropic API. Please go to Plans",
+      "selection_ms": 186,
+      "raw": 10,
+      "rejected": [
+        "overlap",
+        "overlap",
+        "overlap",
+        "overlap",
+        "overlap",
+        "overlap",
+        "overlap",
+        "overlap",
+        "overlap"
+      ],
+      "accepted": [
+        {
+          "start": 6.88,
+          "end": 19.82,
+          "title": "1º, consejos de venta para principiantes",
+          "briefFit": "Coinciden 3 término(s) del enfoque",
+          "overall": 8.2,
+          "overlapsSponsor": false
+        }
+      ]
+    },
+    "historia": {
+      "selector": "lexical-v1",
+      "fallbackReason": "Anthropic 400: {\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"Your credit balance is too low to access the Anthropic API. Please go to Plans",
+      "selection_ms": 170,
+      "raw": 12,
+      "rejected": [
+        "overlap",
+        "overlap",
+        "overlap",
+        "overlap",
+        "overlap",
+        "overlap",
+        "overlap",
+        "overlap",
+        "overlap",
+        "overlap",
+        "overlap"
+      ],
+      "accepted": [
+        {
+          "start": 40.1,
+          "end": 53.09,
+          "title": "Usa el podcast para obtener un 10 por",
+          "briefFit": "Coinciden 3 término(s) del enfoque",
+          "overall": 8.2,
+          "overlapsSponsor": true
+        }
+      ]
+    },
+    "sin_coincidencia": {
+      "selector": "lexical-v1",
+      "fallbackReason": "Anthropic 400: {\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"Your credit balance is too low to access the Anthropic API. Please go to Plans",
+      "selection_ms": 153,
+      "raw": 0,
+      "rejected": [],
+      "accepted": []
+    }
+  },
+  "render_ms": 11932,
+  "render_probe": {
+    "programs": [],
+    "streams": [
+      {
+        "codec_name": "h264",
+        "width": 1080,
+        "height": 1920
+      },
+      {
+        "codec_name": "aac"
+      }
+    ],
+    "format": {
+      "duration": "12.940000"
+    }
+  }
+}
