@@ -9,6 +9,11 @@ const P: Record<string, string> = {
   gear: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19 12l2-1-2-4-2 .5-1.5-1L15 4h-4l-.5 2.5-1.5 1L7 7l-2 4 2 1v1l-2 1 2 4 2-.5 1.5 1L11 20h4l.5-2.5 1.5-1 2 .5 2-4-2-1z",
   upload: "M12 16V4m0 0L8 8m4-4l4 4M5 20h14",
   plus: "M12 5v14M5 12h14",
+  music: "M9 18V5l12-2v13M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM21 16a3 3 0 1 1-6 0 3 3 0 0 1 6 0z",
+  type: "M4 7V4h16v3M9 20h6M12 4v16",
+  calendar: "M4 6h16v14H4zM4 10h16M8 3v4M16 3v4",
+  chart: "M4 20V10M10 20V4M16 20v-7M22 20H2",
+  chevL: "M15 18l-6-6 6-6", chevR: "M9 18l6-6-6-6", chevD: "M6 9l6 6 6-6",
   search: "M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.3-4.3",
 };
 export default function Icon({ n, className = "h-5 w-5 shrink-0" }: { n: keyof typeof P | string; className?: string }) {

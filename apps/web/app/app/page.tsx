@@ -43,13 +43,13 @@ export default function Dashboard() {
         <p className="mt-2 max-w-2xl text-[var(--muted)]">Sube un vídeo, cuéntanos qué clips necesitas y la IA propone los mejores momentos, con subtítulos listos para editar.</p>
       </header>
 
-      <section aria-labelledby="nuevo" className="rounded-2xl bg-[var(--surface)] p-5 md:p-6">
+      <section aria-labelledby="nuevo" className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 md:p-6">
         <h2 id="nuevo" className="mb-4 text-lg font-medium">Nuevo proyecto</h2>
         <form onSubmit={submit} className="grid gap-5 lg:grid-cols-2">
           <div>
             <input ref={input} id="file" type="file" accept="video/mp4,video/quicktime,video/webm" className="sr-only" onChange={(e) => pick(e.target.files?.[0] ?? null)} />
             <label htmlFor="file" onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)} onDrop={(e) => { e.preventDefault(); setDrag(false); pick(e.dataTransfer.files?.[0] ?? null); }}
-              className={`flex min-h-56 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed p-6 text-center transition-colors focus-within:outline focus-within:outline-2 focus-within:outline-[var(--select)] ${drag ? "border-[var(--accent)] bg-[var(--accent)]/10" : "border-white/15 hover:border-white/30"}`}>
+              className={`flex min-h-56 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed p-6 text-center transition-colors focus-within:outline focus-within:outline-2 focus-within:outline-[var(--select)] ${drag ? "border-[var(--accent)] bg-[var(--accent)]/10" : "border-black/15 hover:border-black/30"}`}>
               <Icon n="upload" className="h-9 w-9 text-[var(--accent)]" />
               {file ? (<>
                 <span className="mt-3 max-w-full truncate font-medium">{file.name}</span>
@@ -64,7 +64,7 @@ export default function Dashboard() {
             <label className="block">
               <span className="font-medium">¿De qué trata el proyecto y qué clips necesitas?</span>
               <span className="mt-1 block text-sm text-[var(--muted)]">Describe el tema, a quién te diriges y qué momentos quieres destacar. Opcional.</span>
-              <textarea rows={5} maxLength={BRIEF_MAX} value={brief} onChange={(e) => setBrief(e.target.value)} className="mt-2 w-full rounded-lg bg-[var(--bg)] px-3 py-2 ring-1 ring-white/10" placeholder="Es un podcast sobre emprender. Quiero consejos prácticos para principiantes, tono directo y clips sobre errores al vender. Evita la parte de patrocinadores." />
+              <textarea rows={5} maxLength={BRIEF_MAX} value={brief} onChange={(e) => setBrief(e.target.value)} className="mt-2 w-full rounded-lg bg-[var(--bg)] px-3 py-2 ring-1 ring-black/10" placeholder="Es un podcast sobre emprender. Quiero consejos prácticos para principiantes, tono directo y clips sobre errores al vender. Evita la parte de patrocinadores." />
               <span className="tnum text-xs text-[var(--muted)]">{brief.length}/{BRIEF_MAX}</span>
             </label>
             <button type="button" aria-expanded={adv} onClick={() => setAdv(!adv)} className="self-start text-sm text-[var(--muted)] underline">Ajustes avanzados</button>
@@ -74,7 +74,7 @@ export default function Dashboard() {
                 <label>Número de clips: <span className="tnum">{count}</span><input type="range" min={3} max={10} value={count} onChange={(e) => setCount(Number(e.target.value))} className="w-full" /></label>
               </div>
             )}
-            <button disabled={busy || !file} className="mt-auto rounded-xl bg-[var(--accent)] px-5 py-3 font-semibold text-[#101216] disabled:cursor-not-allowed disabled:opacity-50">{busy ? "Subiendo…" : "Crear proyecto"}</button>
+            <button disabled={busy || !file} className="mt-auto rounded-xl bg-[var(--accent)] px-5 py-3 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">{busy ? "Subiendo…" : "Crear proyecto"}</button>
             <p role="status" aria-live="polite" className={`min-h-5 text-sm ${msg && !busy ? "text-[var(--danger)]" : "text-[var(--muted)]"}`}>{!file && !msg ? "Elige un vídeo para continuar." : msg}</p>
           </div>
         </form>
@@ -93,7 +93,7 @@ export default function Dashboard() {
       <section aria-labelledby="como" className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <h2 id="como" className="sr-only">Cómo funciona</h2>
         {[["1", "Sube", "Tu vídeo o podcast largo."], ["2", "Cuéntanos", "Qué clips necesitas y qué evitar."], ["3", "Detecta", "La IA propone momentos con gancho y cierre."], ["4", "Edita y exporta", "Corrige subtítulos y descarga el MP4."]].map(([n, t, d]) => (
-          <div key={n} className="rounded-xl bg-[var(--surface)] p-4"><div className="tnum text-sm text-[var(--accent)]">{n}</div><div className="font-medium">{t}</div><div className="text-sm text-[var(--muted)]">{d}</div></div>
+          <div key={n} className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4"><div className="tnum text-sm text-[var(--accent)]">{n}</div><div className="font-medium">{t}</div><div className="text-sm text-[var(--muted)]">{d}</div></div>
         ))}
       </section>
     </main>

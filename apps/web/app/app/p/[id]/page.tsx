@@ -84,12 +84,12 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
       </label>
       <div className="mt-3 flex flex-wrap items-center gap-3">
         <button onClick={saveBrief} className="rounded-lg border border-[var(--muted)] px-4 py-2">Guardar enfoque</button>
-        <button onClick={detect} disabled={busy || !!active} className="rounded-lg bg-[var(--accent)] px-4 py-2 font-medium text-[#101216] disabled:opacity-50">{hasRun ? "Volver a detectar" : "Detectar momentos virales"}</button>
+        <button onClick={detect} disabled={busy || !!active} className="rounded-lg bg-[var(--accent)] px-4 py-2 font-medium text-white disabled:opacity-50">{hasRun ? "Volver a detectar" : "Detectar momentos virales"}</button>
       </div>
       <p className="mt-2 text-xs text-[var(--muted)]">La selección y la puntuación son estimaciones editoriales de IA; no garantizan que un clip se haga viral. Volver a detectar reutiliza la transcripción y conserva los clips anteriores.</p>
 
       {job && (
-        <section aria-live="polite" className="mt-6 rounded-xl bg-[var(--surface)] p-4 text-sm">
+        <section aria-live="polite" className="mt-6 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 text-sm">
           <div className="font-medium">Estado: {STAGE[job.status] ?? job.status}{job.attempts > 1 ? ` · intento ${job.attempts}` : ""}</div>
           {job.status === "queued" && <p className="mt-1 text-[var(--muted)]">{wake === "warm" ? "El worker ya está activo: debería recogerlo en segundos." : wake === "woken" ? "Arrancando el worker (suele tardar 1–2 min la primera vez)." : "El worker arranca según el programador de GitHub, que puede tardar varios minutos."} Llevas {waitingMin} min en cola.{waitingMin >= 15 && " Si sigue así, el worker no está activo."}</p>}
           {job.error_message && <p role="alert" className="mt-1 text-[var(--danger)]">{job.error_message}</p>}
@@ -101,9 +101,10 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
           <h2 className="mb-3 text-lg font-medium">Clips</h2>
           <ul className="grid gap-4 sm:grid-cols-2">
             {clips.map((c) => (
-              <li key={c.id} className="rounded-xl bg-[var(--surface)] p-3">
+              <li key={c.id} className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3">
                 {c.url ? <video src={c.url} controls preload="metadata" className="aspect-[9/16] w-full rounded bg-black" /> : <div className="grid aspect-[9/16] place-items-center rounded bg-black text-sm text-[var(--muted)]">Renderizando…</div>}
                 <div className="mt-2 font-medium">{c.title}</div>
+                {c.candidate?.reason?.includes("sin IA") && <div className="mt-1 inline-block rounded border border-[var(--border)] px-1.5 text-xs text-[var(--muted)]">Selección sin IA (coincidencia de palabras)</div>}
                 {c.candidate && (<>
                   <div className="tnum text-xs text-[var(--muted)]">{(c.candidate.start_ms / 1000).toFixed(1)}s – {(c.candidate.end_ms / 1000).toFixed(1)}s · Estimación de IA: {c.candidate.scores?.overall ?? "–"}/10</div>
                   {c.candidate.brief_fit && <p className="mt-1 text-sm"><span className="text-[var(--muted)]">Por qué encaja con tu objetivo: </span>{c.candidate.brief_fit}</p>}

@@ -45,3 +45,26 @@ test("windows cubren todo con solape", () => {
   assert.equal(w[w.length - 1].to, 119);
   for (let i = 1; i < w.length; i++) assert.ok(w[i].from <= w[i - 1].to);
 });
+
+import { lexicalCandidates, parseBrief } from "./lexical.ts";
+const say = (t: string, t0: number) => t.split(" ").map((x, i) => ({ text: x, start: t0 + i * 0.4, end: t0 + i * 0.4 + 0.35 }));
+const pod = [
+  ...say("Hoy hablamos de ventas. El error más común al vender es no escuchar al cliente. Haz tres preguntas sobre su problema antes de proponer. Así el precio deja de ser la objeción principal y vender se vuelve ayudar.", 0),
+  ...say("Ahora el patrocinador. Este episodio está patrocinado por una marca de café de especialidad con descuento para ti y para tu familia entera.", 20),
+  ...say("Mi invitado creció en un pueblo de Galicia y se mudó solo a Madrid sin dinero. Durmió dos años en el sofá de un amigo. Hoy recuerda aquel sofá como su mejor comienzo.", 40),
+].map((w, i, a) => (i && w.start < a[i - 1].end ? { ...w, start: a[i - 1].end } : w));
+test("parseBrief separa exclusiones", () => {
+  const p = parseBrief("Consejos de venta. Evita el patrocinador.");
+  assert.ok(p.exclude.some((x) => x.startsWith("patrocin")));
+  assert.ok(!p.want.some((x) => x.startsWith("patrocin")));
+});
+test("selector léxico: briefs distintos → selecciones distintas y exclusión respetada", () => {
+  const o = { minSec: 6, maxSec: 25, count: 1, hasBrief: true };
+  const v = validateCandidates(pod, lexicalCandidates(pod, "Consejos para vender y escuchar al cliente. Excluye el patrocinador.", o), o).accepted;
+  const h = validateCandidates(pod, lexicalCandidates(pod, "La historia del invitado en Galicia y Madrid.", o), o).accepted;
+  assert.ok(v.length && h.length);
+  assert.ok(v[0].endSec <= 20.5, "ventas dentro del primer bloque");
+  assert.ok(h[0].startSec >= 40, "historia dentro del tercer bloque");
+  const none = lexicalCandidates(pod, "Recetas de cocina vegana", o);
+  assert.equal(none.length, 0, "sin coincidencias no inventa");
+});

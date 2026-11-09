@@ -7,11 +7,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildAss, buildComposition, ffmpegArgs, type Word } from "@rafaga/composition";
 import { transcribe, proposeClips } from "@rafaga/providers";
-import { briefHash, RUBRIC_VERSION, validateCandidates, windows, transcriptText, type TWord, type RawCandidate } from "@rafaga/selection";
+import { briefHash, RUBRIC_VERSION, validateCandidates, windows, transcriptText, lexicalCandidates, LEXICAL_VERSION, type TWord, type RawCandidate } from "@rafaga/selection";
 
 const need = (k: string) => { const v = process.env[k]; if (!v) { console.error(`Falta el secreto ${k}`); process.exit(2); } return v; };
 const sb = createClient(need("SUPABASE_URL"), need("SUPABASE_SECRET_KEY"), { auth: { persistSession: false } });
-const DG = need("DEEPGRAM_API_KEY"), AN = need("ANTHROPIC_API_KEY");
+const DG = need("DEEPGRAM_API_KEY"), AN = process.env.ANTHROPIC_API_KEY ?? "";
 const MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-5-5";
 
 const sh = (cmd: string, args: string[]) => {
@@ -65,14 +65,24 @@ async function processJob(job: Job) {
     await setStatus(job.id, "selecting");
     const t2 = Date.now();
     const brief = project.project_brief as string | null;
-    const raw: RawCandidate[] = [];
-    for (const w of windows(words, 600, 45)) {
-      raw.push(...(await proposeClips({ key: AN, model: MODEL, brief, windowText: transcriptText(words, w.from, w.to), target: `${project.target_seconds}s (máx ${project.max_seconds}s)` })));
+    let raw: RawCandidate[] = [];
+    let selector = MODEL, fallbackReason: string | null = null;
+    try {
+      if (!AN) throw new Error("ANTHROPIC_API_KEY no configurada");
+      for (const w of windows(words, 600, 45)) {
+        raw.push(...(await proposeClips({ key: AN, model: MODEL, brief, windowText: transcriptText(words, w.from, w.to), target: `${project.target_seconds}s (máx ${project.max_seconds}s)` })));
+      }
+    } catch (e) {
+      // Respaldo sin IA, etiquetado: el usuario ve que la selección es léxica.
+      fallbackReason = (e as Error).message.slice(0, 200);
+      selector = LEXICAL_VERSION;
+      raw = lexicalCandidates(words, brief, { minSec: 12, maxSec: project.max_seconds, count: project.clip_count });
     }
+    m.selector = selector;
     const { accepted, rejected } = validateCandidates(words, raw, { minSec: 12, maxSec: project.max_seconds, count: project.clip_count, hasBrief: !!brief?.trim() });
     m.selection_ms = Date.now() - t2; m.raw = raw.length; m.accepted = accepted.length; m.rejected = rejected.length;
 
-    const gen = ok(await sb.from("generations").insert({ workspace_id: project.workspace_id, project_id: project.id, transcript_id: tr.id, brief_snapshot: brief, brief_sha256: briefHash(brief), rubric_version: RUBRIC_VERSION, model: MODEL, params: { clip_count: project.clip_count, max_seconds: project.max_seconds, rejected }, status: "running" }).select("id").single(), "generación");
+    const gen = ok(await sb.from("generations").insert({ workspace_id: project.workspace_id, project_id: project.id, transcript_id: tr.id, brief_snapshot: brief, brief_sha256: briefHash(brief), rubric_version: RUBRIC_VERSION, model: selector, params: { clip_count: project.clip_count, max_seconds: project.max_seconds, rejected, fallbackReason }, status: "running" }).select("id").single(), "generación");
 
     // 3) Candidatos, clips y render (primer clip antes del lote)
     await setStatus(job.id, "rendering");

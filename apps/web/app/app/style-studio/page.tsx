@@ -1,0 +1,2 @@
+import Soon from "../../../components/Soon";
+export default function Page() { return <Soon title="Style Studio" what="Editor de estilos de texto animado (tipografía, color, entrada, palabra activa, capas y caos con semilla) para letras y subtítulos." status="En desarrollo. Hoy los subtítulos usan presets renderizados con FFmpeg/libass; los efectos avanzados necesitan un compositor por frames compartido entre preview y export." />; }

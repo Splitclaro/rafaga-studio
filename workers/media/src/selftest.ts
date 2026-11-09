@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildAss, buildComposition, ffmpegArgs, type Word } from "@rafaga/composition";
 import { transcribe, proposeClips } from "@rafaga/providers";
-import { validateCandidates, windows, transcriptText, type RawCandidate } from "@rafaga/selection";
+import { validateCandidates, windows, transcriptText, lexicalCandidates, LEXICAL_VERSION, type RawCandidate } from "@rafaga/selection";
 
 const sh = (c: string, a: string[]) => { const r = spawnSync(c, a, { encoding: "utf8", maxBuffer: 1 << 28 }); if (r.status) throw new Error(`${c}: ${r.stderr.slice(-300)}`); return r.stdout; };
 const dir = mkdtempSync(join(tmpdir(), "st-"));
@@ -14,6 +14,7 @@ const guion = new URL("../../../tests/fixtures/podcast-guion.txt", import.meta.u
 const MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-5-5";
 const out: Record<string, unknown> = { model: MODEL };
 
+out.first_words = "";
 sh("espeak-ng", ["-v", "es", "-s", "150", "-w", join(dir, "v.wav"), "-f", guion]);
 sh("ffmpeg", ["-y", "-v", "error", "-f", "lavfi", "-i", "color=c=0x20242c:s=1280x720:r=25", "-i", join(dir, "v.wav"), "-shortest", "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac", join(dir, "src.mp4")]);
 sh("ffmpeg", ["-y", "-v", "error", "-i", join(dir, "src.mp4"), "-vn", "-ac", "1", "-ar", "16000", "-c:a", "libopus", "-b:a", "24k", join(dir, "a.ogg")]);
@@ -21,7 +22,7 @@ out.source_seconds = Number(sh("ffprobe", ["-v", "error", "-show_entries", "form
 
 let t = Date.now();
 const tr = await transcribe(readFileSync(join(dir, "a.ogg")), "audio/ogg", process.env.DEEPGRAM_API_KEY!, "auto");
-out.asr_ms = Date.now() - t; out.language = tr.language; out.words = tr.words.length;
+out.asr_ms = Date.now() - t; out.language = tr.language; out.words = tr.words.length; out.first_words = tr.words.slice(0, 25).map((w) => w.text).join(" ");
 const words = tr.words;
 const idx = (re: RegExp) => words.findIndex((w) => re.test(w.text.toLowerCase()));
 const sponsorFrom = idx(/patrocinad/), storyFrom = idx(/segunda/);
@@ -35,10 +36,13 @@ const briefs = {
 const results: Record<string, unknown> = {};
 for (const [k, brief] of Object.entries(briefs)) {
   t = Date.now();
-  const raw: RawCandidate[] = [];
-  for (const w of windows(words, 600, 45)) raw.push(...(await proposeClips({ key: process.env.ANTHROPIC_API_KEY!, model: MODEL, brief, windowText: transcriptText(words, w.from, w.to), target: "20s (máx 60s)" })));
+  let raw: RawCandidate[] = [];
+  let selector = MODEL, fallbackReason: string | null = null;
+  try {
+    for (const w of windows(words, 600, 45)) raw.push(...(await proposeClips({ key: process.env.ANTHROPIC_API_KEY ?? "", model: MODEL, brief, windowText: transcriptText(words, w.from, w.to), target: "20s (máx 60s)" })));
+  } catch (e) { fallbackReason = (e as Error).message.slice(0, 160); selector = LEXICAL_VERSION; raw = lexicalCandidates(words, brief, { minSec: 12, maxSec: 60, count: 3 }); }
   const { accepted, rejected } = validateCandidates(words, raw, { minSec: 12, maxSec: 60, count: 3, hasBrief: true });
-  results[k] = { selection_ms: Date.now() - t, raw: raw.length, rejected: rejected.map((r) => r.reason),
+  results[k] = { selector, fallbackReason, selection_ms: Date.now() - t, raw: raw.length, rejected: rejected.map((r) => r.reason),
     accepted: accepted.map((c) => ({ start: +c.startSec.toFixed(2), end: +c.endSec.toFixed(2), title: c.title, briefFit: c.briefFit, overall: c.overall,
       overlapsSponsor: sponsorFrom >= 0 && c.startWord <= sponsorFrom + 25 && c.endWord >= sponsorFrom })) };
 }

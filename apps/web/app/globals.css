@@ -1,6 +1,14 @@
 @import "tailwindcss";
-:root { --bg:#101216; --surface:#191D24; --text:#F4F6FA; --muted:#A8B0BD; --accent:#B5F36D; --select:#9D8DFF; --danger:#FF7A7A; }
-html,body { background:var(--bg); color:var(--text); font-family: ui-sans-serif, system-ui, "Inter", sans-serif; }
+/* Identidad monocroma de la interfaz (V2). Los colores elegidos por el usuario para subtítulos/letras NO dependen de estos tokens. */
+:root {
+  --bg: #FFFFFF; --surface: #FAFAFA; --text: #111111; --muted: #5C5C5C; --border: #E5E5E5;
+  --accent: #111111;   /* acción principal: negro con texto blanco */
+  --select: #111111;   /* foco / selección */
+  --danger: #111111;   /* los errores se distinguen por texto e icono, no por color */
+  --hover: #F0F0F0;
+}
+html, body { background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, "Inter", sans-serif; }
+input[type="range"], input[type="checkbox"] { accent-color: #111111; }
 .tnum { font-variant-numeric: tabular-nums; }
-@media (prefers-reduced-motion: reduce) { * { transition:none !important; animation:none !important; } }
-:focus-visible { outline:2px solid var(--select); outline-offset:2px; }
+:focus-visible { outline: 2px solid #111111; outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }

@@ -117,3 +117,4 @@ export const CANDIDATE_TOOL = {
     required: ["clips"],
   },
 } as const;
+export { lexicalCandidates, parseBrief, LEXICAL_VERSION } from "./lexical.ts";

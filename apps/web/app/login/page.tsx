@@ -32,7 +32,7 @@ export default function Login() {
           <input type="email" required autoComplete="email" className="mt-1 w-full rounded bg-[var(--surface)] px-3 py-2" value={email} onChange={(e) => setEmail(e.target.value)} /></label>
         <label className="block text-sm">Contraseña
           <input type="password" required minLength={8} autoComplete={mode === "in" ? "current-password" : "new-password"} className="mt-1 w-full rounded bg-[var(--surface)] px-3 py-2" value={password} onChange={(e) => setPassword(e.target.value)} /></label>
-        <button disabled={busy} className="w-full rounded-lg bg-[var(--accent)] px-4 py-2 font-medium text-[#101216] disabled:opacity-60">{busy ? "Un momento…" : mode === "in" ? "Entrar" : "Crear cuenta"}</button>
+        <button disabled={busy} className="w-full rounded-lg bg-[var(--accent)] px-4 py-2 font-medium text-white disabled:opacity-60">{busy ? "Un momento…" : mode === "in" ? "Entrar" : "Crear cuenta"}</button>
         <p role="status" aria-live="polite" className="min-h-5 text-sm text-[var(--danger)]">{msg}</p>
       </form>
       <button className="text-sm text-[var(--muted)] underline" onClick={() => setMode(mode === "in" ? "up" : "in")}>{mode === "in" ? "No tengo cuenta" : "Ya tengo cuenta"}</button>

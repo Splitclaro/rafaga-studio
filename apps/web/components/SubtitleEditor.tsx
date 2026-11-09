@@ -51,13 +51,13 @@ export default function SubtitleEditor({ initialWords, duration }: { initialWord
 
   return (
     <div className="grid gap-6 lg:grid-cols-[320px_minmax(0,360px)_280px]">
-      <section aria-label="Transcripción" className="rounded-xl bg-[var(--surface)] p-4">
+      <section aria-label="Transcripción" className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
         <h2 className="mb-3 text-sm font-medium text-[var(--muted)]">Transcripción (clic para saltar)</h2>
         <ol className="max-h-[560px] space-y-2 overflow-auto">
           {words.map((w, i) => (
             <li key={i} className="flex items-center gap-2">
               <button className="tnum w-14 text-left text-xs text-[var(--muted)]" onClick={() => { setPlaying(false); setT(w.start); }}>{w.start.toFixed(2)}s</button>
-              <input aria-label={`Palabra ${i + 1}`} className="w-full rounded bg-[#101216] px-2 py-1" value={w.text} onChange={(e) => editWord(i, e.target.value)} />
+              <input aria-label={`Palabra ${i + 1}`} className="w-full rounded bg-white ring-1 ring-[var(--border)] px-2 py-1" value={w.text} onChange={(e) => editWord(i, e.target.value)} />
             </li>
           ))}
         </ol>
@@ -83,13 +83,13 @@ export default function SubtitleEditor({ initialWords, duration }: { initialWord
           )}
         </div>
         <div className="flex w-full max-w-[360px] items-center gap-3">
-          <button className="rounded-lg bg-[var(--accent)] px-4 py-2 font-medium text-[#101216]" onClick={() => setPlaying((p) => !p)} aria-pressed={playing}>{playing ? "Pausa" : "Reproducir"}</button>
+          <button className="rounded-lg bg-[var(--accent)] px-4 py-2 font-medium text-white" onClick={() => setPlaying((p) => !p)} aria-pressed={playing}>{playing ? "Pausa" : "Reproducir"}</button>
           <input aria-label="Posición" type="range" className="w-full" min={0} max={duration} step={1 / 30} value={t} onChange={(e) => { setPlaying(false); setT(Number(e.target.value)); }} />
           <span className="tnum w-14 text-right text-sm">{t.toFixed(2)}s</span>
         </div>
       </section>
 
-      <section aria-label="Estilo" className="rounded-xl bg-[var(--surface)] p-4 text-sm">
+      <section aria-label="Estilo" className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 text-sm">
         <h2 className="mb-3 font-medium text-[var(--muted)]">Estilo · preset Impacto</h2>
         <label className="mb-3 block">Color activo
           <input type="color" className="ml-2 align-middle" value={style.active} onChange={(e) => setStyle({ ...style, active: e.target.value })} /></label>
