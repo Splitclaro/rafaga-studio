@@ -2,7 +2,7 @@
   "model": "claude-sonnet-5-5",
   "first_words": "Hola a todos, bienvenidos al podcast de emprendedores. Hoy hablamos de 2 cosas muy distintas. 1º, consejos de venta para principiantes. El error más común",
   "source_seconds": 81.319002,
-  "asr_ms": 674,
+  "asr_ms": 681,
   "language": "es",
   "words": 199,
   "markers": {
@@ -14,13 +14,9 @@
     "ventas": {
       "selector": "lexical-v1",
       "fallbackReason": "Anthropic 400: {\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"Your credit balance is too low to access the Anthropic API. Please go to Plans",
-      "selection_ms": 288,
-      "raw": 10,
+      "selection_ms": 197,
+      "raw": 6,
       "rejected": [
-        "overlap",
-        "overlap",
-        "overlap",
-        "overlap",
         "overlap",
         "overlap",
         "overlap",
@@ -41,7 +37,7 @@
     "historia": {
       "selector": "lexical-v1",
       "fallbackReason": "Anthropic 400: {\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"Your credit balance is too low to access the Anthropic API. Please go to Plans",
-      "selection_ms": 156,
+      "selection_ms": 161,
       "raw": 12,
       "rejected": [
         "overlap",
@@ -77,13 +73,13 @@
     "sin_coincidencia": {
       "selector": "lexical-v1",
       "fallbackReason": "Anthropic 400: {\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"Your credit balance is too low to access the Anthropic API. Please go to Plans",
-      "selection_ms": 165,
+      "selection_ms": 156,
       "raw": 0,
       "rejected": [],
       "accepted": []
     }
   },
-  "render_ms": 14674,
+  "render_ms": 14420,
   "render_probe": {
     "programs": [],
     "streams": [

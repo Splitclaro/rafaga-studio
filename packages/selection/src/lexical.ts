@@ -45,6 +45,6 @@ export function lexicalCandidates(words: TWord[], brief: string | null, o: { min
     }
   }
   // Con enfoque, solo fragmentos con relevancia suficiente: mejor menos clips que relleno.
-  const useful = out.filter((c) => !c.excluded && (!want.length || c.scores.relevance >= 4));
+  const useful = out.filter((c) => !c.excluded && (!want.length || c.scores.relevance >= 5));
   return useful.sort((x, y) => y._s - x._s).slice(0, o.count * 4).map(({ _s, ...c }) => c);
 }
