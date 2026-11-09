@@ -16,4 +16,6 @@ Recursos NUEVOS bajo el propietario splitclaro (repo, Vercel, Supabase, worker).
 Lee `docs/STATUS.md`, `docs/IMPLEMENTATION_PLAN.md` y `docs/provisioning-manifest.json`; retoma lo pendiente sin duplicar recursos. Solo declarar «beta operativa verificada» con pruebas en el entorno desplegado; si no, «entrega parcial: beta aún no verificada».
 
 ## Comandos reales
-(se añadirán cuando existan)
+- `export PATH=$HOME/.local/bin:$PATH` (pnpm 12.18, ffmpeg/ffprobe 9.0.2 con libass)
+- `node --test packages/composition/src/*.test.ts` — tests unitarios de subtítulos
+- `node scripts/spike-subs.ts` — render real ASS + comprobación frame a frame

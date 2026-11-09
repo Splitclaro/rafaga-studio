@@ -1,0 +1,12 @@
+{
+  "name": "rafaga-studio",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "packageManager": "pnpm@12.18.0",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "test": "node --test packages/composition/src/*.test.ts",
+    "spike:subs": "node scripts/spike-subs.ts"
+  }
+}
