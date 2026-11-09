@@ -68,3 +68,14 @@ test("selector léxico: briefs distintos → selecciones distintas y exclusión 
   const none = lexicalCandidates(pod, "Recetas de cocina vegana", o);
   assert.equal(none.length, 0, "sin coincidencias no inventa");
 });
+test("selector léxico no premia ventanas largas: dos enfoques sobre el guion real eligen tramos distintos", () => {
+  const txt = "Hola a todos, bienvenidos al podcast de emprendedores. Hoy hablamos de 2 cosas muy distintas. Primero, consejos de venta para principiantes. El error más común al vender es hablar de tu producto en lugar de escuchar al cliente. Antes de proponer nada, haz tres preguntas sobre su problema. Cuando entiendes el problema, el precio deja de ser la objeción principal. Si solo recuerdas una cosa, que sea esta: vender es ayudar a decidir, no convencer a la fuerza. Ahora una pausa para el patrocinador. Este episodio está patrocinado por una marca de café de especialidad. Usa el código podcast para obtener un 10% de descuento en tu primer pedido. Gracias por apoyar el programa. Y pasamos a la segunda parte, la historia personal de nuestro invitado. Mi invitado creció en un pueblo pequeño de Galicia, y a los 18 años se mudó solo a Madrid sin dinero. Durante 2 años durmió en el sofá de un amigo y trabajó de camarero por las noches. Una madrugada, cansado, decidió que iba a montar su propia empresa. Hoy, 10 años después, recuerda aquel sofá como el mejor comienzo posible. Eso es todo por hoy.";
+  const ws = say(txt, 0);
+  const o = { minSec: 12, maxSec: 45, count: 1, hasBrief: true };
+  const sponsorAt = ws.findIndex((w) => /patrocinad/.test(w.text));
+  const v = validateCandidates(ws, lexicalCandidates(ws, "Consejos de venta para principiantes. Excluye la parte del patrocinador.", o), o).accepted[0];
+  const h = validateCandidates(ws, lexicalCandidates(ws, "La historia personal del invitado.", o), o).accepted[0];
+  assert.ok(v && h);
+  assert.ok(v.endWord < sponsorAt, "ventas termina antes del patrocinador");
+  assert.ok(h.startWord > sponsorAt, "historia empieza después del patrocinador");
+});
