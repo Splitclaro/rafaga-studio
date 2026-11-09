@@ -11,9 +11,9 @@ export interface BgSettings {
 }
 export const DEFAULT_BG: BgSettings = { dim: 0.3, bars: 0, filter: "none", interval: 5, sequence: true };
 
-const FILTERS: Record<FilterName, string> = {
+export const FILTERS: Record<FilterName, string> = {
   none: "",
-  midnight: "colorbalance=bs=0.22:ms=0.08,eq=brightness=-0.04:saturation=0.85",
+  midnight: "colorbalance=bs=0.22:bm=0.08,eq=brightness=-0.04:saturation=0.85",
   super8: "eq=saturation=1.15:contrast=1.06,colorbalance=rs=0.08:gs=0.04:bs=-0.06,noise=alls=10:allf=t,vignette=PI/5",
   noir: "hue=s=0,eq=contrast=1.18:brightness=-0.02",
   vaporwave: "colorbalance=rs=0.22:gs=-0.08:bs=0.28,eq=saturation=1.35",

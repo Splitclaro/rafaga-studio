@@ -26,3 +26,14 @@ test("args: segmentos de vídeo y foto concatenados", () => {
   assert.ok(fc.includes("concat=n=2:v=1:a=0") && fc.includes("fontsdir=/f"));
   assert.ok(a.includes("2:a:0"));
 });
+
+import { spawnSync } from "node:child_process";
+import { FILTERS } from "./background.ts";
+const hasFfmpeg = spawnSync("ffmpeg", ["-version"]).status === 0;
+test("todos los filtros son válidos en FFmpeg real", { skip: !hasFfmpeg }, () => {
+  for (const [name, f] of Object.entries(FILTERS)) {
+    if (!f) continue;
+    const r = spawnSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "color=c=gray:s=64x64:d=0.2", "-vf", f, "-f", "null", "-"], { encoding: "utf8" });
+    assert.equal(r.status, 0, `${name}: ${r.stderr}`);
+  }
+});
