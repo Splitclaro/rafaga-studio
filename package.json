@@ -6,7 +6,10 @@
   "packageManager": "pnpm@12.18.0",
   "engines": { "node": ">=24" },
   "scripts": {
-    "test": "node --test packages/composition/src/*.test.ts",
+    "test": "node --test packages/composition/src/*.test.ts supabase/tests/*.test.ts",
     "spike:subs": "node scripts/spike-subs.ts"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.15"
   }
 }
