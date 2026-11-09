@@ -1,2 +1,3 @@
 export * from "./subtitles.ts";
 export * from "./composition.ts";
+export * from "./edit.ts";

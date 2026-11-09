@@ -5,7 +5,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, writeFileSync, readFileSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { buildAss, buildComposition, ffmpegArgs, type Word } from "@rafaga/composition";
+import { buildAss, buildComposition, ffmpegArgs, styleForRatio, RATIO_SIZE, type Composition, type Ratio, type Word } from "@rafaga/composition";
 import { transcribe, proposeClips } from "@rafaga/providers";
 import { briefHash, RUBRIC_VERSION, validateCandidates, windows, transcriptText, lexicalCandidates, LEXICAL_VERSION, type TWord, type RawCandidate } from "@rafaga/selection";
 
@@ -21,7 +21,7 @@ const sh = (cmd: string, args: string[]) => {
 };
 const ok = <T>(r: { data: T; error: { message: string } | null }, what: string): NonNullable<T> => { if (r.error || r.data == null) throw new Error(`${what}: ${r.error?.message ?? "sin datos"}`); return r.data as NonNullable<T>; };
 
-type Job = { id: string; workspace_id: string; project_id: string; attempts: number };
+type Job = { id: string; kind: string; workspace_id: string; project_id: string | null; clip_id: string | null; attempts: number; params: { version?: number; ratio?: Ratio; burn?: boolean } };
 const setStatus = (id: string, status: string, extra: Record<string, unknown> = {}) =>
   sb.from("jobs").update({ status, heartbeat_at: new Date().toISOString(), updated_at: new Date().toISOString(), ...extra }).eq("id", id);
 
@@ -30,7 +30,7 @@ async function processJob(job: Job) {
   const t0 = Date.now();
   const dir = mkdtempSync(join(tmpdir(), "rafaga-"));
   try {
-    const project = ok(await sb.from("projects").select("id,workspace_id,source_id,project_brief,language,clip_count,target_seconds,max_seconds,deleted_at").eq("id", job.project_id).single(), "proyecto");
+    const project = ok(await sb.from("projects").select("id,workspace_id,source_id,project_brief,language,clip_count,target_seconds,max_seconds,deleted_at").eq("id", job.project_id!).single(), "proyecto");
     if (project.deleted_at) return void (await setStatus(job.id, "cancelled"));
     const src = ok(await sb.from("sources").select("id,mime").eq("id", project.source_id).single(), "fuente");
     const path = `${project.workspace_id}/${src.id}/original`;
@@ -99,7 +99,7 @@ async function processJob(job: Job) {
       const comp = buildComposition({ words: words as Word[], startSec: c.startSec, endSec: c.endSec });
       await sb.from("clip_versions").insert({ clip_id: clip.id, workspace_id: project.workspace_id, version: 1, composition: comp });
       const ass = join(dir, `c${i}.ass`), out = join(dir, `c${i}.mp4`);
-      writeFileSync(ass, buildAss(comp.words, { ...comp.style, fontName: "Liberation Sans" }, { width: 1080, height: 1920 }));
+      writeFileSync(ass, buildAss(comp.words, { ...styleForRatio(comp.style, comp.ratio), fontName: "Liberation Sans" }, RATIO_SIZE[comp.ratio]));
       const t3 = Date.now();
       sh("ffmpeg", ffmpegArgs(comp, { input: inp, assPath: ass, output: out }));
       const probe = JSON.parse(sh("ffprobe", ["-v", "error", "-print_format", "json", "-show_streams", "-show_format", out]));
@@ -125,6 +125,44 @@ async function processJob(job: Job) {
   } finally { rmSync(dir, { recursive: true, force: true }); }
 }
 
+/** Export bajo demanda: versión inmutable del clip → MP4 en el formato pedido. */
+async function processRender(job: Job) {
+  const t0 = Date.now();
+  const dir = mkdtempSync(join(tmpdir(), "rafaga-r-"));
+  try {
+    const { version, ratio, burn } = job.params;
+    if (!job.clip_id || !version || !ratio) throw Object.assign(new Error("Petición de export incompleta"), { permanent: true });
+    const clip = ok(await sb.from("clips").select("id,workspace_id,project_id").eq("id", job.clip_id).single(), "clip");
+    const project = ok(await sb.from("projects").select("source_id,deleted_at").eq("id", clip.project_id).single(), "proyecto");
+    if (project.deleted_at) return void (await setStatus(job.id, "cancelled"));
+    const cv = ok(await sb.from("clip_versions").select("composition").eq("clip_id", clip.id).eq("version", version).single(), "versión");
+    const comp = { ...(cv.composition as Composition), ratio, burnSubtitles: burn !== false };
+    await setStatus(job.id, "rendering");
+    const dl = await sb.storage.from("originals").download(`${clip.workspace_id}/${project.source_id}/original`);
+    if (dl.error || !dl.data) throw new Error(`descarga: ${dl.error?.message}`);
+    const inp = join(dir, "in"), ass = join(dir, "c.ass"), out = join(dir, "o.mp4");
+    writeFileSync(inp, Buffer.from(await dl.data.arrayBuffer()));
+    writeFileSync(ass, buildAss(comp.words, { ...styleForRatio(comp.style, ratio), fontName: "Liberation Sans" }, RATIO_SIZE[ratio]));
+    const t1 = Date.now();
+    sh("ffmpeg", ffmpegArgs(comp, { input: inp, assPath: ass, output: out }));
+    const probe = JSON.parse(sh("ffprobe", ["-v", "error", "-print_format", "json", "-show_streams", "-show_format", out]));
+    const vs = probe.streams.find((x: { codec_type: string }) => x.codec_type === "video");
+    const { width, height } = RATIO_SIZE[ratio];
+    if (vs?.width !== width || vs?.height !== height) throw new Error(`dimensiones inesperadas ${vs?.width}x${vs?.height}`);
+    const rpath = `${clip.workspace_id}/${clip.id}/v${version}-${ratio.replace(":", "x")}${comp.burnSubtitles ? "" : "-sin-subs"}.mp4`;
+    const up = await sb.storage.from("renders").upload(rpath, readFileSync(out), { contentType: "video/mp4", upsert: true });
+    if (up.error) throw new Error(`subida render: ${up.error.message}`);
+    const ins = await sb.from("renders").upsert({ workspace_id: clip.workspace_id, clip_id: clip.id, clip_version: version, ratio, burn_subtitles: comp.burnSubtitles, spec_sha256: briefHash(JSON.stringify(comp)), storage_path: rpath, status: "ready", probe: { duration: probe.format.duration, size: probe.format.size, width: vs.width, height: vs.height } }, { onConflict: "workspace_id,clip_id,clip_version,ratio,burn_subtitles,spec_sha256" });
+    if (ins.error) throw new Error(`registro render: ${ins.error.message}`);
+    await setStatus(job.id, "done", { metrics: { render_ms: Date.now() - t1, total_ms: Date.now() - t0 } });
+    console.log("render ok", job.id, ratio, Date.now() - t0, "ms");
+  } catch (e) {
+    const err = e as Error & { permanent?: boolean };
+    console.error("render fallo", job.id, err.message);
+    await setStatus(job.id, err.permanent || job.attempts >= 3 ? "failed" : "queued", { error_code: err.permanent ? "permanent" : "transient", error_message: err.message.slice(0, 300) });
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+}
+
 const idleMs = Number(process.env.WORKER_IDLE_SECONDS ?? 0) * 1000;   // 0 = salir si no hay trabajo
 const maxMs = Number(process.env.WORKER_MAX_SECONDS ?? 3000) * 1000;
 const started = Date.now();
@@ -139,6 +177,6 @@ for (;;) {
     await new Promise((r) => setTimeout(r, 3000));   // sondeo cada 3 s mientras está caliente
     continue;
   }
-  await processJob(job); processed++; lastWork = Date.now();
+  await (job.kind === "render" ? processRender(job) : processJob(job)); processed++; lastWork = Date.now();
 }
 console.log(`terminado: ${processed} job(s) en ${Math.round((Date.now() - started) / 1000)} s`);

@@ -103,7 +103,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
             {clips.map((c) => (
               <li key={c.id} className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3">
                 {c.url ? <video src={c.url} controls preload="metadata" className="aspect-[9/16] w-full rounded bg-black" /> : <div className="grid aspect-[9/16] place-items-center rounded bg-black text-sm text-[var(--muted)]">Renderizando…</div>}
-                <div className="mt-2 font-medium">{c.title}</div>
+                <div className="mt-2 flex items-start justify-between gap-2"><span className="font-medium">{c.title}</span><Link href={`/app/c/${c.id}`} className="shrink-0 rounded-lg bg-[#111] px-3 py-1 text-sm text-white">Editar</Link></div>
                 {c.candidate?.reason?.includes("sin IA") && <div className="mt-1 inline-block rounded border border-[var(--border)] px-1.5 text-xs text-[var(--muted)]">Selección sin IA (coincidencia de palabras)</div>}
                 {c.candidate && (<>
                   <div className="tnum text-xs text-[var(--muted)]">{(c.candidate.start_ms / 1000).toFixed(1)}s – {(c.candidate.end_ms / 1000).toFixed(1)}s · Estimación de IA: {c.candidate.scores?.overall ?? "–"}/10</div>

@@ -196,3 +196,13 @@ export const PRESET_IMPACTO: SubtitleStyle = {
   maxWordsPerGroup: 5,
   uppercase: true,
 };
+
+export const PRESET_LIMPIO: SubtitleStyle = {
+  fontName: "Arial", fontSize: 64, primary: "#FFFFFF", active: "#FFFFFF", outline: "#000000", outlineWidth: 3, shadow: 1,
+  x: 0.5, y: 0.82, maxLines: 2, maxCharsPerLine: 26, maxWordsPerGroup: 7, uppercase: false,
+};
+export const PRESET_KARAOKE: SubtitleStyle = {
+  fontName: "Arial", fontSize: 84, primary: "#D9D9D9", active: "#FFD400", outline: "#000000", outlineWidth: 5, shadow: 2,
+  x: 0.5, y: 0.7, maxLines: 2, maxCharsPerLine: 20, maxWordsPerGroup: 5, uppercase: false,
+};
+export const PRESETS: Record<string, SubtitleStyle> = { Impacto: PRESET_IMPACTO, Limpio: PRESET_LIMPIO, Karaoke: PRESET_KARAOKE };

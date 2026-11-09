@@ -35,7 +35,8 @@ before(async () => {
   // grants amplios arriba; los REVOKE/column GRANT de la migración deben seguir mandando:
   await db.exec(readFileSync(new URL("../migrations/20261109000001_core.sql", import.meta.url), "utf8").split("-- Los privilegios")[1].split("-- ───────── Storage")[0].replace(/^[^\n]*\n/, ""));
   await db.exec(readFileSync(new URL("../migrations/20261109000002_detection.sql", import.meta.url), "utf8"));
-  await db.exec("grant execute on function public.request_detection(uuid, text) to authenticated;");
+  await db.exec(readFileSync(new URL("../migrations/20261109000003_render_requests.sql", import.meta.url), "utf8"));
+  await db.exec("grant execute on function public.request_detection(uuid, text) to authenticated; grant execute on function public.request_render(uuid, int, text, boolean) to authenticated;");
   await db.exec(`insert into auth.users values ('${A}','a@test.dev'),('${B}','b@test.dev');`);
   wsA = (await db.query<{ id: string }>(`select id from workspaces where created_by='${A}'`)).rows[0].id;
   wsB = (await db.query<{ id: string }>(`select id from workspaces where created_by='${B}'`)).rows[0].id;
@@ -121,4 +122,27 @@ test("request_detection: idempotente, solo miembros; claim_job cerrado al client
   const c = await db.query<{ id: string; attempts: number }>(`select id, attempts from claim_job()`); // servidor
   assert.equal(c.rows[0].attempts, 1);
   assert.equal((await db.query(`select * from claim_job()`)).rows.length, 0); // ya reclamado
+});
+
+test("request_render: idempotente, reutiliza export listo, solo miembros", async () => {
+  const prj = (await db.query<{ id: string; source_id: string }>(`select id, source_id from projects where workspace_id='${wsA}' limit 1`)).rows[0];
+  await db.exec(`insert into transcripts(workspace_id,source_id,words) values ('${wsA}','${prj.source_id}','[]')`);
+  const tr = (await db.query<{ id: string }>(`select id from transcripts where workspace_id='${wsA}' limit 1`)).rows[0].id;
+  const gen = (await db.query<{ id: string }>(`insert into generations(workspace_id,project_id,transcript_id,rubric_version,model) values ('${wsA}','${prj.id}','${tr}','r','m') returning id`)).rows[0].id;
+  const clip = (await db.query<{ id: string }>(`insert into clips(workspace_id,project_id,generation_id,title) values ('${wsA}','${prj.id}','${gen}','c') returning id`)).rows[0].id;
+  await db.exec(`insert into clip_versions(clip_id,workspace_id,version,composition) values ('${clip}','${wsA}',1,'{}')`);
+  let a: any, b: any;
+  await asUser(A, async () => {
+    a = (await db.query<{ r: any }>(`select request_render('${clip}',1,'1:1',true) r`)).rows[0].r;
+    b = (await db.query<{ r: any }>(`select request_render('${clip}',1,'1:1',true) r`)).rows[0].r;
+    await rejects(`select request_render('${clip}',9,'1:1',true)`);
+    await rejects(`select request_render('${clip}',1,'4:3',true)`);
+  });
+  assert.equal(a.job_id, b.job_id);
+  await asUser(B, async () => { await rejects(`select request_render('${clip}',1,'1:1',true)`); });
+  await db.exec(`insert into renders(workspace_id,clip_id,clip_version,ratio,burn_subtitles,spec_sha256,status) values ('${wsA}','${clip}',1,'16:9',true,'x','ready')`);
+  await asUser(A, async () => {
+    const c = (await db.query<{ r: any }>(`select request_render('${clip}',1,'16:9',true) r`)).rows[0].r;
+    assert.equal(c.reused, true);
+  });
 });

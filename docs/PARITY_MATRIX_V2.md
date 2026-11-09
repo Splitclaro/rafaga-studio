@@ -15,8 +15,9 @@ Referencias: las capturas/observaciones de LyricTune, OpusClip y Restream de est
 | ASR | Deepgram nova-3, palabras con tiempos, ES | `providers/transcribe` | — | autoprueba: 199 palabras, ES, 0,3–1,2 s | ✅ |
 | Worker | Cola durable, claim skip-locked, worker caliente, primer clip antes del lote | `workers/media/src/run.ts`, `worker.yml` | Arranque inmediato requiere `GH_DISPATCH_TOKEN` en Vercel | run 42626338501: job recogido 25 s tras arrancar | 🟡 |
 | Render | 9:16 fondo desenfocado + ASS palabra activa | `packages/composition` | — | autoprueba: 1080×1920 h264/aac, 14 s render | ✅ |
-| Subtítulos | Editor completo (split/merge, tiempos, offset, undo, autosave, SRT/VTT) | demo `/editor/demo` (solo texto/estilo básico) | — | spike 0 frames (fixture) | 🔧 |
-| Subtítulos | 1:1 y 16:9, presets restantes | — | — | — | ⬜ |
+| Subtítulos | Editor de clip: corregir texto (conserva intervalo), dividir/unir, inicio/fin por palabra, desfase global, búsqueda y salto, deshacer/rehacer, autosave con versiones inmutables y detección de conflicto, presets (Impacto/Limpio/Karaoke) + restaurar, estilo, safe area 9:16, SRT/VTT/TXT | `apps/web/app/app/c/[id]`, `packages/composition/src/edit.ts` | — | 6 tests unitarios de edición; **UI sin probar con sesión real** | 🟡 |
+| Export | MP4 bajo demanda por versión/formato (9:16, 1:1, 16:9), con/sin subtítulos, reutiliza export idéntico | RPC `request_render` (migración 3 aplicada), worker `processRender` | — | `scripts/test-render.ts`: 3 formatos OK (dims, 30 fps, AAC, 12,00 s); RLS 9/9 | 🟡 |
+| Subtítulos | Presets Entrevista/Contexto, peso, caja, alineación, tracking, animación | — | Compositor por frames (Style Studio) | — | ⬜ |
 | Lyric Studio | Canciones, alineación musical, 3 modos, fondos, hooks | — | Modelo de alineación para canto (por evaluar) | — | ⬜ |
 | Style Studio | Editor de estilos, 28 tratamientos, compositor por frames | — | Decisión de motor (Canvas/WebGL/Remotion: licencia) | — | ⬜ |
 | N variantes | Lotes, plan exacto N, ZIP | — | — | — | ⬜ |

@@ -42,5 +42,11 @@ Estado: **entrega parcial: beta aún no verificada** (sesión 1, 2026-11-09).
 4. Auth: confirmación de correo + SMTP gratuito limitado → testers ajenos no reciben el correo.
 5. Lyric Studio: falta evaluar modelo de alineación para voz cantada (licencia/coste/runtime).
 
+## Sesión 2 (cont.) — editor de subtítulos
+- Usuario decide seguir SIN IA (no carga saldo en Anthropic): selector léxico por defecto.
+- Editor `/app/c/[id]`: vídeo real (URL firmada del original) con fondo desenfocado y overlay de subtítulos con las mismas reglas que el export; edición de palabras, dividir/unir, tiempos, desfase, búsqueda, deshacer/rehacer, autosave (versión nueva por guardado, conflicto si otra sesión guardó), presets, estilo, formato, subtítulos on/off, SRT/VTT/TXT, export MP4 por versión y descarga firmada.
+- Migración 3 aplicada (jobs.params, request_render, claim_job con render primero). Worker procesa renders.
+- Pendiente de verificar con sesión real del usuario: recorrido editor → export → descarga.
+
 ## Siguiente paso
-Editor de subtítulos real sobre clips (split/merge, tiempos, offset, undo/autosave, versiones, re-render, SRT/VTT, 1:1/16:9). Después spike Lyric Studio (audio → letra alineada → MP4) y decisión de compositor por frames para Style Studio.
+Que el usuario pruebe el editor con un clip real. Luego: spike Lyric Studio (audio → letra alineada → MP4) y decisión de compositor por frames para Style Studio.
