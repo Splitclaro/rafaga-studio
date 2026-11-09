@@ -3,12 +3,18 @@
   "private": true,
   "version": "0.0.1",
   "type": "module",
-  "scripts": { "run-once": "node src/run.ts" },
+  "scripts": {
+    "run-once": "node src/run.ts"
+  },
   "dependencies": {
     "@rafaga/composition": "workspace:*",
     "@rafaga/providers": "workspace:*",
     "@rafaga/selection": "workspace:*",
-    "@supabase/supabase-js": "^2.119.0"
+    "@supabase/supabase-js": "^2.119.0",
+    "@rafaga/lyrics": "workspace:*"
   },
-  "devDependencies": { "@types/node": "^22", "typescript": "~5.9.0" }
+  "devDependencies": {
+    "@types/node": "^22",
+    "typescript": "~5.9.0"
+  }
 }

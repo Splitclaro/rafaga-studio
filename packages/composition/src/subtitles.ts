@@ -143,8 +143,13 @@ export function escapeAss(text: string): string {
   return text.replace(/\\/g, "＼").replace(/\{/g, "(").replace(/\}/g, ")").replace(/[\r\n]+/g, " ");
 }
 
-export function buildAss(words: Word[], style: SubtitleStyle, out: { width: number; height: number }): string {
-  const groups = groupWords(words, style);
+/** Grupos fijados por el llamador (p. ej. una línea de letra = un grupo). */
+export function groupsFrom(blocks: Word[][], maxCharsPerLine: number): Group[] {
+  return blocks.filter((b) => b.length).map((ws) => ({ words: ws, start: ws[0].start, end: ws[ws.length - 1].end, lines: layoutLines(ws, maxCharsPerLine) }));
+}
+
+export function buildAss(words: Word[], style: SubtitleStyle, out: { width: number; height: number }, fixedGroups?: Group[]): string {
+  const groups = fixedGroups ?? groupWords(words, style);
   const marginV = Math.round((1 - style.y) * out.height);
   const header = [
     "[Script Info]",

@@ -38,6 +38,8 @@ before(async () => {
   await db.exec(readFileSync(new URL("../migrations/20261109000003_render_requests.sql", import.meta.url), "utf8"));
   await db.exec(readFileSync(new URL("../migrations/20261109000004_workspace_fonts.sql", import.meta.url), "utf8"));
   await db.exec("grant select, insert, delete on public.workspace_fonts to authenticated;");
+  await db.exec(readFileSync(new URL("../migrations/20261109000005_lyric_studio.sql", import.meta.url), "utf8"));
+  await db.exec("grant select, insert, delete on public.songs to authenticated; grant select on public.song_alignments, public.lyric_videos to authenticated; grant execute on function public.request_lyrics(uuid, jsonb, text) to authenticated;");
   await db.exec("grant execute on function public.request_detection(uuid, text) to authenticated; grant execute on function public.request_render(uuid, int, text, boolean) to authenticated;");
   await db.exec(`insert into auth.users values ('${A}','a@test.dev'),('${B}','b@test.dev');`);
   wsA = (await db.query<{ id: string }>(`select id from workspaces where created_by='${A}'`)).rows[0].id;
@@ -158,5 +160,23 @@ test("fuentes propias: privadas por workspace y con ruta obligatoria en su carpe
     assert.equal((await db.query(`select * from workspace_fonts`)).rows.length, 0);
     await rejects(`insert into workspace_fonts(workspace_id,family,storage_path,bytes,created_by) values ('${wsA}','Y','${wsA}/fonts/y.ttf',1000,'${B}')`);
     const d = await db.query(`delete from workspace_fonts returning id`); assert.equal(d.rows.length, 0);
+  });
+});
+
+test("Lyric Studio: canciones privadas, ruta en su carpeta, petición de N validada", async () => {
+  let song = "";
+  await asUser(A, async () => {
+    song = (await db.query<{ id: string }>(`insert into songs(workspace_id,title,storage_path,mime,bytes,created_by) values ('${wsA}','Tema','${wsA}/songs/a.mp3','audio/mpeg',100,'${A}') returning id`)).rows[0].id;
+    await rejects(`insert into songs(workspace_id,title,storage_path,mime,bytes,created_by) values ('${wsA}','X','${wsB}/songs/x.mp3','audio/mpeg',100,'${A}')`);
+    await rejects(`insert into songs(workspace_id,title,storage_path,mime,bytes,created_by) values ('${wsA}','X','${wsA}/songs/x.ogg','audio/ogg',100,'${A}')`);
+    const j1 = (await db.query<{ r: string }>(`select request_lyrics('${song}','{"n":10,"ratio":"9:16"}','clave-lyr-1') r`)).rows[0].r;
+    const j2 = (await db.query<{ r: string }>(`select request_lyrics('${song}','{"n":10,"ratio":"9:16"}','clave-lyr-1') r`)).rows[0].r;
+    assert.equal(j1, j2);
+    await rejects(`select request_lyrics('${song}','{"n":0,"ratio":"9:16"}','clave-lyr-2')`);
+    await rejects(`select request_lyrics('${song}','{"n":5,"ratio":"4:3"}','clave-lyr-3')`);
+  });
+  await asUser(B, async () => {
+    assert.equal((await db.query(`select * from songs`)).rows.length, 0);
+    await rejects(`select request_lyrics('${song}','{"n":1,"ratio":"9:16"}','clave-lyr-4')`);
   });
 });

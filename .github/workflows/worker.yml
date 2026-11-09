@@ -3,7 +3,7 @@ on:
   schedule: [{ cron: "*/5 * * * *" }]
   workflow_dispatch:
     inputs:
-      mode: { description: "worker | selftest", default: "worker", required: false }
+      mode: { description: "worker | selftest | lyrics-selftest", default: "worker", required: false }
 concurrency: { group: media-worker, cancel-in-progress: false }
 permissions: { contents: read, actions: read }
 jobs:
@@ -33,4 +33,4 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           WORKER_IDLE_SECONDS: "600"   # caliente 10 min tras el último trabajo: los siguientes arrancan en segundos
           WORKER_MAX_SECONDS: "3000"
-        run: node src/${{ inputs.mode == 'selftest' && 'selftest' || 'run' }}.ts
+        run: node src/${{ (inputs.mode == 'selftest' || inputs.mode == 'lyrics-selftest') && inputs.mode || 'run' }}.ts

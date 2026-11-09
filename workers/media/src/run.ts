@@ -5,8 +5,9 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, writeFileSync, readFileSync, rmSync, existsSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { buildAss, buildComposition, ffmpegArgs, styleForRatio, renderFamily, RATIO_SIZE, type Composition, type Ratio, type Word } from "@rafaga/composition";
+import { buildAss, buildComposition, ffmpegArgs, styleForRatio, renderFamily, groupsFrom, escapeFilterPath, PRESETS, RATIO_SIZE, type Composition, type Ratio, type Word } from "@rafaga/composition";
 import { transcribe, proposeClips } from "@rafaga/providers";
+import { alignLyrics, lyricsFromAsr, parseLyrics, planVariants, type TimedWord } from "@rafaga/lyrics";
 import { briefHash, RUBRIC_VERSION, validateCandidates, windows, transcriptText, lexicalCandidates, LEXICAL_VERSION, type TWord, type RawCandidate } from "@rafaga/selection";
 
 const need = (k: string) => { const v = process.env[k]; if (!v) { console.error(`Falta el secreto ${k}`); process.exit(2); } return v; };
@@ -33,7 +34,7 @@ async function fontsFor(ws: string, family: string, dir: string): Promise<string
   return fd;
 }
 
-type Job = { id: string; kind: string; workspace_id: string; project_id: string | null; clip_id: string | null; attempts: number; params: { version?: number; ratio?: Ratio; burn?: boolean } };
+type Job = { id: string; kind: string; workspace_id: string; project_id: string | null; clip_id: string | null; attempts: number; params: { version?: number; ratio?: Ratio; burn?: boolean; song_id?: string; n?: number; styles?: string[]; backgrounds?: string[]; seed?: number; start?: number; end?: number } };
 const setStatus = (id: string, status: string, extra: Record<string, unknown> = {}) =>
   sb.from("jobs").update({ status, heartbeat_at: new Date().toISOString(), updated_at: new Date().toISOString(), ...extra }).eq("id", id);
 
@@ -176,6 +177,87 @@ async function processRender(job: Job) {
   } finally { rmSync(dir, { recursive: true, force: true }); }
 }
 
+/** Lyric Studio: canción → letra alineada (cacheada) → N variantes MP4. */
+async function processLyrics(job: Job) {
+  const t0 = Date.now();
+  const m: Record<string, number | string> = {};
+  const dir = mkdtempSync(join(tmpdir(), "rafaga-l-"));
+  try {
+    const p = job.params;
+    const song = ok(await sb.from("songs").select("id,workspace_id,title,artist,language,storage_path,lyrics_text").eq("id", p.song_id!).single(), "canción");
+    const ratio = (p.ratio ?? "9:16") as Ratio;
+    const { width: W, height: H } = RATIO_SIZE[ratio];
+    await setStatus(job.id, "extracting");
+    const dl = await sb.storage.from("originals").download(song.storage_path);
+    if (dl.error || !dl.data) throw new Error(`descarga: ${dl.error?.message}`);
+    const src = join(dir, "song"); writeFileSync(src, Buffer.from(await dl.data.arrayBuffer()));
+    const full = Number(JSON.parse(sh("ffprobe", ["-v", "error", "-print_format", "json", "-show_format", src])).format.duration);
+    const start = Math.max(0, p.start ?? 0), end = Math.min(full, p.end && p.end > start ? p.end : full);
+    const len = end - start;
+    if (!(len >= 3)) throw Object.assign(new Error("El tramo elegido es demasiado corto (mínimo 3 s)."), { permanent: true });
+    // Audio del tramo (sirve para ASR y para el render)
+    const seg = join(dir, "seg.m4a");
+    sh("ffmpeg", ["-y", "-v", "error", "-ss", String(start), "-t", String(len), "-i", src, "-vn", "-c:a", "aac", "-b:a", "192k", seg]);
+    // Alineación: una vez por (letra, tramo)
+    const key = briefHash(`v1|${song.lyrics_text ?? ""}|${start.toFixed(2)}|${end.toFixed(2)}`);
+    let words: TimedWord[];
+    const cached = (await sb.from("song_alignments").select("words").eq("song_id", song.id).eq("lyrics_sha256", key).maybeSingle()).data;
+    if (cached) { words = cached.words as TimedWord[]; m.alignment = "cache"; }
+    else {
+      await setStatus(job.id, "transcribing");
+      const ogg = join(dir, "a.ogg");
+      sh("ffmpeg", ["-y", "-v", "error", "-i", seg, "-ac", "1", "-ar", "16000", "-c:a", "libopus", "-b:a", "32k", ogg]);
+      const t1 = Date.now();
+      const tr = await transcribe(readFileSync(ogg), "audio/ogg", DG, song.language as "auto" | "es" | "en");
+      m.asr_ms = Date.now() - t1; m.asr_words = tr.words.length;
+      const lines = song.lyrics_text ? parseLyrics(song.lyrics_text) : [];
+      words = lines.length ? alignLyrics(lines, tr.words) : lyricsFromAsr(tr.words);
+      if (!words.length) throw Object.assign(new Error("No se detectó voz cantada en el tramo. Aporta la letra o elige otro tramo."), { permanent: true });
+      await sb.from("song_alignments").insert({ workspace_id: song.workspace_id, song_id: song.id, lyrics_sha256: key, words, asr_words: tr.words.length });
+      m.alignment = lines.length ? "lyrics+asr" : "asr";
+    }
+    m.words = words.length; m.interpolated = words.filter((w) => w.origin === "interpolated").length;
+    // Plan exacto de N variantes
+    const plan = planVariants(p.n ?? 1, p.styles?.length ? p.styles : ["Impacto"], p.backgrounds?.length ? p.backgrounds : ["#111111"], p.seed ?? 1);
+    m.n = plan.variants.length; m.distinct = plan.distinct;
+    await setStatus(job.id, "rendering");
+    const byLine = new Map<number, TimedWord[]>();
+    for (const w of words) byLine.set(w.line, [...(byLine.get(w.line) ?? []), w]);
+    const done = new Set(((await sb.from("lyric_videos").select("variant").eq("job_id", job.id).eq("status", "ready")).data ?? []).map((r) => r.variant));
+    for (const v of plan.variants) {
+      if (done.has(v.index)) continue;   // reintento: no repite variantes ya listas
+      const { data: cur } = await sb.from("jobs").select("status").eq("id", job.id).single();
+      if (cur?.status === "cancelled") break;
+      await sb.from("lyric_videos").upsert({ workspace_id: song.workspace_id, song_id: song.id, job_id: job.id, variant: v.index, params: v, status: "rendering" }, { onConflict: "job_id,variant" });
+      const style = { ...(PRESETS[v.style] ?? PRESETS.Impacto), y: 0.5 + (v.seed % 7) * 0.01 };
+      const eff = styleForRatio(style, ratio);
+      const groups = groupsFrom([...byLine.values()], eff.maxCharsPerLine);
+      const ass = join(dir, `v${v.index}.ass`), out = join(dir, `v${v.index}.mp4`);
+      writeFileSync(ass, buildAss(words, { ...eff, fontName: renderFamily(eff.fontName), maxLines: 3 }, { width: W, height: H }, groups));
+      const bg = /^#[0-9a-f]{6}$/i.test(v.background) ? v.background.slice(1) : "111111";
+      const t2 = Date.now();
+      sh("ffmpeg", ["-y", "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", `color=c=0x${bg}:s=${W}x${H}:r=30:d=${len}`, "-i", seg,
+        "-vf", `subtitles=${escapeFilterPath(ass)},format=yuv420p`, "-map", "0:v", "-map", "1:a", "-c:v", "libx264", "-preset", "superfast", "-crf", "22", "-tune", "stillimage",
+        "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart", out]);
+      const probe = JSON.parse(sh("ffprobe", ["-v", "error", "-print_format", "json", "-show_entries", "stream=codec_name,width,height:format=duration,size", out]));
+      const rpath = `${song.workspace_id}/lyrics/${job.id}/${v.index}.mp4`;
+      const up = await sb.storage.from("renders").upload(rpath, readFileSync(out), { contentType: "video/mp4", upsert: true });
+      if (up.error) throw new Error(`subida: ${up.error.message}`);
+      await sb.from("lyric_videos").update({ storage_path: rpath, status: "ready", probe }).eq("job_id", job.id).eq("variant", v.index);
+      if (v.index === 1) m.first_ms = Date.now() - t0;
+      m[`render_ms_${v.index}`] = Date.now() - t2;
+      await sb.from("jobs").update({ heartbeat_at: new Date().toISOString(), metrics: m }).eq("id", job.id);
+    }
+    m.total_ms = Date.now() - t0;
+    await setStatus(job.id, "done", { metrics: m });
+    console.log("lyrics ok", job.id, m);
+  } catch (e) {
+    const err = e as Error & { permanent?: boolean };
+    console.error("lyrics fallo", job.id, err.message);
+    await setStatus(job.id, err.permanent || job.attempts >= 3 ? "failed" : "queued", { error_code: err.permanent ? "permanent" : "transient", error_message: err.message.slice(0, 300), metrics: m });
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+}
+
 const idleMs = Number(process.env.WORKER_IDLE_SECONDS ?? 0) * 1000;   // 0 = salir si no hay trabajo
 const maxMs = Number(process.env.WORKER_MAX_SECONDS ?? 3000) * 1000;
 const started = Date.now();
@@ -190,6 +272,6 @@ for (;;) {
     await new Promise((r) => setTimeout(r, 3000));   // sondeo cada 3 s mientras está caliente
     continue;
   }
-  await (job.kind === "render" ? processRender(job) : processJob(job)); processed++; lastWork = Date.now();
+  await (job.kind === "render" ? processRender(job) : job.kind === "lyrics" ? processLyrics(job) : processJob(job)); processed++; lastWork = Date.now();
 }
 console.log(`terminado: ${processed} job(s) en ${Math.round((Date.now() - started) / 1000)} s`);
