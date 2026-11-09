@@ -48,5 +48,10 @@ Estado: **entrega parcial: beta aún no verificada** (sesión 1, 2026-11-09).
 - Migración 3 aplicada (jobs.params, request_render, claim_job con render primero). Worker procesa renders.
 - Pendiente de verificar con sesión real del usuario: recorrido editor → export → descarga.
 
-## Siguiente paso
-Que el usuario pruebe el editor con un clip real. Luego: spike Lyric Studio (audio → letra alineada → MP4) y decisión de compositor por frames para Style Studio.
+## Sesión 2 (cont.) — fuentes y Lyric Studio
+- Usuario confirma: generación y edición OK en producción (job ok en worker).
+- Fuente Bootzy TM: sin licencia en metadatos → NO se sube al repo público; se añade como fuente propia del workspace (Brand kits → Fuentes). El usuario debe subirla.
+- Lyric Studio v1 (migración 5): canciones, letra, tramo, N variantes (estilo × fondo sólido, semilla), lotes y descargas. Autoprueba nube OK con voz recitada; canto real sin validar.
+
+## Siguiente paso (anterior)
+Probar Lyric Studio con una canción real (canto + instrumental). Siguiente: Style Studio (compositor por frames compartido preview/export) y modos Text/LP Cover, fondos de vídeo/foto, ZIP.

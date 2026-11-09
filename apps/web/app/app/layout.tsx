@@ -8,7 +8,7 @@ import Icon from "../../components/Icon";
 const NAV = [
   { href: "/app", label: "Inicio", icon: "home", ready: true },
   { href: "/app/proyectos", label: "Proyectos", icon: "film", ready: true },
-  { href: "/app/lyric-studio", label: "Lyric Studio", icon: "music", ready: false },
+  { href: "/app/lyric-studio", label: "Lyric Studio", icon: "music", ready: true },
   { href: "/app/style-studio", label: "Style Studio", icon: "type", ready: false },
   { href: "/app/en-vivo", label: "En vivo", icon: "live", ready: false },
   { href: "/app/automatizaciones", label: "Automatizaciones", icon: "bolt", ready: false },
