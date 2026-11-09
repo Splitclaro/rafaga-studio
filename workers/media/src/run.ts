@@ -48,13 +48,14 @@ async function processJob(job: Job) {
       const vs = probe.streams.find((s: { codec_type: string }) => s.codec_type === "video");
       await sb.from("sources").update({ status: hasAudio ? "validated" : "failed", duration_ms: durationMs, width: vs?.width, height: vs?.height, has_audio: hasAudio }).eq("id", src.id);
       if (!hasAudio) throw Object.assign(new Error("El vídeo no tiene pista de audio: no se puede seleccionar por voz."), { permanent: true });
+      if (durationMs < 15000) throw Object.assign(new Error(`El vídeo dura ${(durationMs / 1000).toFixed(1)} s. Para buscar momentos hace falta al menos 15 s de contenido hablado.`), { permanent: true });
       const audio = join(dir, "a.ogg");
       sh("ffmpeg", ["-y", "-v", "error", "-i", inp, "-vn", "-ac", "1", "-ar", "16000", "-c:a", "libopus", "-b:a", "24k", audio]);
       await setStatus(job.id, "transcribing");
       const t1 = Date.now();
       const res = await transcribe(readFileSync(audio), "audio/ogg", DG, project.language);
       m.asr_ms = Date.now() - t1;
-      if (!res.words.length) throw Object.assign(new Error("No se detectó habla en el audio."), { permanent: true });
+      if (!res.words.length) throw Object.assign(new Error("No se detectó voz en el audio (¿solo música o silencio?). La detección de momentos necesita habla; para canciones usa Lyric Studio."), { permanent: true });
       tr = ok(await sb.from("transcripts").insert({ workspace_id: project.workspace_id, source_id: src.id, language: res.language, words: res.words, asr_provider: "deepgram", asr_model: "nova-3" }).select("id,words,language").single(), "transcript");
     } else m.asr_ms = 0; // reutilizado
     if (!tr) throw new Error("transcript no disponible");

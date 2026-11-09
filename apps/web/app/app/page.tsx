@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Icon from "../../components/Icon";
 import ProjectGrid, { useProjects } from "../../components/ProjectList";
-import { createProject, validateFile } from "../../lib/projects";
+import { createProject, validateFile, probeDuration, MIN_SOURCE_SECONDS } from "../../lib/projects";
 import { BRIEF_MAX, MAX_UPLOAD_BYTES } from "../../lib/supabase";
 
 export default function Dashboard() {
@@ -20,10 +20,13 @@ export default function Dashboard() {
   const [msg, setMsg] = useState<string | null>(null);
   const [adv, setAdv] = useState(false);
 
-  function pick(f: File | null) {
+  async function pick(f: File | null) {
     if (!f) return;
     const e = validateFile(f);
-    setMsg(e); setFile(e ? null : f);
+    if (e) { setMsg(e); setFile(null); return; }
+    const d = await probeDuration(f);
+    if (d !== null && d < MIN_SOURCE_SECONDS) { setMsg(`Este vídeo dura ${d.toFixed(1)} s. Para buscar momentos hace falta al menos ${MIN_SOURCE_SECONDS} s.`); setFile(null); return; }
+    setMsg(null); setFile(f);
   }
   async function submit(e: React.FormEvent) {
     e.preventDefault();

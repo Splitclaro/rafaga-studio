@@ -1,7 +1,9 @@
 name: media-worker
 on:
   schedule: [{ cron: "*/5 * * * *" }]
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      mode: { description: "worker | selftest", default: "worker", required: false }
 concurrency: { group: media-worker, cancel-in-progress: false }
 permissions: { contents: read, actions: read }
 jobs:
@@ -16,7 +18,7 @@ jobs:
         run: |
           if [ -z "$S" ] || [ -z "$D" ] || [ -z "$A" ]; then echo "ready=false" >> "$GITHUB_OUTPUT"; echo "::notice::Faltan secretos (SUPABASE_SECRET_KEY, DEEPGRAM_API_KEY, ANTHROPIC_API_KEY): el worker no procesa."; else echo "ready=true" >> "$GITHUB_OUTPUT"; fi
       - if: steps.gate.outputs.ready == 'true'
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-liberation fontconfig
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-liberation fontconfig espeak-ng
       - if: steps.gate.outputs.ready == 'true'
         uses: actions/setup-node@v4
         with: { node-version: 24 }
@@ -31,4 +33,4 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           WORKER_IDLE_SECONDS: "600"   # caliente 10 min tras el último trabajo: los siguientes arrancan en segundos
           WORKER_MAX_SECONDS: "3000"
-        run: node src/run.ts
+        run: node src/${{ inputs.mode == 'selftest' && 'selftest' || 'run' }}.ts

@@ -28,3 +28,17 @@ export async function createProject(a: { file: File; name: string; brief: string
   if (e4 || !prj) throw new Error(e4?.message ?? "No se pudo crear el proyecto.");
   return prj.id;
 }
+
+/** Duración real leída del propio archivo en el navegador (sin subirlo). */
+export function probeDuration(f: File): Promise<number | null> {
+  return new Promise((res) => {
+    const v = document.createElement("video");
+    const url = URL.createObjectURL(f);
+    const done = (d: number | null) => { URL.revokeObjectURL(url); res(d); };
+    v.preload = "metadata";
+    v.onloadedmetadata = () => done(Number.isFinite(v.duration) ? v.duration : null);
+    v.onerror = () => done(null);
+    v.src = url;
+  });
+}
+export const MIN_SOURCE_SECONDS = 15;
