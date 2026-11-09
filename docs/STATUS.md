@@ -25,7 +25,7 @@ Estado: **entrega parcial: beta aún no verificada** (sesión 1, 2026-11-09).
 
 ## Bloqueos externos
 1. Supabase: **creado** `rafaga-studio-beta` (ref attrnwbcgascvppncucl, org Splitclaro, Free, UE) y migración core aplicada (16 tablas, RLS on). Contraseña de BD generada por Supabase y no guardada. Pendiente: claves API en Vercel/worker, Auth URLs, SMTP, prueba A/B real. Free limita tamaño por archivo; Pro requiere autorizar coste.
-2. Vercel: equipo split-claro-app verificado; proyecto se importa desde el repo cuando exista apps/web.
+2. Vercel: proyecto nuevo `rafaga-studio` creado y desplegado desde el repo (https://rafaga-studio.vercel.app, landing + /editor/demo, 200 OK). Aún sin variables de entorno, sin Auth ni worker: NO es la beta.
 3. Claves Deepgram y Anthropic; Trigger.dev o worker Docker (coste a autorizar).
 
 ## Siguiente paso

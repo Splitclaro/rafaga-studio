@@ -23,8 +23,15 @@
     "existing_projects_do_not_touch": [
       "splitclaro"
     ],
-    "project": null,
-    "status": "team_verified_project_pending_code",
+    "project": {
+      "name": "rafaga-studio",
+      "team": "split-claro-app",
+      "repo": "Splitclaro/rafaga-studio",
+      "root_directory": "apps/web",
+      "production_url": "https://rafaga-studio.vercel.app",
+      "created_by_this_run": true
+    },
+    "status": "deployed_demo_only_no_env_vars",
     "note": "Project will be imported from the new repo once the web app exists"
   },
   "supabase": {
