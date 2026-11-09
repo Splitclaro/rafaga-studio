@@ -24,7 +24,7 @@ Estado: **entrega parcial: beta aún no verificada** (sesión 1, 2026-11-09).
 - Verificado en Chrome: Supabase org Splitclaro (Free), Vercel equipo split-claro-app (Hobby), GitHub Splitclaro. Repo creado: https://github.com/Splitclaro/rafaga-studio.
 
 ## Bloqueos externos
-1. Supabase: crear `rafaga-studio-beta` en el panel (org Splitclaro, Free) — falta contraseña BD (la pone el usuario). Free limita tamaño por archivo; Pro requiere autorizar coste.
+1. Supabase: **creado** `rafaga-studio-beta` (ref attrnwbcgascvppncucl, org Splitclaro, Free, UE) y migración core aplicada (16 tablas, RLS on). Contraseña de BD generada por Supabase y no guardada. Pendiente: claves API en Vercel/worker, Auth URLs, SMTP, prueba A/B real. Free limita tamaño por archivo; Pro requiere autorizar coste.
 2. Vercel: equipo split-claro-app verificado; proyecto se importa desde el repo cuando exista apps/web.
 3. Claves Deepgram y Anthropic; Trigger.dev o worker Docker (coste a autorizar).
 
