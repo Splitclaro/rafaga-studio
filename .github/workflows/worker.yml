@@ -3,7 +3,7 @@ on:
   schedule: [{ cron: "*/5 * * * *" }]
   workflow_dispatch: {}
 concurrency: { group: media-worker, cancel-in-progress: false }
-permissions: { contents: read }
+permissions: { contents: read, actions: read }
 jobs:
   process:
     runs-on: ubuntu-24.04
@@ -29,4 +29,6 @@ jobs:
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           DEEPGRAM_API_KEY: ${{ secrets.DEEPGRAM_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          WORKER_IDLE_SECONDS: "600"   # caliente 10 min tras el último trabajo: los siguientes arrancan en segundos
+          WORKER_MAX_SECONDS: "3000"
         run: node src/run.ts

@@ -19,6 +19,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   const [clips, setClips] = useState<Clip[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [wake, setWake] = useState<"woken" | "warm" | "cold" | null>(null);
   const busyRef = useRef(false);
 
   const load = useCallback(async () => {
@@ -59,7 +60,14 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
     try {
       if (!(await saveBrief())) return;
       const { error } = await supabase.rpc("request_detection", { p_project: id, p_key: crypto.randomUUID() });
-      if (error) setMsg(error.message); else { setMsg("Detección solicitada."); await load(); }
+      if (error) setMsg(error.message);
+      else {
+        setMsg("Detección solicitada.");
+        await load();
+        const { data: s } = await supabase.auth.getSession();
+        fetch("/api/wake", { method: "POST", headers: { Authorization: `Bearer ${s.session?.access_token ?? ""}` } })
+          .then((r) => r.json()).then((j) => setWake(j.woken ? "woken" : j.reason === "already_running" ? "warm" : "cold")).catch(() => setWake("cold"));
+      }
     } finally { busyRef.current = false; setBusy(false); }
   }
 
@@ -83,7 +91,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
       {job && (
         <section aria-live="polite" className="mt-6 rounded-xl bg-[var(--surface)] p-4 text-sm">
           <div className="font-medium">Estado: {STAGE[job.status] ?? job.status}{job.attempts > 1 ? ` · intento ${job.attempts}` : ""}</div>
-          {job.status === "queued" && <p className="mt-1 text-[var(--muted)]">El procesamiento corre en un worker que revisa la cola cada pocos minutos. Llevas {waitingMin} min en cola.{waitingMin >= 15 && " Si sigue así, el worker puede no estar activo (faltan sus claves)."}</p>}
+          {job.status === "queued" && <p className="mt-1 text-[var(--muted)]">{wake === "warm" ? "El worker ya está activo: debería recogerlo en segundos." : wake === "woken" ? "Arrancando el worker (suele tardar 1–2 min la primera vez)." : "El worker arranca según el programador de GitHub, que puede tardar varios minutos."} Llevas {waitingMin} min en cola.{waitingMin >= 15 && " Si sigue así, el worker no está activo."}</p>}
           {job.error_message && <p role="alert" className="mt-1 text-[var(--danger)]">{job.error_message}</p>}
         </section>
       )}

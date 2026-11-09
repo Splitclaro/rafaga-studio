@@ -2,7 +2,7 @@
 // Secretos requeridos (variables de entorno): SUPABASE_URL, SUPABASE_SECRET_KEY, DEEPGRAM_API_KEY, ANTHROPIC_API_KEY.
 import { createClient } from "@supabase/supabase-js";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildAss, buildComposition, ffmpegArgs, type Word } from "@rafaga/composition";
@@ -75,11 +75,14 @@ async function processJob(job: Job) {
 
     // 3) Candidatos, clips y render (primer clip antes del lote)
     await setStatus(job.id, "rendering");
-    const src2 = await sb.storage.from("originals").download(path);
     const inp = join(dir, "in");
-    if (!src2.error && src2.data) writeFileSync(inp, Buffer.from(await src2.data.arrayBuffer()));
+    if (!existsSync(inp)) {
+      const d2 = await sb.storage.from("originals").download(path);
+      if (d2.error || !d2.data) throw new Error(`descarga: ${d2.error?.message}`);
+      writeFileSync(inp, Buffer.from(await d2.data.arrayBuffer()));
+    }
     let firstClipMs = 0;
-    for (const [i, c] of accepted.entries()) {
+    const renderOne = async (i: number, c: (typeof accepted)[number]) => {
       const cand = ok(await sb.from("clip_candidates").insert({ workspace_id: project.workspace_id, generation_id: gen.id, start_ms: Math.round(c.startSec * 1000), end_ms: Math.round(c.endSec * 1000), title: c.title, reason: c.reason, brief_fit: c.briefFit, scores: { ...c.scores, overall: c.overall, label: "estimación editorial de IA" } }).select("id").single(), "candidato");
       const clip = ok(await sb.from("clips").insert({ workspace_id: project.workspace_id, project_id: project.id, generation_id: gen.id, candidate_id: cand.id, title: c.title }).select("id").single(), "clip");
       const comp = buildComposition({ words: words as Word[], startSec: c.startSec, endSec: c.endSec });
@@ -95,7 +98,10 @@ async function processJob(job: Job) {
       await sb.from("renders").insert({ workspace_id: project.workspace_id, clip_id: clip.id, clip_version: 1, ratio: "9:16", burn_subtitles: true, spec_sha256: briefHash(JSON.stringify(comp)), storage_path: rpath, status: "ready", probe: { duration: probe.format.duration, size: probe.format.size, streams: probe.streams.map((s: { codec_name: string; width?: number; height?: number }) => [s.codec_name, s.width, s.height]) } });
       m[`render_ms_${i}`] = Date.now() - t3;
       if (i === 0) firstClipMs = Date.now() - t0;
-    }
+        };
+    if (accepted.length) await renderOne(0, accepted[0]);          // primer clip antes que el lote
+    const rest = accepted.slice(1).map((c, k) => [k + 1, c] as const);
+    for (let k = 0; k < rest.length; k += 2) await Promise.all(rest.slice(k, k + 2).map(([i, c]) => renderOne(i, c)));
     m.first_clip_ms = firstClipMs; m.all_clips_ms = Date.now() - t0;
     await sb.from("generations").update({ status: "done" }).eq("id", gen.id);
     await setStatus(job.id, "done", { generation_id: gen.id, metrics: m });
@@ -108,13 +114,20 @@ async function processJob(job: Job) {
   } finally { rmSync(dir, { recursive: true, force: true }); }
 }
 
-let processed = 0;
+const idleMs = Number(process.env.WORKER_IDLE_SECONDS ?? 0) * 1000;   // 0 = salir si no hay trabajo
+const maxMs = Number(process.env.WORKER_MAX_SECONDS ?? 3000) * 1000;
+const started = Date.now();
+let processed = 0, lastWork = Date.now();
 for (;;) {
+  if (Date.now() - started > maxMs) break;
   const { data, error } = await sb.rpc("claim_job");
   if (error) { console.error("claim_job:", error.message); process.exit(1); }
   const job = (data as Job[] | null)?.[0];
-  if (!job) break;
-  await processJob(job); processed++;
-  if (processed >= 5) break; // límite por ejecución; el siguiente ciclo continúa
+  if (!job) {
+    if (Date.now() - lastWork > idleMs) break;
+    await new Promise((r) => setTimeout(r, 3000));   // sondeo cada 3 s mientras está caliente
+    continue;
+  }
+  await processJob(job); processed++; lastWork = Date.now();
 }
-console.log(`terminado: ${processed} job(s)`);
+console.log(`terminado: ${processed} job(s) en ${Math.round((Date.now() - started) / 1000)} s`);

@@ -41,7 +41,7 @@ export function ffmpegArgs(c: Composition, io: { input: string; assPath: string;
     `[fg]scale=${W}:${H}:force_original_aspect_ratio=decrease[f];` +
     `[b][f]overlay=(W-w)/2:(H-h)/2,fps=${c.fps},format=yuv420p${sub}[v]`;
   return ["-y", "-hide_banner", "-loglevel", "error", "-ss", String(c.startSec), "-t", String(dur), "-i", io.input,
-    "-filter_complex", fc, "-map", "[v]", "-map", "0:a:0?", "-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-r", String(c.fps),
+    "-filter_complex", fc, "-map", "[v]", "-map", "0:a:0?", "-c:v", "libx264", "-preset", "superfast", "-crf", "22", "-threads", "0", "-r", String(c.fps),
     "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", io.output];
 }
 
