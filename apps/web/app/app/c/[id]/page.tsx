@@ -3,12 +3,16 @@ import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   activeWordAt, groupWords, editText, splitWord, mergeWithNext, setTiming, offsetAll, styleForRatio, toSRT, toVTT, toTranscript,
-  PRESETS, RATIO_SIZE, caseOf, type Composition, type Ratio, type SubtitleStyle, type Word,
+  PRESETS, RATIO_SIZE, caseOf, type Composition, type BrollItem, type Ratio, type SubtitleStyle, type Word,
 } from "@rafaga/composition";
 import { supabase } from "../../../../lib/supabase";
 import { useWorkspaceFonts } from "../../../../lib/fonts";
+import { useCollections } from "../../../../components/Collections";
+import { useTextStyles } from "../../../../lib/textStyles";
+import Icon from "../../../../components/Icon";
 
-type Doc = { words: Word[]; style: SubtitleStyle; ratio: Ratio; burn: boolean; preset: string };
+type Layout = "blur" | "fill" | "fit";
+type Doc = { words: Word[]; style: SubtitleStyle; ratio: Ratio; burn: boolean; preset: string; layout: Layout; cropX: number; broll: BrollItem[] };
 type Render = { id: string; clip_version: number; ratio: string; burn_subtitles: boolean; storage_path: string; created_at: string };
 
 export default function ClipEditor({ params }: { params: Promise<{ id: string }> }) {
@@ -24,7 +28,11 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
   const [playing, setPlaying] = useState(false);
   const [q, setQ] = useState("");
   const [sel, setSel] = useState<number | null>(null);
-  const [tab, setTab] = useState<"texto" | "estilo" | "exportar">("texto");
+  const [tab, setTab] = useState<"texto" | "estilo" | "encuadre" | "social" | "broll" | "exportar">("texto");
+  const { cols } = useCollections();
+  const { saved: myStyles } = useTextStyles();
+  const presetStyle = (name: string): SubtitleStyle => PRESETS[name] ?? myStyles?.find((x) => x.name === name)?.style ?? PRESETS.Impacto;
+  const [brollUrls, setBrollUrls] = useState<Record<string, string>>({});
   const [renders, setRenders] = useState<Render[]>([]);
   const [exporting, setExporting] = useState<string | null>(null);
   const fg = useRef<HTMLVideoElement>(null), bg = useRef<HTMLVideoElement>(null), stage = useRef<HTMLDivElement>(null);
@@ -48,10 +56,19 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
       const signed = await supabase.storage.from("originals").createSignedUrl(`${c.workspace_id}/${p.source_id}/original`, 3600);
       versionRef.current = c.current_version;
       setMeta({ title: c.title, ws: c.workspace_id, projectId: c.project_id, version: c.current_version, base: comp, src: signed.data?.signedUrl ?? "" });
-      setDoc({ words: comp.words, style: comp.style, ratio: comp.ratio, burn: comp.burnSubtitles, preset: comp.preset ?? "Impacto" });
+      setDoc({ words: comp.words, style: comp.style, ratio: comp.ratio, burn: comp.burnSubtitles, preset: comp.preset ?? "Impacto", layout: comp.layout === "fill" || comp.layout === "fit" ? comp.layout : "blur", cropX: comp.crop?.x ?? 0.5, broll: comp.broll ?? [] });
       await loadRenders();
     })();
   }, [id, loadRenders]);
+
+  useEffect(() => {
+    (async () => {
+      const need = (doc?.broll ?? []).map((b) => b.path).filter((p) => !brollUrls[p]);
+      if (!need.length) return;
+      const { data } = await supabase.storage.from("originals").createSignedUrls(need, 3600);
+      setBrollUrls((u) => ({ ...u, ...Object.fromEntries((data ?? []).flatMap((x) => (x.signedUrl && x.path ? [[x.path, x.signedUrl] as [string, string]] : []))) }));
+    })();
+  }, [doc?.broll]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---------- Reproducción sincronizada con el tramo del clip ----------
   const clipLen = meta ? meta.base.endSec - meta.base.startSec : 0;
@@ -98,7 +115,7 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
     if (!meta) return null;
     setSave("saving");
     const next = versionRef.current + 1;
-    const composition: Composition & { preset: string } = { ...meta.base, words: d.words, style: d.style, ratio: d.ratio, burnSubtitles: d.burn, preset: d.preset };
+    const composition: Composition & { preset: string } = { ...meta.base, words: d.words, style: d.style, ratio: d.ratio, burnSubtitles: d.burn, preset: d.preset, layout: d.layout, crop: { x: d.cropX }, broll: d.broll };
     const { data: s } = await supabase.auth.getSession();
     const ins = await supabase.from("clip_versions").insert({ clip_id: id, workspace_id: meta.ws, version: next, composition, created_by: s.session?.user.id });
     if (ins.error) { setSave(ins.error.code === "23505" ? "conflict" : "error"); setErr(ins.error.code === "23505" ? "Otra sesión guardó este clip. Recarga para ver la última versión." : ins.error.message); return null; }
@@ -183,9 +200,12 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_420px]">
         {/* Preview */}
         <section aria-label="Vista previa" className="flex flex-col items-center gap-3">
-          <div ref={stage} className="relative w-full overflow-hidden rounded-xl bg-black" style={{ aspectRatio: `${R.width}/${R.height}`, maxWidth: doc.ratio === "16:9" ? 860 : doc.ratio === "1:1" ? 560 : 380 }}>
-            <video ref={bg} src={meta.src} muted playsInline preload="auto" className="absolute inset-0 h-full w-full scale-110 object-cover blur-2xl" aria-hidden />
-            <video ref={fg} src={meta.src} playsInline preload="auto" className="absolute inset-0 h-full w-full object-contain" onLoadedMetadata={() => seek(0)} />
+          <div ref={stage} className="relative w-full overflow-hidden rounded-xl bg-black" style={{ aspectRatio: `${R.width}/${R.height}`, maxWidth: doc.ratio === "16:9" ? 860 : doc.ratio === "1:1" ? 560 : doc.ratio === "4:5" ? 480 : 380 }}>
+            <video ref={bg} src={meta.src} muted playsInline preload="auto" className={`absolute inset-0 h-full w-full scale-110 object-cover blur-2xl ${doc.layout === "blur" ? "" : "hidden"}`} aria-hidden />
+            <video ref={fg} src={meta.src} playsInline preload="auto" className={`absolute inset-0 h-full w-full ${doc.layout === "fill" ? "object-cover" : "object-contain"}`} style={doc.layout === "fill" ? { objectPosition: `${doc.cropX * 100}% 50%` } : undefined} onLoadedMetadata={() => seek(0)} />
+            {doc.broll.map((b, i) => t >= b.start && t < b.start + b.dur && brollUrls[b.path] ? (b.kind === "photo"
+              ? <img key={i} src={brollUrls[b.path]} alt="" className="absolute inset-0 h-full w-full object-cover" />
+              : <video key={i} src={brollUrls[b.path]} muted autoPlay loop playsInline className="absolute inset-0 h-full w-full object-cover" />) : null)}
             {unsafe && <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[16%] border-t-2 border-dashed border-white/70" aria-hidden />}
             {doc.burn && cur && (
               <div className="pointer-events-none absolute left-0 right-0 text-center leading-[1.15]" data-testid="caption"
@@ -206,8 +226,8 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
         {/* Panel de propiedades */}
         <section aria-label="Propiedades" className="rounded-xl border border-[var(--border)] bg-[var(--surface)]">
           <div role="tablist" className="flex border-b border-[var(--border)] text-sm">
-            {(["texto", "estilo", "exportar"] as const).map((x) => (
-              <button key={x} role="tab" aria-selected={tab === x} onClick={() => setTab(x)} className={`flex-1 px-3 py-2 capitalize ${tab === x ? "border-b-2 border-[#111] font-medium" : "text-[var(--muted)]"}`}>{x}</button>
+            {(["texto", "estilo", "encuadre", "social", "broll", "exportar"] as const).map((x) => (
+              <button key={x} role="tab" aria-selected={tab === x} onClick={() => setTab(x)} className={`flex-1 px-2 py-2 text-[13px] ${tab === x ? "border-b-2 border-[#111] font-medium" : "text-[var(--muted)]"}`}>{x === "broll" ? "B-roll" : x === "social" ? "Social" : x[0].toUpperCase() + x.slice(1)}</button>
             ))}
           </div>
 
@@ -244,10 +264,11 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
             <div className="grid gap-3 p-3 text-sm">
               <div className="flex items-end gap-2">
                 <label className="flex-1">Preset
-                  <select value={doc.preset} onChange={(e) => change((d) => ({ ...d, preset: e.target.value, style: { ...PRESETS[e.target.value] } }))} className="mt-1 w-full rounded border border-[var(--border)] bg-white px-2 py-1.5">
-                    {Object.keys(PRESETS).map((p) => <option key={p}>{p}</option>)}
+                  <select value={doc.preset} onChange={(e) => change((d) => ({ ...d, preset: e.target.value, style: { ...presetStyle(e.target.value) } }))} className="mt-1 w-full rounded border border-[var(--border)] bg-white px-2 py-1.5">
+                    <optgroup label="Base">{Object.keys(PRESETS).map((p) => <option key={p}>{p}</option>)}</optgroup>
+                    {!!myStyles?.length && <optgroup label="Mis estilos">{myStyles.map((x) => <option key={x.id} value={x.name}>{x.name}</option>)}</optgroup>}
                   </select></label>
-                <button onClick={() => change((d) => ({ ...d, style: { ...PRESETS[d.preset] } }))} className="rounded border border-[var(--border)] bg-white px-3 py-1.5">Restaurar preset</button>
+                <button onClick={() => change((d) => ({ ...d, style: { ...presetStyle(d.preset) } }))} className="rounded border border-[var(--border)] bg-white px-3 py-1.5">Restaurar preset</button>
               </div>
               <div className="grid grid-cols-[1fr_auto] items-end gap-2">
                 <label>Fuente
@@ -258,7 +279,7 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
                   </select></label>
                 <label className="flex items-center gap-2 pb-1.5"><input type="checkbox" checked={doc.style.bold !== false} onChange={(e) => setStyle({ bold: e.target.checked })} /> Negrita</label>
               </div>
-              <Link href="/app/brand-kits" className="-mt-1 text-xs text-[var(--muted)] underline">Añadir fuentes propias</Link>
+              <Link href="/app/style-studio" className="-mt-1 text-xs text-[var(--muted)] underline">Crear o editar estilos en Style Studio</Link>
               <label>Tamaño · <span className="tnum">{doc.style.fontSize}</span><input type="range" min={40} max={150} value={doc.style.fontSize} onChange={(e) => setStyle({ fontSize: Number(e.target.value) })} className="w-full" /></label>
               <div className="grid grid-cols-3 gap-2">
                 <label>Texto<input type="color" value={doc.style.primary} onChange={(e) => setStyle({ primary: e.target.value.toUpperCase() })} className="mt-1 block h-8 w-full" /></label>
@@ -280,11 +301,56 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
             </div>
           )}
 
+          {tab === "encuadre" && (
+            <div className="grid gap-4 p-3 text-sm">
+              <p className="text-[var(--muted)]">Cómo se adapta el vídeo original al formato elegido ({doc.ratio}).</p>
+              <div role="radiogroup" aria-label="Encuadre" className="grid gap-2">
+                {([["blur", "Desenfocado", "Vídeo completo centrado sobre su propio fondo desenfocado."], ["fill", "Rellenar", "Recorta para ocupar todo el cuadro. Elige qué parte se ve."], ["fit", "Ajustar", "Vídeo completo con barras negras."]] as const).map(([k, l, d]) => (
+                  <button key={k} role="radio" aria-checked={doc.layout === k} onClick={() => change((x) => ({ ...x, layout: k }))} className={`rounded-xl border p-3 text-left ${doc.layout === k ? "border-[#111] ring-1 ring-[#111]" : "hairline hover:bg-[var(--hover)]"}`}><span className="font-medium">{l}</span><span className="block text-xs text-[var(--muted)]">{d}</span></button>))}
+              </div>
+              {doc.layout === "fill" && (<label>Posición horizontal del recorte · <span className="mono">{Math.round(doc.cropX * 100)} %</span>
+                <input type="range" min={0} max={1} step={0.01} value={doc.cropX} onChange={(e) => change((x) => ({ ...x, cropX: Number(e.target.value) }))} className="mt-1 w-full" />
+                <span className="text-xs text-[var(--muted)]">Manual: mueve el recorte hacia quien habla. El seguimiento automático de caras aún no está disponible.</span></label>)}
+              <div><div className="mb-1 font-medium">Formato</div>
+                <div className="flex flex-wrap gap-1.5">{(["9:16", "4:5", "1:1", "16:9"] as Ratio[]).map((r) => <button key={r} aria-pressed={doc.ratio === r} className="chip" onClick={() => change((x) => ({ ...x, ratio: r }))}>{r}</button>)}</div></div>
+            </div>
+          )}
+
+          {tab === "social" && (
+            <div className="grid gap-3 p-3 text-sm">
+              <p className="text-[var(--muted)]">Un clic deja el clip listo para cada red: formato, encuadre y subtítulos en zona segura. Después puedes ajustar lo que quieras.</p>
+              {([["TikTok", "9:16", "fill", 0.6], ["Instagram Reels", "9:16", "fill", 0.6], ["YouTube Shorts", "9:16", "fill", 0.62], ["Instagram feed", "4:5", "fill", 0.82], ["X y LinkedIn", "1:1", "blur", 0.84], ["YouTube", "16:9", "fit", 0.88]] as const).map(([name, r, lay, y]) => (
+                <button key={name} className="flex items-center justify-between rounded-xl border hairline p-3 text-left hover:bg-[var(--hover)]" onClick={() => change((x) => ({ ...x, ratio: r as Ratio, layout: lay as Layout, style: { ...x.style, y } }))}>
+                  <span><span className="font-medium">{name}</span><span className="block text-xs text-[var(--muted)]">{r}, {lay === "fill" ? "rellenar" : lay === "blur" ? "desenfocado" : "ajustar"}, subtítulos al {Math.round(y * 100)} %</span></span><Icon n="check" className="h-4 w-4 opacity-40" /></button>))}
+              <p className="text-xs text-[var(--muted)]">Estas zonas son recomendaciones generales: cada red cambia su interfaz, comprueba el resultado antes de publicar. La publicación directa necesita conexiones (Conexiones).</p>
+            </div>
+          )}
+
+          {tab === "broll" && (
+            <div className="grid gap-3 p-3 text-sm">
+              <p className="text-[var(--muted)]">Superpón imágenes o vídeos de tus <strong>Custom Collections</strong> en momentos concretos. Posición actual: <span className="mono">{t.toFixed(1)} s</span>. La generación de B-roll con IA requiere un proveedor externo que aún no está conectado.</p>
+              {!cols?.some((c) => c.items.length) && <p className="rounded-xl border border-dashed hairline p-3">Aún no tienes medios. Crea una colección y sube vídeos o fotos en <Link href="/app/lyric-studio" className="underline">Lyric Studio → Fondo → Colecciones</Link>.</p>}
+              {cols?.filter((c) => c.items.length).map((c) => (
+                <div key={c.id}><div className="mb-1 text-xs font-medium text-[var(--muted)]">{c.name}</div>
+                  <ul className="flex gap-2 overflow-x-auto pb-1">{c.items.map((it) => (
+                    <li key={it.id} className="shrink-0"><button onClick={() => change((x) => ({ ...x, broll: [...x.broll, { path: it.storage_path, kind: it.kind, name: it.name, start: Math.min(t, Math.max(0, clipLen - 1)), dur: Math.min(3, Math.max(0.5, clipLen - t)) }].slice(0, 12) }))} className="relative block overflow-hidden rounded-lg border hairline" aria-label={`Añadir ${it.name} en ${t.toFixed(1)} s`}>
+                      {it.url ? (it.kind === "photo" ? <img src={it.url} alt="" className="h-20 w-12 object-cover" /> : <video src={it.url} muted preload="metadata" className="h-20 w-12 object-cover" />) : <div className="h-20 w-12 bg-[#111]" />}
+                      <span className="absolute inset-x-0 bottom-0 bg-black/60 text-center text-[10px] text-white">+ aquí</span></button></li>))}</ul></div>))}
+              <div><div className="mb-1 font-medium">En este clip <span className="mono text-[var(--muted)]">{doc.broll.length}/12</span></div>
+                {!doc.broll.length && <p className="text-[var(--muted)]">Ningún B-roll añadido.</p>}
+                <ul className="space-y-2">{doc.broll.map((b, i) => (
+                  <li key={i} className="rounded-xl border hairline p-2"><div className="flex items-center justify-between gap-2"><span className="min-w-0 truncate">{b.kind === "photo" ? "Foto" : "Vídeo"} · {b.name ?? "medio"}</span><button className="underline" onClick={() => change((x) => ({ ...x, broll: x.broll.filter((_, j) => j !== i) }))}>Quitar</button></div>
+                    <div className="mt-1 grid grid-cols-2 gap-2 text-xs"><label>Inicio (s)<input type="number" min={0} max={clipLen} step={0.1} value={b.start} onChange={(e) => change((x) => ({ ...x, broll: x.broll.map((y, j) => j === i ? { ...y, start: Math.max(0, Math.min(clipLen - 0.5, Number(e.target.value))) } : y) }))} className="input mono mt-0.5 !py-1" /></label>
+                      <label>Duración (s)<input type="number" min={0.5} max={clipLen} step={0.1} value={b.dur} onChange={(e) => change((x) => ({ ...x, broll: x.broll.map((y, j) => j === i ? { ...y, dur: Math.max(0.5, Math.min(clipLen - y.start, Number(e.target.value))) } : y) }))} className="input mono mt-0.5 !py-1" /></label></div></li>))}</ul></div>
+            </div>
+          )}
+
           {tab === "exportar" && (
             <div className="grid gap-3 p-3 text-sm">
               <label>Formato
                 <select value={doc.ratio} onChange={(e) => change((d) => ({ ...d, ratio: e.target.value as Ratio }))} className="mt-1 w-full rounded border border-[var(--border)] bg-white px-2 py-1.5">
                   <option value="9:16">9:16 · 1080×1920 (Shorts, Reels, TikTok)</option>
+                  <option value="4:5">4:5 · 1080×1350 (feed Instagram)</option>
                   <option value="1:1">1:1 · 1080×1080</option>
                   <option value="16:9">16:9 · 1920×1080</option>
                 </select></label>

@@ -5,7 +5,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, writeFileSync, readFileSync, rmSync, existsSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { buildAss, buildComposition, ffmpegArgs, styleForRatio, renderFamily, groupsFrom, SYSTEM_FONT, escapeFilterPath, PRESETS, RATIO_SIZE, type Composition, type Ratio, type Word } from "@rafaga/composition";
+import { buildAss, buildComposition, ffmpegArgs, styleForRatio, renderFamily, groupsFrom, validateStyle, SYSTEM_FONT, escapeFilterPath, PRESETS, RATIO_SIZE, type Composition, type Ratio, type Word } from "@rafaga/composition";
 import { transcribe, proposeClips } from "@rafaga/providers";
 import { alignLyrics, lyricsFromAsr, parseLyrics, planVariants, lyricFfmpegArgs, sequenceFor, DEFAULT_BG, type BgItem, type BgSettings, type TimedWord } from "@rafaga/lyrics";
 import { briefHash, RUBRIC_VERSION, validateCandidates, windows, transcriptText, lexicalCandidates, LEXICAL_VERSION, type TWord, type RawCandidate } from "@rafaga/selection";
@@ -308,7 +308,11 @@ async function processLyrics(job: Job) {
       const { data: cur } = await sb.from("jobs").select("status").eq("id", job.id).single();
       if (cur?.status === "cancelled") break;
       await sb.from("lyric_videos").upsert({ workspace_id: song.workspace_id, song_id: song.id, job_id: job.id, variant: v.index, params: { ...v, settings, textScale, collection_id: p.collection_id ?? null }, status: "rendering" }, { onConflict: "job_id,variant" });
-      const base = PRESETS[v.style] ?? PRESETS.Letra;
+      let base = PRESETS[v.style] ?? PRESETS.Letra;
+      if (v.style.startsWith("custom:")) {   // estilo propio: solo del mismo workspace y siempre validado
+        const { data: ts } = await sb.from("text_styles").select("style").eq("id", v.style.slice(7)).eq("workspace_id", song.workspace_id).maybeSingle();
+        if (ts) base = validateStyle(ts.style);
+      }
       const eff = styleForRatio({ ...base, fontSize: Math.round(base.fontSize * textScale) }, ratio);
       const groups = groupsFrom([...byLine.values()], eff.maxCharsPerLine);
       const ass = join(dir, `v${v.index}.ass`), out = join(dir, `v${v.index}.mp4`);

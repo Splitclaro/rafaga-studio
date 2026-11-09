@@ -1,11 +1,13 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { parseLyrics, planVariants, DEFAULT_BG, type BgSettings, type FilterName } from "@rafaga/lyrics";
-import { PRESETS, caseOf, type SubtitleStyle } from "@rafaga/composition";
+import { PRESETS, type SubtitleStyle } from "@rafaga/composition";
 import { supabase, MAX_UPLOAD_BYTES } from "../../../lib/supabase";
 import { STAGE } from "../../../lib/projects";
 import CollectionsPicker, { Thumb, useCollections } from "../../../components/Collections";
+import { useTextStyles } from "../../../lib/textStyles";
 import RangePicker from "../../../components/RangePicker";
+import LyricSample from "../../../components/LyricSample";
 import { useSearchParams } from "next/navigation";
 
 type Song = { id: string; title: string; artist: string | null; storage_path: string; lyrics_text: string | null };
@@ -24,22 +26,6 @@ async function sniffAudio(f: File): Promise<"audio/wav" | "audio/mpeg" | null> {
   return null;
 }
 
-/** Muestra de una línea de letra con el estilo, animada como en el export (palabras que aparecen o se iluminan). */
-function LyricSample({ style, text, scale = 0.32, step }: { style: SubtitleStyle; text: string; scale?: number; step: number }) {
-  const words = text.split(" ");
-  const active = step % (words.length + 2);
-  const mode = style.highlight ?? "color";
-  return (
-    <p className="px-3 text-center leading-[1.15]" style={{ fontFamily: `"${style.fontName}", ui-rounded, sans-serif`, fontWeight: style.bold === false ? 400 : 700, fontSize: style.fontSize * scale,
-      WebkitTextStroke: style.outlineWidth ? `${style.outlineWidth * scale * 2}px ${style.outline}` : undefined, paintOrder: "stroke fill", textShadow: style.shadow ? `0 ${style.shadow * scale * 2}px ${style.shadow * scale * 3}px rgba(0,0,0,.55)` : "none" }}>
-      {words.map((w, i) => {
-        const future = i > active, cur = i === active;
-        return <span key={i} style={{ color: cur || mode !== "color" ? (cur ? style.active : style.primary) : style.primary, opacity: future ? (mode === "reveal" ? 0 : mode === "dim" ? 0.4 : 1) : 1, ...(cur && mode === "color" ? { color: style.active } : {}) }}>{caseOf(style, w)} </span>;
-      })}
-    </p>
-  );
-}
-
 function Step({ n: k, title, children }: { n: number; title: string; children: React.ReactNode }) {
   return (
     <section className="rounded-3xl border border-[var(--border)] bg-white p-5">
@@ -52,6 +38,7 @@ function Step({ n: k, title, children }: { n: number; title: string; children: R
 export default function LyricStudio() {
   const params = useSearchParams();
   const { cols, reload: reloadCols } = useCollections();
+  const { saved: myStyles } = useTextStyles();
   const [songs, setSongs] = useState<Song[] | null>(null);
   const [song, setSong] = useState<Song | null>(null);
   const [audioUrl, setAudioUrl] = useState("");
@@ -121,7 +108,7 @@ export default function LyricStudio() {
   const plan = useMemo(() => { try { return planVariants(n, styles, bgMode === "collection" ? ["coleccion"] : colors, seed); } catch (e) { return { error: (e as Error).message } as const; } }, [n, styles, colors, bgMode, seed]);
   const lyricLines = useMemo(() => parseLyrics(lyrics), [lyrics]);
   const sampleLine = lyricLines[0]?.text.split(" ").slice(0, 6).join(" ") || "bajo la luna de abril";
-  const previewStyle = PRESETS[styles[0] ?? "Letra"] ?? PRESETS.Letra;
+  const previewStyle = styles[0]?.startsWith("custom:") ? myStyles?.find((x) => `custom:${x.id}` === styles[0])?.style ?? PRESETS.Letra : PRESETS[styles[0] ?? "Letra"] ?? PRESETS.Letra;
   const blockReason = !song ? "Elige una canción." : "error" in plan ? plan.error : bgMode === "collection" && !selectedCol?.items.length ? "La colección elegida está vacía: añade vídeos o fotos." : null;
 
   async function generate() {
@@ -199,17 +186,17 @@ export default function LyricStudio() {
             </Step>
             <Step n={3} title="Estilo de letra">
               <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                {LYRIC_STYLES.map((k) => {
+                {[...LYRIC_STYLES.map((k) => ({ key: k, label: k, st: PRESETS[k] })), ...(myStyles ?? []).map((x) => ({ key: `custom:${x.id}`, label: x.name, st: x.style }))].map(({ key: k, label, st }) => {
                   const on = styles.includes(k);
                   return (
                     <li key={k}><button onClick={() => setStyles(on ? styles.filter((x) => x !== k) : [...styles, k])} aria-pressed={on} className={`w-full overflow-hidden rounded-2xl border-2 text-left ${on ? "border-[#111]" : "border-transparent"}`}>
-                      <span className="grid h-24 place-items-center bg-[#1b1b1b]"><LyricSample style={PRESETS[k]} text="bajo la luna" scale={0.26} step={step} /></span>
-                      <span className="flex items-center justify-between px-3 py-2 text-sm"><span>{k}</span><span aria-hidden>{on ? "✓" : ""}</span></span>
+                      <span className="grid h-24 place-items-center bg-[#1b1b1b]"><LyricSample style={st} text="bajo la luna" scale={0.26} step={step} /></span>
+                      <span className="flex items-center justify-between px-3 py-2 text-sm"><span className="truncate">{label}</span><span aria-hidden>{on ? "✓" : ""}</span></span>
                     </button></li>
                   );
                 })}
               </ul>
-              <p className="mt-2 text-xs text-[var(--muted)]">Si eliges varios, se reparten entre los vídeos. Fuente: Bootzy TM.</p>
+              <p className="mt-2 text-xs text-[var(--muted)]">Si eliges varios, se reparten entre los vídeos. Crea los tuyos en <a href="/app/style-studio" className="underline">Style Studio</a>.</p>
             </Step>
             <Step n={4} title="Fondo">
               <div role="tablist" className="mb-3 inline-flex rounded-full bg-[var(--hover)] p-1 text-sm">
