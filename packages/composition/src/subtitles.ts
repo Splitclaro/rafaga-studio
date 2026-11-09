@@ -28,7 +28,7 @@ export interface Group {
   words: Word[];
   start: number;
   end: number;
-  lines: string[][]; // palabras por línea (saltos fijados aquí, no por el renderer)
+  lines: Word[][]; // palabras por línea (saltos fijados aquí, no por el renderer)
 }
 
 /** Valida y normaliza: sin duraciones negativas ni solapes accidentales. */

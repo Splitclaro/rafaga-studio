@@ -1,0 +1,6 @@
+@import "tailwindcss";
+:root { --bg:#101216; --surface:#191D24; --text:#F4F6FA; --muted:#A8B0BD; --accent:#B5F36D; --select:#9D8DFF; --danger:#FF7A7A; }
+html,body { background:var(--bg); color:var(--text); font-family: ui-sans-serif, system-ui, "Inter", sans-serif; }
+.tnum { font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) { * { transition:none !important; animation:none !important; } }
+:focus-visible { outline:2px solid var(--select); outline-offset:2px; }

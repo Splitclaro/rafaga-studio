@@ -19,3 +19,5 @@ Lee `docs/STATUS.md`, `docs/IMPLEMENTATION_PLAN.md` y `docs/provisioning-manifes
 - `export PATH=$HOME/.local/bin:$PATH` (pnpm 12.18, ffmpeg/ffprobe 9.0.2 con libass)
 - `node --test packages/composition/src/*.test.ts` — tests unitarios de subtítulos
 - `node scripts/spike-subs.ts` — render real ASS + comprobación frame a frame
+
+- `pnpm test` (raíz) — subtítulos + RLS en PGlite; `cd apps/web && pnpm typecheck && pnpm build`
