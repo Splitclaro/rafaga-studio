@@ -6,7 +6,7 @@
   "packageManager": "pnpm@12.18.0",
   "engines": { "node": ">=24" },
   "scripts": {
-    "test": "node --test packages/composition/src/*.test.ts packages/selection/src/*.test.ts supabase/tests/*.test.ts",
+    "test": "node --test packages/composition/src/*.test.ts packages/selection/src/*.test.ts packages/lyrics/src/*.test.ts packages/providers/src/*.test.ts apps/web/lib/*.test.ts supabase/tests/*.test.ts",
     "spike:subs": "node scripts/spike-subs.ts"
   },
   "devDependencies": {

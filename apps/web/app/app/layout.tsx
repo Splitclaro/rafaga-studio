@@ -13,9 +13,9 @@ const NAV: NavItem[] = [
   { href: "/app/style-studio", label: "Style Studio", icon: "type", ready: true, group: "Crear" },
   { href: "/app/biblioteca", label: "Biblioteca", icon: "folder", ready: true, group: "Crear" },
   { href: "/app/brand-kits", label: "Brand kit", icon: "brand", ready: true, group: "Crear" },
-  { href: "/app/calendario", label: "Calendario", icon: "calendar", ready: false, group: "Publicar" },
+  { href: "/app/calendario", label: "Calendario", icon: "calendar", ready: true, group: "Publicar" },
   { href: "/app/analitica", label: "Analítica", icon: "chart", ready: true, group: "Publicar" },
-  { href: "/app/conexiones", label: "Conexiones", icon: "link", ready: false, group: "Publicar" },
+  { href: "/app/conexiones", label: "Conexiones", icon: "link", ready: true, group: "Publicar" },
   { href: "/app/automatizaciones", label: "Automatizaciones", icon: "bolt", ready: true, group: "Automatizar" },
   { href: "/app/en-vivo", label: "En vivo", icon: "live", ready: false, group: "Automatizar" },
 ];
