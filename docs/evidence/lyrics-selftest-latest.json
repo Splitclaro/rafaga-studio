@@ -1,0 +1,54 @@
+{
+  "note": "voz sintética recitada, no canto",
+  "seconds": 7.84,
+  "asr_ms": 125,
+  "asr_text": "Bajo la luna de abril caminamos sin mirar atrás tu risa suena la canción y el mañana nos espera ya.",
+  "aligned": "Bajo@0.00-0.32 la@0.32-0.56 luna@0.56-0.88 de@0.88-1.12 abril@1.12-1.52 caminamos@1.52-2.32 sin@2.32-2.64 mirar@2.64-2.96 atrás@2.96-3.36 tu@3.36-3.68 risa@3.68-4.08 suena@4.08-4.56 a@4.56-4.71* canción@4.72-5.12 y@5.12-5.36 el@5.36-5.60 mañana@5.60-6.08 nos@6.08-6.40 espera@6.40-6.88 ya@6.88-7.20",
+  "matched": 19,
+  "interpolated": 1,
+  "keepsOriginalText": true,
+  "plan": [
+    "1:Karaoke",
+    "2:Letra",
+    "3:Letra suave"
+  ],
+  "system_font_http": 200,
+  "renders": [
+    {
+      "variant": 1,
+      "style": "Karaoke",
+      "filter": "noir",
+      "render_ms": 4356,
+      "font": "fontselect: (Bootzy TM, 400, 0) -> BootzyTM, 0, BootzyTM",
+      "streams": [
+        "h264 1080 1920",
+        "aac"
+      ],
+      "duration": "7.840000"
+    },
+    {
+      "variant": 2,
+      "style": "Letra",
+      "filter": "super8",
+      "render_ms": 13342,
+      "font": "fontselect: (Bootzy TM, 400, 0) -> BootzyTM, 0, BootzyTM",
+      "streams": [
+        "h264 1080 1920",
+        "aac"
+      ],
+      "duration": "7.840000"
+    },
+    {
+      "variant": 3,
+      "style": "Letra suave",
+      "filter": "midnight",
+      "render_ms": 9883,
+      "font": "fontselect: (Bootzy TM, 400, 0) -> BootzyTM, 0, BootzyTM",
+      "streams": [
+        "h264 1080 1920",
+        "aac"
+      ],
+      "duration": "7.840000"
+    }
+  ]
+}
