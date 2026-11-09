@@ -63,12 +63,12 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
     } finally { busyRef.current = false; setBusy(false); }
   }
 
-  if (!p) return <main className="mx-auto max-w-3xl px-4 py-10">{msg ?? "Cargando…"}</main>;
+  if (!p) return <main className="mx-auto max-w-4xl px-4 py-8 md:px-8">{msg ?? "Cargando…"}</main>;
   const waitingMin = job?.status === "queued" ? Math.floor((Date.now() - new Date(job.created_at).getTime()) / 60000) : 0;
   const hasRun = !!job && job.status === "done" || clips.length > 0;
   return (
-    <main className="mx-auto max-w-3xl px-4 py-10">
-      <Link href="/app" className="text-sm text-[var(--muted)] underline">← Proyectos</Link>
+    <main className="mx-auto max-w-4xl px-4 py-8 md:px-8">
+      <Link href="/app/proyectos" className="text-sm text-[var(--muted)] underline">← Proyectos</Link>
       <h1 className="mb-6 mt-2 text-2xl font-semibold">{p.name}</h1>
       <label className="block">
         <span className="font-medium">¿De qué trata el proyecto y qué clips necesitas?</span>

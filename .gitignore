@@ -14,3 +14,4 @@ supabase/.temp/
 *.dump
 .DS_Store
 .spike/
+.fixtures/
