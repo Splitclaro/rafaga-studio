@@ -34,6 +34,8 @@ before(async () => {
   await db.exec("grant all on all tables in schema public to authenticated; grant all on all functions in schema public to authenticated;");
   // grants amplios arriba; los REVOKE/column GRANT de la migración deben seguir mandando:
   await db.exec(readFileSync(new URL("../migrations/20261109000001_core.sql", import.meta.url), "utf8").split("-- Los privilegios")[1].split("-- ───────── Storage")[0].replace(/^[^\n]*\n/, ""));
+  await db.exec(readFileSync(new URL("../migrations/20261109000002_detection.sql", import.meta.url), "utf8"));
+  await db.exec("grant execute on function public.request_detection(uuid, text) to authenticated;");
   await db.exec(`insert into auth.users values ('${A}','a@test.dev'),('${B}','b@test.dev');`);
   wsA = (await db.query<{ id: string }>(`select id from workspaces where created_by='${A}'`)).rows[0].id;
   wsB = (await db.query<{ id: string }>(`select id from workspaces where created_by='${B}'`)).rows[0].id;
@@ -102,4 +104,21 @@ test("anon no ve nada", async () => {
   await asUser(null, async () => {
     await rejects(`select * from projects`); // sin privilegios o sin filas
   });
+});
+
+test("request_detection: idempotente, solo miembros; claim_job cerrado al cliente", async () => {
+  const prj = (await db.query<{ id: string }>(`select id from projects where workspace_id='${wsA}' limit 1`)).rows[0].id;
+  let j1 = "", j2 = "";
+  await asUser(A, async () => {
+    j1 = (await db.query<{ r: string }>(`select request_detection('${prj}','clave-uno-1234') r`)).rows[0].r;
+    j2 = (await db.query<{ r: string }>(`select request_detection('${prj}','clave-dos-5678') r`)).rows[0].r; // doble clic con otra clave
+    await rejects(`select request_detection('${prj}','x')`); // clave inválida
+  });
+  assert.equal(j1, j2);
+  assert.equal((await db.query<{ n: number }>(`select count(*)::int n from jobs where project_id='${prj}'`)).rows[0].n, 1);
+  await asUser(B, async () => { await rejects(`select request_detection('${prj}','clave-tres-9999')`); await rejects(`select * from claim_job()`); });
+  await asUser(A, async () => { await rejects(`select * from claim_job()`); });
+  const c = await db.query<{ id: string; attempts: number }>(`select id, attempts from claim_job()`); // servidor
+  assert.equal(c.rows[0].attempts, 1);
+  assert.equal((await db.query(`select * from claim_job()`)).rows.length, 0); // ya reclamado
 });

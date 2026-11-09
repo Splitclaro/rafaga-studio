@@ -23,11 +23,16 @@ Estado: **entrega parcial: beta aún no verificada** (sesión 1, 2026-11-09).
 - Faltan: pnpm, ffmpeg/ffprobe, Vercel CLI/login, Supabase CLI, Docker. Sin claves de Deepgram/Anthropic/Trigger.dev en el entorno.
 - Verificado en Chrome: Supabase org Splitclaro (Free), Vercel equipo split-claro-app (Hobby), GitHub Splitclaro. Repo creado: https://github.com/Splitclaro/rafaga-studio.
 
+## Sesión 1 (cont. 2) — worker GitHub Actions
+- Selector (`packages/selection`, 8 tests), proveedores Deepgram/Anthropic (endpoints verificados en docs; **sin probar con claves reales**), composición/FFmpeg (`packages/composition`, 4 tests + `scripts/test-render.ts`: 1080x1920 H.264/AAC 30 fps, 12,00 s, OK; evidencia `docs/evidence/render-blur-9x16-t3.png`).
+- Migración 2 aplicada en Supabase (request_detection, claim_job); RLS tests 8/8 (PGlite).
+- Web: «Detectar momentos virales»/«Volver a detectar» encolan job real; muestra estado y clips con URL firmada. Sin worker activo el job permanece en cola.
+
 ## Bloqueos externos
-1. Supabase: **creado** `rafaga-studio-beta` (ref attrnwbcgascvppncucl, org Splitclaro, Free, UE) y migración core aplicada (16 tablas, RLS on). Contraseña de BD generada por Supabase y no guardada. Pendiente: claves API en Vercel/worker, Auth URLs, SMTP, prueba A/B real. Free limita tamaño por archivo; Pro requiere autorizar coste.
-2. Vercel: proyecto nuevo `rafaga-studio` creado y desplegado desde el repo (https://rafaga-studio.vercel.app, landing + /editor/demo, 200 OK). Aún sin variables de entorno, sin Auth ni worker: NO es la beta.
-3. Worker: Trigger.dev creado pero **deploy rechazado por la organización (Free)**; plan B GitHub Actions (ver DECISIONS.md). Claves Deepgram/Anthropic: no colocadas; el asistente no puede teclear secretos en campos.
-4. Auth: confirmación de correo activa + SMTP gratuito limitado → testers ajenos al equipo no pueden registrarse todavía.
+1. **Secretos del worker** en GitHub (Settings → Secrets → Actions): `SUPABASE_SECRET_KEY`, `DEEPGRAM_API_KEY`, `ANTHROPIC_API_KEY`. El asistente no puede introducir secretos. Hasta entonces: procesamiento real NO verificado.
+2. Auth: confirmación de correo activa + SMTP gratuito limitado → testers fuera del equipo no pueden registrarse.
+3. Supabase Free: 50 MB por archivo → no se pueden probar fuentes de 30/60 min (requiere Pro, coste a autorizar).
+4. Trigger.dev: abandonado (deploy rechazado).
 
 ## Siguiente paso
-Crear proyecto Supabase (usuario) y aplicar migración; Auth + subida TUS; worker FFmpeg (ingest/ASR/selección con claves); editor con vídeo real; layouts, 1:1 y 16:9; revisar las 10 imágenes.
+Colocar secretos → ejecutar workflow `media-worker` manualmente → E2E real (subir vídeo corto con voz, brief, detectar, ver clips). Luego editor con vídeo real + guardado de versiones, export en 1:1/16:9, descarga ZIP/SRT/VTT, automatizaciones, en vivo, cuotas, ledger, admin.

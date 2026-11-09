@@ -3,15 +3,12 @@
   "private": true,
   "version": "0.0.1",
   "type": "module",
-  "scripts": { "dev": "trigger dev", "deploy": "trigger deploy" },
+  "scripts": { "run-once": "node src/run.ts" },
   "dependencies": {
     "@rafaga/composition": "workspace:*",
-    "@trigger.dev/sdk": "4.8.3"
+    "@rafaga/providers": "workspace:*",
+    "@rafaga/selection": "workspace:*",
+    "@supabase/supabase-js": "^2.119.0"
   },
-  "devDependencies": {
-    "@trigger.dev/build": "4.8.3",
-    "trigger.dev": "4.8.3",
-    "@types/node": "^22",
-    "typescript": "~5.9.0"
-  }
+  "devDependencies": { "@types/node": "^22", "typescript": "~5.9.0" }
 }

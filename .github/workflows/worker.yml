@@ -1,0 +1,32 @@
+name: media-worker
+on:
+  schedule: [{ cron: "*/5 * * * *" }]
+  workflow_dispatch: {}
+concurrency: { group: media-worker, cancel-in-progress: false }
+permissions: { contents: read }
+jobs:
+  process:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Comprobar secretos
+        id: gate
+        env: { S: "${{ secrets.SUPABASE_SECRET_KEY }}", D: "${{ secrets.DEEPGRAM_API_KEY }}", A: "${{ secrets.ANTHROPIC_API_KEY }}" }
+        run: |
+          if [ -z "$S" ] || [ -z "$D" ] || [ -z "$A" ]; then echo "ready=false" >> "$GITHUB_OUTPUT"; echo "::notice::Faltan secretos (SUPABASE_SECRET_KEY, DEEPGRAM_API_KEY, ANTHROPIC_API_KEY): el worker no procesa."; else echo "ready=true" >> "$GITHUB_OUTPUT"; fi
+      - if: steps.gate.outputs.ready == 'true'
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-liberation fontconfig
+      - if: steps.gate.outputs.ready == 'true'
+        uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - if: steps.gate.outputs.ready == 'true'
+        run: corepack enable && corepack prepare pnpm@12.18.0 --activate && pnpm install --frozen-lockfile
+      - if: steps.gate.outputs.ready == 'true'
+        working-directory: workers/media
+        env:
+          SUPABASE_URL: https://attrnwbcgascvppncucl.supabase.co
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          DEEPGRAM_API_KEY: ${{ secrets.DEEPGRAM_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: node src/run.ts
