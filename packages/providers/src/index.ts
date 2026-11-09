@@ -46,3 +46,5 @@ export async function proposeClips(args: { key: string; model: string; brief: st
     return Array.isArray(block?.input?.clips) ? block!.input!.clips! : [];
   });
 }
+
+export * from "./net.ts";

@@ -44,6 +44,8 @@ before(async () => {
   await db.exec("grant select, insert, delete on public.text_styles to authenticated;");
   await db.exec(readFileSync(new URL("../migrations/20261109000009_automation_calendar.sql", import.meta.url), "utf8"));
   await db.exec(readFileSync(new URL("../migrations/20261110000010_lyrics_ratio.sql", import.meta.url), "utf8"));
+  await db.exec(readFileSync(new URL("../migrations/20261110000011_automation_jobs.sql", import.meta.url), "utf8"));
+  await db.exec("grant execute on function public.request_automation_check(uuid) to authenticated;");
   await db.exec("grant select, insert, delete on public.songs to authenticated; grant select on public.song_alignments, public.lyric_videos to authenticated; grant execute on function public.request_lyrics(uuid, jsonb, text) to authenticated;");
   await db.exec("grant execute on function public.request_detection(uuid, text) to authenticated; grant execute on function public.request_render(uuid, int, text, boolean) to authenticated;");
   await db.exec(`insert into auth.users values ('${A}','a@test.dev'),('${B}','b@test.dev');`);
@@ -234,4 +236,19 @@ test("Automatizaciones y Calendario: HTTPS obligatorio, inactiva al crear, dedup
     assert.equal((await db.query(`select * from scheduled_posts`)).rows.length, 0);
     await rejects(`delete from automation_rules`).catch(() => {});
   });
+});
+
+test("Automatizaciones: el cursor se fija al activar y la comprobación bajo demanda es idempotente y privada", async () => {
+  const rule = (await db.query<{ id: string }>(`select id from automation_rules where workspace_id='${wsA}' limit 1`)).rows[0].id;
+  await db.exec(`update automation_rules set active = false, cursor_published = null where id = '${rule}'`);
+  await asUser(A, async () => { await db.query(`update automation_rules set active = true where id = '${rule}'`); });
+  const c = (await db.query<{ cursor_published: string | null }>(`select cursor_published from automation_rules where id='${rule}'`)).rows[0].cursor_published;
+  assert.ok(c, "cursor fijado al activar");
+  let j1 = "", j2 = "";
+  await asUser(A, async () => {
+    j1 = (await db.query<{ r: string }>(`select request_automation_check('${rule}') r`)).rows[0].r;
+    j2 = (await db.query<{ r: string }>(`select request_automation_check('${rule}') r`)).rows[0].r;
+  });
+  assert.equal(j1, j2);
+  await asUser(B, async () => { await rejects(`select request_automation_check('${rule}')`); });
 });

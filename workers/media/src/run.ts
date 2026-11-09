@@ -6,7 +6,7 @@ import { mkdtempSync, writeFileSync, readFileSync, rmSync, existsSync, mkdirSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildAss, buildComposition, ffmpegArgs, styleForRatio, renderFamily, groupsFrom, validateStyle, SYSTEM_FONT, escapeFilterPath, PRESETS, RATIO_SIZE, type Composition, type Ratio, type Word } from "@rafaga/composition";
-import { transcribe, proposeClips } from "@rafaga/providers";
+import { transcribe, proposeClips, safeGet, parseFeed } from "@rafaga/providers";
 import { alignLyrics, lyricsFromAsr, parseLyrics, planVariants, lyricFfmpegArgs, sequenceFor, DEFAULT_BG, type BgItem, type BgSettings, type TimedWord } from "@rafaga/lyrics";
 import { briefHash, RUBRIC_VERSION, validateCandidates, windows, transcriptText, lexicalCandidates, LEXICAL_VERSION, type TWord, type RawCandidate } from "@rafaga/selection";
 
@@ -44,7 +44,7 @@ async function fontsFor(ws: string, family: string, dir: string): Promise<string
   return fd;
 }
 
-type Job = { id: string; kind: string; workspace_id: string; project_id: string | null; clip_id: string | null; attempts: number; params: { version?: number; ratio?: Ratio; burn?: boolean; song_id?: string; n?: number; styles?: string[]; backgrounds?: string[]; seed?: number; start?: number; end?: number; collection_id?: string | null; settings?: Partial<BgSettings> & { textScale?: number } } };
+type Job = { id: string; kind: string; workspace_id: string; project_id: string | null; clip_id: string | null; attempts: number; params: { rule_id?: string; manual?: boolean; version?: number; ratio?: Ratio; burn?: boolean; song_id?: string; n?: number; styles?: string[]; backgrounds?: string[]; seed?: number; start?: number; end?: number; collection_id?: string | null; settings?: Partial<BgSettings> & { textScale?: number } } };
 const setStatus = (id: string, status: string, extra: Record<string, unknown> = {}) =>
   sb.from("jobs").update({ status, heartbeat_at: new Date().toISOString(), updated_at: new Date().toISOString(), ...extra }).eq("id", id);
 
@@ -339,12 +339,74 @@ async function processLyrics(job: Job) {
   } finally { rmSync(dir, { recursive: true, force: true }); }
 }
 
+/** Automatizaciones: feed RSS HTTPS autorizado → entradas nuevas (posteriores al cursor) → proyecto + detección. Una entrada nunca se procesa dos veces. */
+type RuleRow = { id: string; workspace_id: string; name: string; feed_url: string; review_first: boolean; clip_count: number; brief: string | null; daily_limit: number; active: boolean; cursor_published: string | null; created_by: string };
+async function checkRule(rule: RuleRow): Promise<string> {
+  await sb.from("automation_rules").update({ last_checked_at: new Date().toISOString() }).eq("id", rule.id);
+  try {
+    const feed = await safeGet(rule.feed_url, { maxBytes: 2_000_000, timeoutMs: 20000, accept: /xml|rss|atom|text\/plain/i });
+    if (feed.status !== 200) throw new Error(`El feed respondió ${feed.status}`);
+    const cursor = rule.cursor_published ? new Date(rule.cursor_published).getTime() : Date.now();
+    const entries = parseFeed(feed.body.toString("utf8")).filter((e) => e.enclosureUrl && /^video\//i.test(e.enclosureType ?? "") && e.published && e.published.getTime() > cursor).sort((a, b) => a.published!.getTime() - b.published!.getTime());
+    const dayStart = new Date(); dayStart.setUTCHours(0, 0, 0, 0);
+    const { count: today } = await sb.from("automation_runs").select("id", { count: "exact", head: true }).eq("rule_id", rule.id).eq("status", "imported").gte("created_at", dayStart.toISOString());
+    let room = Math.max(0, rule.daily_limit - (today ?? 0)), imported = 0;
+    for (const e of entries) {
+      if (room <= 0) break;
+      const ins = await sb.from("automation_runs").insert({ workspace_id: rule.workspace_id, rule_id: rule.id, entry_guid: e.guid, entry_title: e.title, entry_url: e.enclosureUrl, status: "queued" }).select("id").maybeSingle();
+      if (ins.error || !ins.data) continue;                  // ya existía (unique rule_id+guid): no se repite
+      const runId = ins.data.id;
+      try {
+        const file = await safeGet(e.enclosureUrl!, { maxBytes: 50 * 1024 * 1024, timeoutMs: 180000, accept: /^video\/(mp4|quicktime|webm)/i });
+        const b = file.body;
+        const isMp4 = b.subarray(4, 8).toString("latin1") === "ftyp", isWebm = b[0] === 0x1a && b[1] === 0x45 && b[2] === 0xdf && b[3] === 0xa3;
+        if (file.status !== 200 || !(isMp4 || isWebm)) throw new Error("El archivo no es un MP4, MOV o WebM válido");
+        const srcId = crypto.randomUUID();
+        const mime = isWebm ? "video/webm" : /quicktime/i.test(file.contentType) ? "video/quicktime" : "video/mp4";
+        const path = `${rule.workspace_id}/${srcId}/original`;
+        const up = await sb.storage.from("originals").upload(path, b, { contentType: mime });
+        if (up.error) throw new Error(`subida: ${up.error.message}`);
+        ok(await sb.from("sources").insert({ id: srcId, workspace_id: rule.workspace_id, kind: "feed", mime, bytes: b.length, created_by: rule.created_by }).select("id").single(), "fuente");
+        const prj = ok(await sb.from("projects").insert({ workspace_id: rule.workspace_id, source_id: srcId, name: e.title || "Entrada del feed", created_by: rule.created_by, project_brief: rule.brief, clip_count: rule.clip_count }).select("id").single(), "proyecto");
+        await sb.from("jobs").insert({ workspace_id: rule.workspace_id, kind: "detect", idempotency_key: `detect:auto:${runId}`, project_id: prj.id, created_by: rule.created_by });
+        await sb.from("automation_runs").update({ status: "imported", project_id: prj.id, detail: rule.review_first ? "Pendiente de revisión" : "Procesado" }).eq("id", runId);
+        await sb.from("notifications").insert({ workspace_id: rule.workspace_id, kind: "automation", body: `${rule.name}: «${e.title}» se está procesando${rule.review_first ? " y quedará pendiente de tu revisión" : ""}.` });
+        room--; imported++;
+      } catch (x) { await sb.from("automation_runs").update({ status: "failed", detail: (x as Error).message.slice(0, 300) }).eq("id", runId); }
+    }
+    await sb.from("automation_rules").update({ last_error: null }).eq("id", rule.id);
+    return `${imported} entrada(s) importada(s) de ${entries.length} nueva(s)`;
+  } catch (x) {
+    const m = (x as Error).message.slice(0, 300);
+    await sb.from("automation_rules").update({ last_error: m }).eq("id", rule.id);
+    return `error: ${m}`;
+  }
+}
+async function processAutomation(job: Job) {
+  try {
+    const { data: rule } = await sb.from("automation_rules").select("id,workspace_id,name,feed_url,review_first,clip_count,brief,daily_limit,active,cursor_published,created_by").eq("id", job.params.rule_id!).maybeSingle();
+    if (!rule) return void (await setStatus(job.id, "cancelled"));
+    if (!rule.active && !job.params.manual) return void (await setStatus(job.id, "done"));
+    const r = await checkRule(rule as RuleRow);
+    await setStatus(job.id, "done", { metrics: { result: r } }); console.log("automation", rule.name, r);
+  } catch (e) { await setStatus(job.id, "failed", { error_message: (e as Error).message.slice(0, 300) }); }
+}
+let lastTick = 0;
+/** Planificador: mientras el worker está vivo, revisa las reglas activas cada 15 min. */
+async function tickAutomations() {
+  if (Date.now() - lastTick < 60_000) return; lastTick = Date.now();
+  const due = new Date(Date.now() - 15 * 60_000).toISOString();
+  const { data } = await sb.from("automation_rules").select("id,workspace_id,name,feed_url,review_first,clip_count,brief,daily_limit,active,cursor_published,created_by,last_checked_at").eq("active", true).or(`last_checked_at.is.null,last_checked_at.lt.${due}`).limit(5);
+  for (const r of data ?? []) console.log("tick", r.name, await checkRule(r as RuleRow));
+}
+
 const idleMs = Number(process.env.WORKER_IDLE_SECONDS ?? 0) * 1000;   // 0 = salir si no hay trabajo
 const maxMs = Number(process.env.WORKER_MAX_SECONDS ?? 3000) * 1000;
 const started = Date.now();
 let processed = 0, lastWork = Date.now();
 for (;;) {
   if (Date.now() - started > maxMs) break;
+  await tickAutomations().catch((e) => console.error("tick:", (e as Error).message));
   const { data, error } = await sb.rpc("claim_job");
   if (error) { console.error("claim_job:", error.message); process.exit(1); }
   const job = (data as Job[] | null)?.[0];
@@ -353,6 +415,6 @@ for (;;) {
     await new Promise((r) => setTimeout(r, 3000));   // sondeo cada 3 s mientras está caliente
     continue;
   }
-  await (job.kind === "render" ? processRender(job) : job.kind === "lyrics" ? processLyrics(job) : processJob(job)); processed++; lastWork = Date.now();
+  await (job.kind === "render" ? processRender(job) : job.kind === "lyrics" ? processLyrics(job) : job.kind === "automation" ? processAutomation(job) : processJob(job)); processed++; lastWork = Date.now();
 }
 console.log(`terminado: ${processed} job(s) en ${Math.round((Date.now() - started) / 1000)} s`);
