@@ -7,14 +7,25 @@
   "github": {
     "verified_account": "Splitclaro",
     "other_logged_in_account": "Alexanderterrero",
-    "repo": null,
-    "status": "not_created"
+    "repo": "Splitclaro/rafaga-studio",
+    "status": "created_by_this_run",
+    "url": "https://github.com/Splitclaro/rafaga-studio",
+    "visibility": "public",
+    "first_commit": "9658a83"
   },
   "vercel": {
-    "cli": "missing",
-    "login": "none",
+    "verified_team": {
+      "name": "SplitClaro App",
+      "slug": "split-claro-app",
+      "plan": "Hobby",
+      "verified_via": "vercel.com dashboard in Chrome"
+    },
+    "existing_projects_do_not_touch": [
+      "splitclaro"
+    ],
     "project": null,
-    "status": "blocked_no_access"
+    "status": "team_verified_project_pending_code",
+    "note": "Project will be imported from the new repo once the web app exists"
   },
   "supabase": {
     "verified_org": {

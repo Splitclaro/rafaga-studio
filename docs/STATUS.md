@@ -10,7 +10,7 @@ Estado: **entrega parcial: beta aún no verificada** (sesión 1, 2026-11-09).
 ## Preflight
 - OK: git 2.39, node 24.18, npm 11, python 3.12, gh 2.100 (cuenta activa **Splitclaro**, scopes repo/read:org).
 - Faltan: pnpm, ffmpeg/ffprobe, Vercel CLI/login, Supabase CLI, Docker. Sin claves de Deepgram/Anthropic/Trigger.dev en el entorno.
-- Supabase (conector): solo organización **Sound Republic** con proyecto `sound-republic-os` (no tocar). No aparece una organización splitclaro → **no se crea proyecto** hasta verificar propietario y coste.
+- Verificado en Chrome: Supabase org Splitclaro (Free), Vercel equipo split-claro-app (Hobby), GitHub Splitclaro. Repo creado: https://github.com/Splitclaro/rafaga-studio.
 
 ## Bloqueos externos
 1. Supabase: confirmar en qué organización crear `rafaga-studio-beta` y autorizar coste.
