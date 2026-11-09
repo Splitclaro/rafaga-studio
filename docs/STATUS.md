@@ -35,6 +35,18 @@ Estado: **entrega parcial: beta aún no verificada** (sesión 1, 2026-11-09).
 - **Autoprueba nube (run 42629711496):** Deepgram ES OK (199 palabras, 0,3–1,1 s); Anthropic sin saldo → selector léxico: ventas 6,9–19,8 s sin patrocinador, historia 48,4–65,9 s, brief sin coincidencias → 0. Render 1080×1920 h264/aac ~14 s.
 - **UI monocroma** y navegación V2 (sidebar plegable, menú de workspace, analítica interna real; módulos no hechos marcados «Pronto»).
 
+## Sesión 4 — todas las páginas construidas (2026-11-10)
+- **Audio de los 7 vídeos transcrito localmente** (Whisper) → `docs/REFERENCE_REVIEW_V2.md` §I. Aprendido: en vivo con etapas, % viralidad, señales de risa/grito, split gaming automático, buscador de canales (no replicado).
+- **Diseño premium/tech** (misma paleta): tokens, sombras en capas, ⌘K, notificaciones reales, menú agrupado Crear/Publicar/Automatizar.
+- **Páginas ya existentes y funcionales:** Inicio (OpusClip-like), Proyectos, Proyecto (galería), Editor de clip (texto/estilo/encuadre/social/B-roll/exportar), Lyric Studio (tramo, 3 mejores momentos, colecciones, ajustes, N variantes), Style Studio, Biblioteca, Brand kit, Automatizaciones, En vivo, Calendario, Conexiones (catálogo), Analítica, Ajustes.
+- Migraciones 8–12 aplicadas y **verificadas** con consultas.
+- Pruebas: `pnpm test` en raíz (composición, selección, letras, providers/SSRF/HLS, tz, RLS 16 tests PGlite) + render FFmpeg real + captura HLS real progresiva.
+
+## Pendiente conocido (honesto)
+- Nada de lo nuevo se ha probado todavía en el entorno desplegado con datos reales: modos de herramienta, B-roll en export, automatización con feed real, En vivo en cloud, Style Studio en export de clips.
+- Anthropic sin saldo → selección sin IA. `GH_DISPATCH_TOKEN` no configurado.
+- Layouts gaming/split de dos personas, seguimiento facial, palabras clave en color, emojis, titular, filtros en clips, tipo de vídeo, importación por URL/Drive, 28 estilos y compositor por frames, conectores reales/OAuth, doblaje/traducción, upscale, multipista, NLE.
+
 ## Bloqueos externos
 1. **Anthropic sin saldo** → selección con IA bloqueada (hay respaldo léxico). Requiere cargar saldo (autorización de coste).
 2. **`GH_DISPATCH_TOKEN`** (PAT de GitHub con permiso Actions: write sobre este repo) en Vercel → arranque inmediato del worker. Sin él, depende del cron de GitHub.

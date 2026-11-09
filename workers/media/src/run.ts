@@ -6,7 +6,7 @@ import { mkdtempSync, writeFileSync, readFileSync, rmSync, existsSync, mkdirSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildAss, buildComposition, ffmpegArgs, styleForRatio, renderFamily, groupsFrom, validateStyle, SYSTEM_FONT, escapeFilterPath, PRESETS, RATIO_SIZE, type Composition, type Ratio, type Word } from "@rafaga/composition";
-import { transcribe, proposeClips, safeGet, parseFeed } from "@rafaga/providers";
+import { transcribe, proposeClips, safeGet, parseFeed, captureHls, concatWindow, type WindowOut } from "@rafaga/providers";
 import { alignLyrics, lyricsFromAsr, parseLyrics, planVariants, lyricFfmpegArgs, sequenceFor, DEFAULT_BG, type BgItem, type BgSettings, type TimedWord } from "@rafaga/lyrics";
 import { briefHash, RUBRIC_VERSION, validateCandidates, windows, transcriptText, lexicalCandidates, LEXICAL_VERSION, type TWord, type RawCandidate } from "@rafaga/selection";
 
@@ -44,7 +44,7 @@ async function fontsFor(ws: string, family: string, dir: string): Promise<string
   return fd;
 }
 
-type Job = { id: string; kind: string; workspace_id: string; project_id: string | null; clip_id: string | null; attempts: number; params: { rule_id?: string; manual?: boolean; version?: number; ratio?: Ratio; burn?: boolean; song_id?: string; n?: number; styles?: string[]; backgrounds?: string[]; seed?: number; start?: number; end?: number; collection_id?: string | null; settings?: Partial<BgSettings> & { textScale?: number } } };
+type Job = { id: string; kind: string; workspace_id: string; project_id: string | null; clip_id: string | null; attempts: number; params: { session_id?: string; rule_id?: string; manual?: boolean; version?: number; ratio?: Ratio; burn?: boolean; song_id?: string; n?: number; styles?: string[]; backgrounds?: string[]; seed?: number; start?: number; end?: number; collection_id?: string | null; settings?: Partial<BgSettings> & { textScale?: number } } };
 const setStatus = (id: string, status: string, extra: Record<string, unknown> = {}) =>
   sb.from("jobs").update({ status, heartbeat_at: new Date().toISOString(), updated_at: new Date().toISOString(), ...extra }).eq("id", id);
 
@@ -400,21 +400,81 @@ async function tickAutomations() {
   for (const r of data ?? []) console.log("tick", r.name, await checkRule(r as RuleRow));
 }
 
+/** En vivo: captura HLS autorizada en ventanas; cada ventana se convierte en un proyecto que pasa por el pipeline de clips. */
+let liveActive = 0;
+async function processLive(job: Job, deadlineSec: number) {
+  liveActive++;
+  const dir = mkdtempSync(join(tmpdir(), "rafaga-live-"));
+  try {
+    const { data: ses } = await sb.from("live_sessions").select("*").eq("id", job.params.session_id!).maybeSingle();
+    if (!ses || !["queued", "capturing"].includes(ses.status)) return void (await setStatus(job.id, "cancelled"));
+    await sb.from("live_sessions").update({ status: "capturing", started_at: ses.started_at ?? new Date().toISOString(), last_error: null }).eq("id", ses.id);
+    await setStatus(job.id, "extracting");
+    let idx = Number((await sb.from("live_windows").select("idx").eq("session_id", ses.id).order("idx", { ascending: false }).limit(1)).data?.[0]?.idx ?? -1) + 1;
+    let lastCheck = 0, lastProg = 0, active = true;
+    const remaining = Math.max(0, ses.max_seconds - Number(ses.captured_seconds));
+    const stats = await captureHls({
+      fetch: safeGet, url: ses.hls_url, dir, windowSeconds: ses.window_seconds, minWindowSeconds: 20, maxSeconds: Math.min(remaining, deadlineSec), resumeFromSeq: ses.last_media_seq,
+      shouldStop: async () => {
+        if (Date.now() - lastCheck < 4000) return !active; lastCheck = Date.now();
+        const { data } = await sb.from("live_sessions").select("status").eq("id", ses.id).single();
+        active = data?.status === "capturing";
+        await sb.from("jobs").update({ heartbeat_at: new Date().toISOString() }).eq("id", job.id);
+        return !active;
+      },
+      onProgress: async (p) => { if (Date.now() - lastProg > 10000) { lastProg = Date.now(); await sb.from("live_sessions").update({ captured_seconds: Number(ses.captured_seconds) + p.capturedSeconds, last_media_seq: p.lastSeq }).eq("id", ses.id); } },
+      onWindow: async (w: WindowOut) => {
+        const i = idx++;
+        const out = join(dir, `win${i}.mp4`);
+        const c = concatWindow(w.files, out, join(dir, `win${i}.txt`));
+        for (const f of w.files) rmSync(f, { force: true });
+        const srcId = crypto.randomUUID();
+        const up = await sb.storage.from("originals").upload(`${ses.workspace_id}/${srcId}/original`, readFileSync(out), { contentType: "video/mp4" });
+        rmSync(out, { force: true });
+        if (up.error) throw new Error(`subida de ventana: ${up.error.message}`);
+        ok(await sb.from("sources").insert({ id: srcId, workspace_id: ses.workspace_id, kind: "live", mime: "video/mp4", bytes: c.bytes, created_by: ses.created_by }).select("id").single(), "fuente");
+        const label = new Date(w.startedAtMs).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" });
+        const prj = ok(await sb.from("projects").insert({ workspace_id: ses.workspace_id, source_id: srcId, name: `En vivo ${label} (ventana ${i + 1})`, created_by: ses.created_by, project_brief: ses.brief, clip_count: 3 }).select("id").single(), "proyecto");
+        await sb.from("jobs").insert({ workspace_id: ses.workspace_id, kind: "detect", idempotency_key: `detect:live:${ses.id}:${i}`, project_id: prj.id, created_by: ses.created_by });
+        await sb.from("live_windows").insert({ workspace_id: ses.workspace_id, session_id: ses.id, idx: i, seconds: w.seconds, reason: w.reason, project_id: prj.id });
+        await sb.from("live_sessions").update({ windows_done: i + 1 }).eq("id", ses.id);
+        console.log("live window", i, Math.round(w.seconds), "s", w.reason, c.reencoded ? "(recodificada)" : "");
+      },
+    });
+    const { data: fin } = await sb.from("live_sessions").select("status").eq("id", ses.id).single();
+    const finalStatus = stats.endedBy === "error" ? "failed" : fin?.status === "capturing" ? (stats.endedBy === "ended" ? "done" : stats.endedBy === "max" ? "done" : "stopped") : fin?.status;
+    await sb.from("live_sessions").update({ status: finalStatus, ended_at: new Date().toISOString(), captured_seconds: Number(ses.captured_seconds) + stats.capturedSeconds, last_media_seq: stats.lastSeq, gaps: ses.gaps + stats.gaps, reconnects: ses.reconnects + stats.reconnects, last_error: stats.error ?? null }).eq("id", ses.id);
+    await setStatus(job.id, finalStatus === "failed" ? "failed" : "done", { metrics: { windows: stats.windows, gaps: stats.gaps, reconnects: stats.reconnects, captured_s: Math.round(stats.capturedSeconds), ended_by: stats.endedBy }, error_message: stats.error ?? null });
+    console.log("live fin", ses.id, stats);
+  } catch (e) {
+    const msg = (e as Error).message.slice(0, 300);
+    console.error("live fallo", job.id, msg);
+    await sb.from("live_sessions").update({ status: "failed", ended_at: new Date().toISOString(), last_error: msg }).eq("id", job.params.session_id!);
+    await setStatus(job.id, "failed", { error_message: msg });
+  } finally { rmSync(dir, { recursive: true, force: true }); liveActive--; }
+}
+
 const idleMs = Number(process.env.WORKER_IDLE_SECONDS ?? 0) * 1000;   // 0 = salir si no hay trabajo
 const maxMs = Number(process.env.WORKER_MAX_SECONDS ?? 3000) * 1000;
 const started = Date.now();
 let processed = 0, lastWork = Date.now();
+const liveRuns: Promise<void>[] = [];
 for (;;) {
-  if (Date.now() - started > maxMs) break;
+  const elapsedMs = Date.now() - started;
+  if (elapsedMs > maxMs && liveActive === 0) break;
   await tickAutomations().catch((e) => console.error("tick:", (e as Error).message));
+  if (elapsedMs > maxMs) { await new Promise((r) => setTimeout(r, 3000)); continue; }       // solo esperar a que termine el directo
   const { data, error } = await sb.rpc("claim_job");
   if (error) { console.error("claim_job:", error.message); process.exit(1); }
   const job = (data as Job[] | null)?.[0];
   if (!job) {
-    if (Date.now() - lastWork > idleMs) break;
+    if (liveActive === 0 && Date.now() - lastWork > idleMs) break;
     await new Promise((r) => setTimeout(r, 3000));   // sondeo cada 3 s mientras está caliente
     continue;
   }
+  lastWork = Date.now();
+  if (job.kind === "live") { liveRuns.push(processLive(job, Math.max(60, Math.floor((maxMs - (Date.now() - started)) / 1000) - 120))); continue; }   // en segundo plano: no bloquea otros trabajos
   await (job.kind === "render" ? processRender(job) : job.kind === "lyrics" ? processLyrics(job) : job.kind === "automation" ? processAutomation(job) : processJob(job)); processed++; lastWork = Date.now();
 }
+await Promise.allSettled(liveRuns);
 console.log(`terminado: ${processed} job(s) en ${Math.round((Date.now() - started) / 1000)} s`);

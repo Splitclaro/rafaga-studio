@@ -23,9 +23,17 @@ Referencias: las capturas/observaciones de LyricTune, OpusClip y Restream de est
 | Lyric Studio | Alineación letra↔ASR (DP, conserva texto, interpola y marca), sin letra → líneas por pausas, caché por letra+tramo | `packages/lyrics`, worker `processLyrics` | Canto real con instrumental: **sin validar** (Deepgram es ASR de habla) | autoprueba nube run 42634468349 (voz recitada): 19/20 emparejadas, texto original conservado | 🟡 |
 | N variantes | Plan exacto N (1–200 por petición), round-robin barajado con semilla, aviso de repeticiones, reintento sin repetir variantes listas, cancelación entre variantes | `planVariants`, `request_lyrics`, worker | — | 4 tests + autoprueba: 3 variantes distintas, ~1,5 s render c/u | 🟡 |
 | Lyric Studio | Modos Text y LP Cover, fondos de vídeo/foto y colecciones, packs desde vídeo, hooks, filtros, 720p, ZIP | — | — | — | ⬜ |
-| Style Studio | Editor de estilos, 28 tratamientos, compositor por frames | — | Decisión de motor (Canvas/WebGL/Remotion: licencia) | — | ⬜ |
+| Style Studio | Editor de estilos propios (fuente, tamaño, mayúsculas, colores, contorno, sombra, animación reveal/dim/color, composición), Sorpréndeme reversible, guardar/duplicar/borrar, importar/exportar con esquema, usarlos en clips y letras | `style-studio`, `style.ts`, migración 8 | — | 3 tests de validación; RLS | 🟡 |
+| Style Studio | 28 tratamientos, capas de entrada, loops, caos con semilla, glow/degradado | — | Compositor por frames (decisión de motor pendiente) | — | ⬜ |
 | OpusClip | Recetas, herramientas IA, multipista, NLE | — | Proveedores IA (voz, b-roll, doblaje, upscale) | — | ⬜ |
-| Conexiones | 38 destinos, OAuth, protocolos | — | Apps aprobadas por cada plataforma | — | ⬜ |
-| Calendario | Programación y publicación | — | Conexiones | — | ⬜ |
+| Conexiones | Catálogo de 38 destinos con capacidades y requisitos orientativos; estado honesto «no configurado» | `conexiones`, `lib/platforms.ts` | Apps aprobadas por cada plataforma; verificación de docs | build | 🟡 (catálogo) · ⬜ (OAuth y protocolos) |
+| Calendario | Mes/semana/lista, zona IANA + UTC + DST, adjuntar clip/letra, destinos, borrador/planificada/publicada/cancelada; planificador manual (sin publicación automática) | `app/app/calendario`, `lib/tz.ts`, migración 9 | Conexiones reales para publicar | `lib/tz.test.ts` 4 tests (DST Madrid/NY); RLS | 🟡 |
 | Analítica | Métricas internas reales | `app/app/analitica` | — | build | 🟡 |
-| En vivo / Automatizaciones | HLS, RSS | — | — | — | ⬜ |
+| Automatizaciones | RSS https con enclosure de vídeo, cursor al activar, dedupe por GUID, límite diario, historial, comprobar ahora, planificador 15 min mientras el worker vive | `automatizaciones`, `net.ts`, worker `checkRule`, migraciones 9 y 11 | Worker activo; vídeos ≤50 MB (Free) | 4 tests SSRF/feed + RLS; **sin prueba con un feed real aún** | 🟡 |
+| En vivo | Captura HLS (MPEG-TS) autorizada en ventanas de ~2 min → proyecto por ventana → clips; pausa/parar/reanudar; huecos sin unir; reconexión; resumen textual | `en-vivo`, `hls.ts`, worker `processLive`, migración 12 | Worker; solo MPEG-TS sin DRM; fMP4 no soportado | `scripts/test-hls-live.ts`: 4 ventanas válidas con corte de fuente real; **no probada en cloud ni ≥10 min** | 🟡 |
+
+| Inicio | Pestañas de tipo de generación, panel de carga visible, recetas Captions/Reframe/Social/B-roll operativas (worker `processWhole`), proyectos recientes con imagen, «Ver todos», proyecto en curso | `app/app/page.tsx`, `lib/projects.ts` | Worker | build; **modos no probados con vídeo real en cloud** | 🟡 |
+| Galería | Puntuación /100 con desglose A–C, orden por puntuación/tiempo, duración, favoritos, descartar, descarga, «por qué no se eligieron» | `app/app/p/[id]` | — | build | 🟡 |
+| Editor | Encuadre (desenfocado/rellenar con posición manual/ajustar), Social edits por red, B-roll desde Custom Collections, 4:5 | `app/app/c/[id]`, `composition.ts` | Seguimiento facial; B-roll con IA (proveedor) | 12 combinaciones layout×ratio con FFmpeg real | 🟡 |
+| Lyric Studio | Selector de tramo con forma de onda; «3 mejores momentos» por energía+repetición | `RangePicker`, `moments.ts` | — | 4 tests de momentos | 🟡 |
+| Biblioteca | Vídeos, clips exportados, vídeos con letra, canciones, colecciones, fuentes, estilos con búsqueda, descarga y borrado | `biblioteca` | — | build | 🟡 |

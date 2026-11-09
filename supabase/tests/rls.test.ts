@@ -46,6 +46,8 @@ before(async () => {
   await db.exec(readFileSync(new URL("../migrations/20261110000010_lyrics_ratio.sql", import.meta.url), "utf8"));
   await db.exec(readFileSync(new URL("../migrations/20261110000011_automation_jobs.sql", import.meta.url), "utf8"));
   await db.exec("grant execute on function public.request_automation_check(uuid) to authenticated;");
+  await db.exec(readFileSync(new URL("../migrations/20261110000012_live.sql", import.meta.url), "utf8"));
+  await db.exec("grant select on public.live_sessions, public.live_windows to authenticated; grant execute on function public.start_live_session(text, text), public.set_live_status(uuid, text) to authenticated;");
   await db.exec("grant select, insert, delete on public.songs to authenticated; grant select on public.song_alignments, public.lyric_videos to authenticated; grant execute on function public.request_lyrics(uuid, jsonb, text) to authenticated;");
   await db.exec("grant execute on function public.request_detection(uuid, text) to authenticated; grant execute on function public.request_render(uuid, int, text, boolean) to authenticated;");
   await db.exec(`insert into auth.users values ('${A}','a@test.dev'),('${B}','b@test.dev');`);
@@ -251,4 +253,23 @@ test("Automatizaciones: el cursor se fija al activar y la comprobación bajo dem
   });
   assert.equal(j1, j2);
   await asUser(B, async () => { await rejects(`select request_automation_check('${rule}')`); });
+});
+
+test("En vivo: una sesión activa por workspace, URL https, parar/reanudar y aislamiento", async () => {
+  let sid = "";
+  await asUser(A, async () => {
+    await rejects(`select start_live_session('http://x.com/l.m3u8', null)`);
+    sid = (await db.query<{ r: string }>(`select start_live_session('https://x.com/l.m3u8', 'partido') r`)).rows[0].r;
+    await rejects(`select start_live_session('https://x.com/otra.m3u8', null)`);                 // ya hay una activa
+    await rejects(`insert into live_sessions(workspace_id,hls_url,created_by) values ('${wsA}','https://x.com/a.m3u8','${A}')`); // sin escritura directa
+    assert.equal((await db.query<{ r: string }>(`select set_live_status('${sid}','pause') r`)).rows[0].r, "paused");
+    assert.equal((await db.query<{ r: string }>(`select set_live_status('${sid}','resume') r`)).rows[0].r, "queued");
+    await rejects(`select set_live_status('${sid}','resume')`);                                    // no se puede reanudar una activa
+    assert.equal((await db.query<{ r: string }>(`select set_live_status('${sid}','stop') r`)).rows[0].r, "stopped");
+  });
+  await asUser(B, async () => {
+    assert.equal((await db.query(`select * from live_sessions`)).rows.length, 0);
+    await rejects(`select set_live_status('${sid}','resume')`);
+    const b = (await db.query<{ r: string }>(`select start_live_session('https://y.com/l.m3u8', null) r`)).rows[0].r; assert.ok(b);   // B puede tener la suya
+  });
 });

@@ -17,7 +17,7 @@ const NAV: NavItem[] = [
   { href: "/app/analitica", label: "Analítica", icon: "chart", ready: true, group: "Publicar" },
   { href: "/app/conexiones", label: "Conexiones", icon: "link", ready: true, group: "Publicar" },
   { href: "/app/automatizaciones", label: "Automatizaciones", icon: "bolt", ready: true, group: "Automatizar" },
-  { href: "/app/en-vivo", label: "En vivo", icon: "live", ready: false, group: "Automatizar" },
+  { href: "/app/en-vivo", label: "En vivo", icon: "live", ready: true, group: "Automatizar" },
 ];
 const GROUPS = ["Crear", "Publicar", "Automatizar"];
 type Note = { id: string; status: string; kind: string; updated_at: string; error_message: string | null };

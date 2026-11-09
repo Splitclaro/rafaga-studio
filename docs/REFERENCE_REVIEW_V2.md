@@ -1,6 +1,6 @@
 # Revisión de referencias V2 — generación automática de clips (2026-11-09)
 
-Material: 10 imágenes aportadas por el usuario en el chat y los 7 vídeos de `Downloads/` (16 fotogramas por vídeo, muestreo uniforme). **No se ha escuchado el audio**; los textos de pantalla se leyeron cuando eran legibles. Las marcas, personas y logos de las referencias no se adoptan. Las herramientas de los vídeos 4, 6 y 7 descargan directos/vídeos de YouTube o Kick: **no replicamos esa descarga** (sin método autorizado); sí su flujo funcional con fuentes autorizadas.
+Material: 10 imágenes aportadas por el usuario en el chat y los 7 vídeos de `Downloads/` (16 fotogramas por vídeo, muestreo uniforme). **El audio se transcribió localmente (Whisper `small`, español, en el equipo del usuario; nada se subió a terceros)** y se leyó entero; los textos de pantalla se leyeron cuando eran legibles. Las transcripciones tienen errores propios del modelo; solo se usan para entender funciones. Las marcas, personas y logos de las referencias no se adoptan. Las herramientas de los vídeos 4, 6 y 7 descargan directos/vídeos de YouTube o Kick: **no replicamos esa descarga** (sin método autorizado); sí su flujo funcional con fuentes autorizadas.
 
 Estado: ✅ hecho · 🟡 parcial · ⬜ pendiente.
 
@@ -77,3 +77,14 @@ Estado: ✅ hecho · 🟡 parcial · ⬜ pendiente.
 3. Configuración: tipo de vídeo, tramo, duración objetivo, formato 4:5.
 4. Layouts: split dos personas, gaming (regiones manuales), seguimiento facial.
 5. Progreso con contadores y detalle técnico; En vivo; Biblioteca.
+
+## I. Lo que EXPLICAN los vídeos (audio transcrito localmente)
+| Vídeo | Qué explica | Requisito derivado | Estado |
+|---|---|---|---|
+| 1 (en vivo) | Monitoreo en tiempo real: grabando, transcribiendo, buscando momentos, creando clips; «rechaza los que no van a funcionar»; clips listos para descargar y publicar; sigue generando mientras dure la emisión | Página En vivo con etapas, contadores reales y clips según llegan; descartes visibles | ✅ En vivo (captura HLS autorizada); 🟡 sin desglose por etapa en tiempo real |
+| 2 | (Clip de ejemplo con subtítulos; el audio es contenido, no explica funciones) | — | — |
+| 3 | Clase en directo: la herramienta «busca la risa y el grito» para localizar momentos | Señales de audio (energía/reacciones) como criterio de selección | 🟡 energía en Lyric Studio; ⬜ en clips de vídeo |
+| 4 | Flujo: copiar enlace → analizar → elegir cantidad → configurar → clips listos en minutos con % de viralidad → descargar y ajustar a cada red | Nuevo proyecto, galería con puntuación, Social edits | ✅ (carga por archivo; ⬜ por enlace) |
+| 5 (gaming) | Detecta la facecam, hace la división de pantalla (cámara arriba, juego abajo); recomienda grabar gameplay y revisar manualmente los mejores momentos | Layout Gaming con dos regiones y detección | ⬜ |
+| 6 | Pegar URL, desmarcar «directo», generar; ver el primer vídeo cuando termina de cargar | Primer clip antes del lote; proceso cancelable/regenerable | ✅ primer clip antes del lote; ⬜ cancelar proceso de clips |
+| 7 | No hace falta pegar URL ni clave: buscador de canales integrado, «usar vídeo» y se generan los clips | Buscador de canales | ⛔ requiere una API de plataforma autorizada; no se replica |
