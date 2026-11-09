@@ -87,7 +87,7 @@ export default function CollectionsPicker({ selected, onSelect, cols, reload }: 
           <ul className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
             {RAFAGA_COLLECTIONS.map((c) => (
               <li key={c.id} className="flex aspect-[4/3] flex-col justify-end rounded-2xl border border-dashed border-[var(--border)] p-3" aria-disabled>
-                <span className="font-display text-lg leading-tight">{c.name.toLowerCase()}</span>
+                <span className="font-display text-lg leading-tight">{c.name}</span>
                 <span className="text-xs text-[var(--muted)]">{c.hint}</span>
                 <span className="mt-1 text-xs">Sin medios todavía</span>
               </li>
@@ -109,7 +109,7 @@ export default function CollectionsPicker({ selected, onSelect, cols, reload }: 
             {cols?.map((c) => (
               <li key={c.id} className={`rounded-2xl border p-3 ${selected === c.id ? "border-[#111] ring-1 ring-[#111]" : "border-[var(--border)]"}`}>
                 <div className="flex flex-wrap items-center gap-2">
-                  <button onClick={() => onSelect(selected === c.id ? null : c.id)} aria-pressed={selected === c.id} className="font-display min-w-0 flex-1 truncate text-left text-lg">{selected === c.id ? "✓ " : ""}{c.name.toLowerCase()}</button>
+                  <button onClick={() => onSelect(selected === c.id ? null : c.id)} aria-pressed={selected === c.id} className="font-display min-w-0 flex-1 truncate text-left text-lg">{selected === c.id ? "✓ " : ""}{c.name}</button>
                   <span className="text-xs text-[var(--muted)] tnum">{c.items.length} archivo{c.items.length === 1 ? "" : "s"}</span>
                   <label className="cursor-pointer rounded-full border border-[var(--border)] px-3 py-1 text-xs">Añadir<input type="file" multiple accept="video/mp4,video/quicktime,video/webm,image/jpeg,image/png,image/webp" className="sr-only" onChange={(e) => { upload(c.id, e.target.files); e.target.value = ""; }} /></label>
                   <button onClick={() => removeCol(c)} className="text-xs underline">Borrar</button>

@@ -58,7 +58,7 @@ export default function Dashboard() {
   return (
     <main className="mx-auto max-w-6xl px-4 pb-16 pt-8 md:px-8">
       <header className="mb-7 flex flex-wrap items-end justify-between gap-4">
-        <h1 className="text-[2.6rem] leading-[1.05] md:text-[3.4rem]">{name ? `hola, ${name}` : "hola"}<br /><span className="text-[var(--muted)]">¿qué creamos hoy?</span></h1>
+        <h1 className="text-[2.6rem] leading-[1.05] md:text-[3.4rem]">{name ? `Hola, ${name}` : "Hola"}<br /><span className="text-[var(--muted)]">¿Qué creamos hoy?</span></h1>
         {stats && (
           <dl className="flex gap-6 text-sm" aria-label="Tu actividad">
             {[["clips", stats.clips], ["vídeos con letra", stats.lyrics], ["canciones", stats.songs]].map(([k, v]) => (
@@ -72,7 +72,7 @@ export default function Dashboard() {
       <section aria-label="Crear" className="film-edge grid gap-4 rounded-[28px] bg-[#111] px-4 py-8 text-white md:grid-cols-[1.6fr_1fr] md:px-6 md:py-9">
         <form onSubmit={submit} className="rounded-[20px] bg-white p-5 text-[var(--text)]">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="text-2xl">clips desde un vídeo</h2>
+            <h2 className="text-2xl">Clips desde un vídeo</h2>
             <span className="text-xs text-[var(--muted)]">MP4, MOV o WebM, hasta {MAX_UPLOAD_BYTES / 1048576} MB</span>
           </div>
           <input ref={input} id="file" type="file" accept="video/mp4,video/quicktime,video/webm" className="sr-only" onChange={(e) => pick(e.target.files?.[0] ?? null)} />
@@ -96,10 +96,10 @@ export default function Dashboard() {
         <div className="grid gap-4">
           <Link href="/app/lyric-studio" className="flex min-h-44 flex-col justify-between rounded-[20px] bg-white p-5 text-[var(--text)] hover:bg-[#f2f2f2]">
             <span className="grid h-10 w-10 place-items-center rounded-full border border-[var(--border)]"><Icon n="music" /></span>
-            <span><span className="font-display block text-2xl">vídeos con letra</span><span className="text-sm text-[var(--muted)]">Sube una canción y genera varias versiones a la vez.</span></span>
+            <span><span className="font-display block text-2xl">Vídeos con letra</span><span className="text-sm text-[var(--muted)]">Sube una canción y genera varias versiones a la vez.</span></span>
           </Link>
           <div className="grid grid-cols-2 gap-4">
-            {[["/app/proyectos", "film", "tus proyectos"], ["/app/brand-kits", "brand", "marca y fuentes"]].map(([h, i, t]) => (
+            {[["/app/proyectos", "film", "Tus proyectos"], ["/app/brand-kits", "brand", "Marca y fuentes"]].map(([h, i, t]) => (
               <Link key={h} href={h} className="flex flex-col gap-6 rounded-[20px] border border-white/20 p-4 text-white hover:bg-white/10">
                 <Icon n={i} /><span className="font-display text-lg leading-tight">{t}</span>
               </Link>
@@ -111,7 +111,7 @@ export default function Dashboard() {
       <div className="mt-12 grid gap-10 lg:grid-cols-[1.6fr_1fr]">
         <section aria-labelledby="recientes">
           <div className="mb-3 flex items-baseline justify-between">
-            <h2 id="recientes" className="text-2xl">proyectos recientes</h2>
+            <h2 id="recientes" className="text-2xl">Proyectos recientes</h2>
             <Link href="/app/proyectos" className="text-sm underline underline-offset-4">Ver todos</Link>
           </div>
           {err && <p role="alert">No se pudieron cargar los proyectos: {err}</p>}
@@ -133,7 +133,7 @@ export default function Dashboard() {
 
         <section aria-labelledby="letras">
           <div className="mb-3 flex items-baseline justify-between">
-            <h2 id="letras" className="text-2xl">últimos vídeos con letra</h2>
+            <h2 id="letras" className="text-2xl">Últimos vídeos con letra</h2>
             <Link href="/app/lyric-studio" className="text-sm underline underline-offset-4">Abrir</Link>
           </div>
           {!batches.length && <p className="rounded-2xl border border-dashed border-[var(--border)] p-6 text-[var(--muted)]">Aquí aparecerán tus lotes de vídeos con letra.</p>}

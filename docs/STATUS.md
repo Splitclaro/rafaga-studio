@@ -56,7 +56,7 @@ Estado: **entrega parcial: beta aún no verificada** (sesión 1, 2026-11-09).
 - Incidencia: migraciones 4 y 5 no se habían aplicado (falso «Success» del editor SQL). Aplicadas y VERIFICADAS con to_regclass/pg_proc. Subida previa fallida pudo dejar un WAV huérfano en `originals/<ws>/songs/`.
 
 ## Sesión 3 — Bootzy, formato LyricTune, colecciones, rediseño
-- Bootzy TM = fuente del sistema: bucket público `app-fonts` (migración 6), fuera del repo; web por @font-face, worker la descarga. Verificado en nube: libass `fontselect -> BootzyTM`.
+- Bootzy TM = fuente de los RESULTADOS (subtítulos/letras de clips y sus vistas previas), NO de la interfaz (decisión del usuario, 9-11); la UI usa la fuente del sistema. Alojamiento: bucket público `app-fonts` (migración 6), fuera del repo; web por @font-face, worker la descarga. Verificado en nube: libass `fontselect -> BootzyTM`.
 - Presets de letra «Letra» (minúsculas, sin contorno, sombra suave, palabras que aparecen) y «Letra suave» (atenuadas); editor y export comparten modos.
 - Ráfaga Collections (catálogo sin medios aún, por decisión del usuario) y Custom Collections (migración 7 aplicada y verificada): vídeo/foto propios; ajustes secuencia/intervalo, oscurecer, barras, filtros Midnight/Super 8/Noir/Vaporwave, tamaño de texto. Autoprueba nube run 42713521614 OK.
 - Rediseño (skill frontend-design): dashboard «hola, ¿qué creamos hoy?» con panel de creación (perforaciones), accesos, cifras reales, hoja de contactos; Lyric Studio por pasos con vista previa animada. Revisado 1440/390 sin overflow (sesión simulada local).

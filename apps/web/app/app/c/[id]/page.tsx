@@ -252,7 +252,7 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
               <div className="grid grid-cols-[1fr_auto] items-end gap-2">
                 <label>Fuente
                   <select value={doc.style.fontName} onChange={(e) => setStyle({ fontName: e.target.value })} className="mt-1 w-full rounded border border-[var(--border)] bg-white px-2 py-1.5" style={{ fontFamily: `"${doc.style.fontName}", Arial` }}>
-                    <option value="Bootzy TM">Bootzy TM (principal)</option>
+                    <option value="Bootzy TM">Bootzy TM (fuente de los clips)</option>
                     <option value="Arial">Arial</option>
                     {fonts?.map((f) => <option key={f.id} value={f.family} style={{ fontFamily: `"${f.family}"` }}>{f.family}</option>)}
                   </select></label>

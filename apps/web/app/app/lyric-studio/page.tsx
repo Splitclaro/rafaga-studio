@@ -153,14 +153,14 @@ export default function LyricStudio() {
   return (
     <main className="mx-auto max-w-7xl px-4 pb-16 pt-8 md:px-8">
       <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
-        <div><h1 className="text-[2.6rem] leading-none">lyric studio</h1><p className="mt-2 text-[var(--muted)]">Tu canción, con la letra sincronizada, en tantas versiones como necesites.</p></div>
+        <div><h1 className="text-[2.6rem] leading-none">Lyric Studio</h1><p className="mt-2 text-[var(--muted)]">Tu canción, con la letra sincronizada, en tantas versiones como necesites.</p></div>
       </header>
 
       <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)_300px]">
         {/* Canciones */}
         <aside className="space-y-3 lg:sticky lg:top-6 lg:self-start">
           <div className="rounded-3xl bg-[var(--surface)] p-4">
-            <h2 className="text-lg">canciones</h2>
+            <h2 className="text-lg">Canciones</h2>
             <div className="mt-3 grid gap-2 text-sm">
               <input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Título (opcional)" className="rounded-full border border-[var(--border)] bg-white px-3 py-1.5" />
               <input value={newArtist} onChange={(e) => setNewArtist(e.target.value)} placeholder="Artista (opcional)" className="rounded-full border border-[var(--border)] bg-white px-3 py-1.5" />
@@ -182,21 +182,21 @@ export default function LyricStudio() {
         {/* Pasos */}
         <div className="space-y-5">
           {!song ? (
-            <div className="grid min-h-80 place-items-center rounded-3xl border-2 border-dashed border-[var(--border)] p-10 text-center"><p className="font-display text-2xl text-[var(--muted)]">elige o sube una canción<br />para empezar</p></div>
+            <div className="grid min-h-80 place-items-center rounded-3xl border-2 border-dashed border-[var(--border)] p-10 text-center"><p className="font-display text-2xl text-[var(--muted)]">Elige o sube una canción<br />para empezar</p></div>
           ) : (<>
-            <Step n={1} title={song.title.toLowerCase()}>
+            <Step n={1} title={song.title}>
               <audio controls src={audioUrl} className="w-full" />
               <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
                 <label>Desde (s)<input type="number" min={0} step={0.5} value={start} onChange={(e) => setStart(Number(e.target.value))} className="tnum mt-1 w-full rounded-xl border border-[var(--border)] px-3 py-1.5" /></label>
                 <label>Hasta (s), 0 para el final<input type="number" min={0} step={0.5} value={end} onChange={(e) => setEnd(Number(e.target.value))} className="tnum mt-1 w-full rounded-xl border border-[var(--border)] px-3 py-1.5" /></label>
               </div>
             </Step>
-            <Step n={2} title="letra">
+            <Step n={2} title="Letra">
               <div className="mb-2 flex justify-end"><label className="cursor-pointer rounded-full border border-[var(--border)] px-3 py-1 text-sm">Importar TXT, LRC, SRT o VTT<input type="file" accept=".txt,.lrc,.srt,.vtt,text/plain" className="sr-only" onChange={(e) => importLyrics(e.target.files?.[0])} /></label></div>
               <textarea rows={7} value={lyrics} onChange={(e) => setLyrics(e.target.value)} placeholder="Pega la letra, un verso por línea. Si la dejas vacía se transcribe el canto, que es menos fiable con música." className="w-full rounded-2xl border border-[var(--border)] px-4 py-3 text-sm" />
               <p className="mt-1 text-xs text-[var(--muted)]">{lyricLines.length} versos. Se respeta tu texto; solo se calculan los tiempos.</p>
             </Step>
-            <Step n={3} title="estilo de letra">
+            <Step n={3} title="Estilo de letra">
               <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 {LYRIC_STYLES.map((k) => {
                   const on = styles.includes(k);
@@ -210,7 +210,7 @@ export default function LyricStudio() {
               </ul>
               <p className="mt-2 text-xs text-[var(--muted)]">Si eliges varios, se reparten entre los vídeos. Fuente: Bootzy TM.</p>
             </Step>
-            <Step n={4} title="fondo">
+            <Step n={4} title="Fondo">
               <div role="tablist" className="mb-3 inline-flex rounded-full bg-[var(--hover)] p-1 text-sm">
                 {([["solid", "Color sólido"], ["collection", "Colecciones"]] as const).map(([k, l]) => (
                   <button key={k} role="tab" aria-selected={bgMode === k} onClick={() => setBgMode(k)} className={`rounded-full px-4 py-1.5 ${bgMode === k ? "bg-[#111] text-white" : "text-[var(--muted)]"}`}>{l}</button>))}
@@ -222,7 +222,7 @@ export default function LyricStudio() {
                 </div>
               ) : <CollectionsPicker selected={collection} onSelect={setCollection} cols={cols} reload={reloadCols} />}
             </Step>
-            <Step n={5} title="ajustes">
+            <Step n={5} title="Ajustes">
               <div className="grid gap-4 text-sm sm:grid-cols-2">
                 <label className="flex items-center justify-between gap-3 rounded-2xl bg-[var(--surface)] px-4 py-3">Alternar clips de fondo <input type="checkbox" checked={settings.sequence} onChange={(e) => set({ sequence: e.target.checked })} /></label>
                 <label className={`rounded-2xl bg-[var(--surface)] px-4 py-3 ${settings.sequence ? "" : "opacity-50"}`}>Cambiar cada <span className="tnum">{settings.interval} s</span>
@@ -237,7 +237,7 @@ export default function LyricStudio() {
               </div>
               {settings.dim > 0.6 && <p className="mt-2 text-xs">Con más de 60 % el fondo apenas se verá.</p>}
             </Step>
-            <Step n={6} title="cuántos vídeos">
+            <Step n={6} title="Cuántos vídeos">
               <div className="flex flex-wrap items-end gap-4 text-sm">
                 <label>Vídeos<input type="number" min={1} max={200} value={n} onChange={(e) => setN(Math.max(1, Math.min(200, Math.floor(Number(e.target.value) || 1))))} className="font-display mt-1 block w-24 rounded-2xl border border-[var(--border)] px-3 py-2 text-2xl tnum" /></label>
                 <label>Formato<select value={ratio} onChange={(e) => setRatio(e.target.value as typeof ratio)} className="mt-1 block rounded-full border border-[var(--border)] bg-white px-3 py-2"><option value="9:16">Vertical 9:16</option><option value="1:1">Cuadrado 1:1</option><option value="16:9">Horizontal 16:9</option></select></label>
@@ -247,7 +247,7 @@ export default function LyricStudio() {
                 <details className="mt-3 text-sm"><summary className="cursor-pointer">Plan: {plan.variants.length} vídeos{plan.repeats ? `, ${plan.repeats} repiten estilo y fondo` : ", todos distintos"}</summary>
                   <ol className="mt-2 max-h-40 overflow-auto rounded-2xl bg-[var(--surface)] p-3 tnum">{plan.variants.map((v) => <li key={v.index}>{v.index}. {v.style}, {v.background === "coleccion" ? `${selectedCol?.name ?? "colección"} (orden ${v.seed % 1000 + 1})` : v.background}</li>)}</ol>
                 </details>)}
-              <button onClick={generate} disabled={busy || !!blockReason} className="font-display mt-4 w-full rounded-full bg-[#111] px-6 py-4 text-xl text-white disabled:opacity-40">generar {n} vídeo{n === 1 ? "" : "s"}</button>
+              <button onClick={generate} disabled={busy || !!blockReason} className="font-display mt-4 w-full rounded-full bg-[#111] px-6 py-4 text-xl text-white disabled:opacity-40">Generar {n} vídeo{n === 1 ? "" : "s"}</button>
               <p role="status" aria-live="polite" className="mt-2 text-sm text-[var(--muted)]">{blockReason ?? msg}</p>
             </Step>
           </>)}
@@ -266,7 +266,7 @@ export default function LyricStudio() {
 
           {song && (
             <div className="rounded-3xl bg-[var(--surface)] p-4 text-sm">
-              <h2 className="text-lg">resultados</h2>
+              <h2 className="text-lg">Resultados</h2>
               {!batches.length && <p className="mt-2 text-[var(--muted)]">Tus vídeos aparecerán aquí.</p>}
               <ul className="mt-2 space-y-1">{batches.map((b) => (
                 <li key={b.id}><button onClick={() => { setOpenBatch(b.id); loadVideos(b.id); }} className={`flex w-full justify-between gap-2 rounded-xl px-3 py-2 text-left ${openBatch === b.id ? "bg-[#111] text-white" : "hover:bg-[var(--hover)]"}`}>
