@@ -1,47 +1,63 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "../lib/supabase";
-import { STAGE } from "../lib/projects";
+import { STAGE, MODE_LABEL } from "../lib/projects";
+import Icon from "./Icon";
 
-type Row = { id: string; name: string; created_at: string; project_brief: string | null; status: string | null; clips: number };
+export type Row = { id: string; name: string; created_at: string; project_brief: string | null; mode: string; status: string | null; clips: number; thumb?: string };
 
 export function useProjects() {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  useEffect(() => {
-    (async () => {
-      const { data, error } = await supabase.from("projects").select("id,name,created_at,project_brief").is("deleted_at", null).order("created_at", { ascending: false });
-      if (error) return setErr(error.message);
-      const ids = (data ?? []).map((p) => p.id);
-      const jobs = ids.length ? (await supabase.from("jobs").select("project_id,status,created_at").in("project_id", ids).eq("kind", "detect").order("created_at", { ascending: false })).data ?? [] : [];
-      const clips = ids.length ? (await supabase.from("clips").select("project_id").in("project_id", ids).eq("discarded", false)).data ?? [] : [];
-      setRows((data ?? []).map((p) => ({ ...p, status: jobs.find((j) => j.project_id === p.id)?.status ?? null, clips: clips.filter((c) => c.project_id === p.id).length })));
-    })();
+  const load = useCallback(async () => {
+    const { data, error } = await supabase.from("projects").select("id,name,created_at,project_brief,mode,source_id").is("deleted_at", null).order("created_at", { ascending: false });
+    if (error) return setErr(error.message);
+    const ids = (data ?? []).map((p) => p.id);
+    const srcIds = [...new Set((data ?? []).map((p) => p.source_id))];
+    const [jobs, clips, srcs] = await Promise.all([
+      ids.length ? supabase.from("jobs").select("project_id,status,created_at").in("project_id", ids).eq("kind", "detect").order("created_at", { ascending: false }) : { data: [] },
+      ids.length ? supabase.from("clips").select("project_id").in("project_id", ids).eq("discarded", false) : { data: [] },
+      srcIds.length ? supabase.from("sources").select("id,thumb_path").in("id", srcIds) : { data: [] },
+    ]);
+    const paths = (srcs.data ?? []).filter((x: { thumb_path: string | null }) => x.thumb_path).map((x: { thumb_path: string }) => x.thumb_path);
+    const signed = paths.length ? (await supabase.storage.from("originals").createSignedUrls(paths, 3600)).data ?? [] : [];
+    const urlByPath = new Map(signed.map((x) => [x.path, x.signedUrl]));
+    const thumbBySrc = new Map((srcs.data ?? []).map((x: { id: string; thumb_path: string | null }) => [x.id, x.thumb_path ? urlByPath.get(x.thumb_path) : undefined]));
+    setRows((data ?? []).map((p) => ({ id: p.id, name: p.name, created_at: p.created_at, project_brief: p.project_brief, mode: p.mode, thumb: thumbBySrc.get(p.source_id) as string | undefined,
+      status: (jobs.data ?? []).find((j: { project_id: string }) => j.project_id === p.id)?.status ?? null, clips: (clips.data ?? []).filter((c: { project_id: string }) => c.project_id === p.id).length })));
   }, []);
-  return { rows, err };
+  useEffect(() => { load(); }, [load]);
+  return { rows, err, reload: load };
 }
 
+export const isActive = (s: string | null) => !!s && !["done", "failed", "cancelled"].includes(s);
+
 export function Chip({ status }: { status: string | null }) {
-  const tone = status === "done" ? "bg-[var(--accent)]/15 text-[var(--accent)]" : status === "failed" ? "bg-[var(--danger)]/15 text-[var(--danger)]" : status ? "bg-[var(--select)]/20 text-[var(--select)]" : "bg-black/10 text-[var(--muted)]";
-  return <span className={`rounded-full px-2 py-0.5 text-xs ${tone}`}>{status ? STAGE[status] ?? status : "Sin analizar"}</span>;
+  if (isActive(status)) return <span className="chip !py-0.5"><span className="pulse" aria-hidden />{STAGE[status!] ?? status}</span>;
+  return <span className="chip !py-0.5">{status ? <Icon n={status === "done" ? "check" : "x"} className="h-3 w-3" /> : null}{status ? STAGE[status] ?? status : "Sin analizar"}</span>;
+}
+
+export function ProjectCard({ p }: { p: Row }) {
+  return (
+    <Link href={`/app/p/${p.id}`} className="card lift group block overflow-hidden">
+      <div className="relative aspect-video overflow-hidden bg-[#111]">
+        {p.thumb ? <img src={p.thumb} alt="" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" /> : <div className="dots-dark grid h-full w-full place-items-center text-white/60"><Icon n="film" className="h-8 w-8" /></div>}
+        <div className="absolute left-2 top-2"><Chip status={p.status} /></div>
+        {p.mode !== "clips" && <span className="chip absolute right-2 top-2 !py-0.5">{MODE_LABEL[p.mode] ?? p.mode}</span>}
+        {isActive(p.status) && <div className="absolute inset-x-0 bottom-0 h-1 overflow-hidden bg-black/40"><div className="skeleton h-full w-1/2 !rounded-none opacity-70" /></div>}
+      </div>
+      <div className="p-3">
+        <div className="truncate text-sm font-medium">{p.name}</div>
+        <div className="mt-0.5 flex items-center justify-between text-xs text-[var(--muted)]"><span className="tnum">{new Date(p.created_at).toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric" })}</span><span className="tnum">{p.clips} clip{p.clips === 1 ? "" : "s"}</span></div>
+      </div>
+    </Link>
+  );
 }
 
 export default function ProjectGrid({ rows, query = "" }: { rows: Row[]; query?: string }) {
   const q = query.trim().toLowerCase();
   const list = rows.filter((r) => !q || r.name.toLowerCase().includes(q));
-  if (!list.length) return <p className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6 text-sm text-[var(--muted)]">{q ? "Ningún proyecto coincide con tu búsqueda." : "Aún no tienes proyectos. Sube tu primer vídeo arriba."}</p>;
-  return (
-    <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-      {list.map((p) => (
-        <li key={p.id}>
-          <Link href={`/app/p/${p.id}`} className="block h-full rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 outline-offset-0 hover:outline hover:outline-1 hover:outline-[var(--select)]">
-            <div className="flex items-start justify-between gap-2"><h3 className="truncate font-medium">{p.name}</h3><Chip status={p.status} /></div>
-            {p.project_brief && <p className="mt-2 line-clamp-2 text-sm text-[var(--muted)]">{p.project_brief}</p>}
-            <div className="tnum mt-3 text-xs text-[var(--muted)]">{new Date(p.created_at).toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric" })} · {p.clips} clip{p.clips === 1 ? "" : "s"}</div>
-          </Link>
-        </li>
-      ))}
-    </ul>
-  );
+  if (!list.length) return <p className="card border-dashed p-6 text-sm text-[var(--muted)]">{q ? "Ningún proyecto coincide con tu búsqueda." : "Aún no tienes proyectos. Sube tu primer vídeo."}</p>;
+  return <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{list.map((p) => <li key={p.id}><ProjectCard p={p} /></li>)}</ul>;
 }

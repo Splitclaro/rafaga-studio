@@ -40,6 +40,10 @@ before(async () => {
   await db.exec("grant select, insert, delete on public.workspace_fonts to authenticated;");
   await db.exec(readFileSync(new URL("../migrations/20261109000005_lyric_studio.sql", import.meta.url), "utf8"));
   await db.exec(readFileSync(new URL("../migrations/20261109000007_collections.sql", import.meta.url), "utf8"));
+  await db.exec(readFileSync(new URL("../migrations/20261109000008_pages.sql", import.meta.url), "utf8"));
+  await db.exec("grant select, insert, delete on public.text_styles to authenticated;");
+  await db.exec(readFileSync(new URL("../migrations/20261109000009_automation_calendar.sql", import.meta.url), "utf8"));
+  await db.exec(readFileSync(new URL("../migrations/20261110000010_lyrics_ratio.sql", import.meta.url), "utf8"));
   await db.exec("grant select, insert, delete on public.songs to authenticated; grant select on public.song_alignments, public.lyric_videos to authenticated; grant execute on function public.request_lyrics(uuid, jsonb, text) to authenticated;");
   await db.exec("grant execute on function public.request_detection(uuid, text) to authenticated; grant execute on function public.request_render(uuid, int, text, boolean) to authenticated;");
   await db.exec(`insert into auth.users values ('${A}','a@test.dev'),('${B}','b@test.dev');`);
@@ -194,5 +198,40 @@ test("Custom Collections: privadas por workspace, sin mezclar colecciones ajenas
     assert.equal((await db.query(`select * from media_collections`)).rows.length, 0);
     assert.equal((await db.query(`select * from media_items`)).rows.length, 0);
     await rejects(`insert into media_items(workspace_id,collection_id,kind,name,storage_path,mime,bytes,created_by) values ('${wsB}','${col}','video','x','${wsB}/media/x.mp4','video/mp4',10,'${B}')`);
+  });
+});
+
+test("Style Studio: estilos privados por workspace; modo de proyecto validado", async () => {
+  await asUser(A, async () => {
+    await db.query(`insert into text_styles(workspace_id,name,style,created_by) values ('${wsA}','Mi estilo','{"fontName":"Bootzy TM"}','${A}')`);
+    await rejects(`insert into text_styles(workspace_id,name,style,created_by) values ('${wsA}','Mi estilo','{}','${A}')`); // nombre duplicado
+    await rejects(`insert into text_styles(workspace_id,name,style,created_by) values ('${wsB}','X','{}','${A}')`);         // otro workspace
+  });
+  await asUser(B, async () => { assert.equal((await db.query(`select * from text_styles`)).rows.length, 0); });
+  const src = (await db.query<{ id: string }>(`select id from sources where workspace_id='${wsA}' limit 1`)).rows[0].id;
+  await asUser(A, async () => {
+    await db.query(`insert into projects(workspace_id,source_id,name,created_by,mode) values ('${wsA}','${src}','m','${A}','captions')`);
+    await rejects(`insert into projects(workspace_id,source_id,name,created_by,mode) values ('${wsA}','${src}','m','${A}','hackear')`);
+  });
+});
+
+test("Automatizaciones y Calendario: HTTPS obligatorio, inactiva al crear, dedupe por entrada, aislamiento", async () => {
+  let rule = "";
+  await asUser(A, async () => {
+    rule = (await db.query<{ id: string }>(`insert into automation_rules(workspace_id,name,feed_url,created_by) values ('${wsA}','Podcast','https://example.com/feed.xml','${A}') returning id`)).rows[0].id;
+    await rejects(`insert into automation_rules(workspace_id,name,feed_url,created_by) values ('${wsA}','x','http://example.com/f.xml','${A}')`);
+    await rejects(`insert into automation_rules(workspace_id,name,feed_url,created_by,active) values ('${wsA}','x','https://example.com/f.xml','${A}',true)`);
+    await db.query(`update automation_rules set active = true where id = '${rule}'`);
+    await rejects(`insert into automation_runs(workspace_id,rule_id,entry_guid) values ('${wsA}','${rule}','g1')`); // solo servidor
+    await db.query(`insert into scheduled_posts(workspace_id,title,scheduled_at,created_by) values ('${wsA}','Post','2026-12-01T10:00:00Z','${A}')`);
+    await rejects(`insert into scheduled_posts(workspace_id,title,scheduled_at,created_by,publish_mode) values ('${wsA}','x','2026-12-01T10:00:00Z','${A}','api')`);
+  });
+  await db.exec(`insert into automation_runs(workspace_id,rule_id,entry_guid) values ('${wsA}','${rule}','g1')`);
+  await rejects(`insert into automation_runs(workspace_id,rule_id,entry_guid) values ('${wsA}','${rule}','g1')`);
+  await asUser(B, async () => {
+    assert.equal((await db.query(`select * from automation_rules`)).rows.length, 0);
+    assert.equal((await db.query(`select * from automation_runs`)).rows.length, 0);
+    assert.equal((await db.query(`select * from scheduled_posts`)).rows.length, 0);
+    await rejects(`delete from automation_rules`).catch(() => {});
   });
 });

@@ -48,15 +48,58 @@ type Job = { id: string; kind: string; workspace_id: string; project_id: string 
 const setStatus = (id: string, status: string, extra: Record<string, unknown> = {}) =>
   sb.from("jobs").update({ status, heartbeat_at: new Date().toISOString(), updated_at: new Date().toISOString(), ...extra }).eq("id", id);
 
+/** Modos de herramienta: el vídeo (o su tramo) entero como un único clip editable. */
+type ProjectRow = { id: string; name: string; workspace_id: string; source_id: string; project_brief: string | null; max_seconds: number; mode: string };
+async function processWhole(job: Job, project: ProjectRow, src: { id: string; range_start_ms: number | null; range_end_ms: number | null }, dir: string, path: string, words: TWord[], t0: number, m: Record<string, number | string>, transcriptId?: string) {
+  await setStatus(job.id, "rendering");
+  const inp = join(dir, "in");
+  if (!existsSync(inp)) {
+    const dl = await sb.storage.from("originals").download(path);
+    if (dl.error || !dl.data) throw new Error(`descarga: ${dl.error?.message}`);
+    writeFileSync(inp, Buffer.from(await dl.data.arrayBuffer()));
+  }
+  const full = Number(JSON.parse(sh("ffprobe", ["-v", "error", "-print_format", "json", "-show_format", inp])).format.duration);
+  const startSec = src.range_start_ms != null && src.range_end_ms ? src.range_start_ms / 1000 : 0;
+  const endSec = src.range_end_ms ? Math.min(full, src.range_end_ms / 1000) : full;
+  const len = endSec - startSec;
+  if (len < 1) throw Object.assign(new Error("El tramo elegido es demasiado corto."), { permanent: true });
+  if (len > 600) throw Object.assign(new Error("Esta herramienta procesa hasta 10 min de vídeo. Elige un tramo más corto o usa «Clips»."), { permanent: true });
+  let trId = transcriptId;
+  if (!trId) {
+    const ex = (await sb.from("transcripts").select("id").eq("source_id", src.id).limit(1)).data?.[0];
+    trId = ex?.id ?? ok(await sb.from("transcripts").insert({ workspace_id: project.workspace_id, source_id: src.id, language: null, words: [], asr_provider: "none", asr_model: "none" }).select("id").single(), "transcript").id;
+  }
+  const gen = ok(await sb.from("generations").insert({ workspace_id: project.workspace_id, project_id: project.id, transcript_id: trId, brief_snapshot: null, brief_sha256: briefHash(null), rubric_version: "whole-video", model: `herramienta-${project.mode}`, params: { mode: project.mode, startSec, endSec }, status: "running" }).select("id").single(), "generación");
+  const cand = ok(await sb.from("clip_candidates").insert({ workspace_id: project.workspace_id, generation_id: gen.id, start_ms: Math.round(startSec * 1000), end_ms: Math.round(endSec * 1000), title: project.name, reason: `Vídeo completo (${project.mode})`, brief_fit: null, scores: { label: "sin puntuación: herramienta sobre el vídeo entero" } }).select("id").single(), "candidato");
+  const clip = ok(await sb.from("clips").insert({ workspace_id: project.workspace_id, project_id: project.id, generation_id: gen.id, candidate_id: cand.id, title: project.name }).select("id").single(), "clip");
+  const comp = { ...buildComposition({ words: words as Word[], startSec, endSec }), layout: (project.mode === "social" ? "fill" : "blur") as Composition["layout"], burnSubtitles: project.mode !== "reframe" };
+  await sb.from("clip_versions").insert({ clip_id: clip.id, workspace_id: project.workspace_id, version: 1, composition: comp });
+  const ass = join(dir, "w.ass"), out = join(dir, "w.mp4");
+  writeFileSync(ass, buildAss(comp.words, { ...styleForRatio(comp.style, comp.ratio), fontName: renderFamily(comp.style.fontName) }, RATIO_SIZE[comp.ratio]));
+  const t1 = Date.now();
+  sh("ffmpeg", ffmpegArgs(comp, { input: inp, assPath: ass, output: out, fontsDir: await fontsFor(project.workspace_id, comp.style.fontName, dir) }));
+  const probe = JSON.parse(sh("ffprobe", ["-v", "error", "-print_format", "json", "-show_streams", "-show_format", out]));
+  const rpath = `${project.workspace_id}/${clip.id}/v1-9x16.mp4`;
+  const up = await sb.storage.from("renders").upload(rpath, readFileSync(out), { contentType: "video/mp4", upsert: true });
+  if (up.error) throw new Error(`subida render: ${up.error.message}`);
+  await sb.from("renders").insert({ workspace_id: project.workspace_id, clip_id: clip.id, clip_version: 1, ratio: "9:16", burn_subtitles: comp.burnSubtitles, spec_sha256: briefHash(JSON.stringify(comp)), storage_path: rpath, status: "ready", probe: { duration: probe.format.duration, size: probe.format.size } });
+  await sb.from("generations").update({ status: "done" }).eq("id", gen.id);
+  m.render_ms = Date.now() - t1; m.first_clip_ms = Date.now() - t0; m.all_clips_ms = Date.now() - t0; m.mode = project.mode;
+  await setStatus(job.id, "done", { generation_id: gen.id, metrics: m });
+  console.log("whole ok", job.id, project.mode, m);
+}
+
 async function processJob(job: Job) {
   const m: Record<string, number | string> = {};
   const t0 = Date.now();
   const dir = mkdtempSync(join(tmpdir(), "rafaga-"));
   try {
-    const project = ok(await sb.from("projects").select("id,workspace_id,source_id,project_brief,language,clip_count,target_seconds,max_seconds,deleted_at").eq("id", job.project_id!).single(), "proyecto");
+    const project = ok(await sb.from("projects").select("id,name,workspace_id,source_id,project_brief,language,clip_count,target_seconds,max_seconds,deleted_at,mode").eq("id", job.project_id!).single(), "proyecto");
     if (project.deleted_at) return void (await setStatus(job.id, "cancelled"));
-    const src = ok(await sb.from("sources").select("id,mime").eq("id", project.source_id).single(), "fuente");
+    const src = ok(await sb.from("sources").select("id,mime,range_start_ms,range_end_ms").eq("id", project.source_id).single(), "fuente");
     const path = `${project.workspace_id}/${src.id}/original`;
+
+    if (project.mode === "reframe") return await processWhole(job, project, src, dir, path, [], t0, m);
 
     // 1) Transcript (reutilizado si ya existe: cambiar el brief no repite ASR)
     let tr = (await sb.from("transcripts").select("id,words,language").eq("source_id", src.id).order("created_at", { ascending: false }).limit(1)).data?.[0];
@@ -82,7 +125,10 @@ async function processJob(job: Job) {
       tr = ok(await sb.from("transcripts").insert({ workspace_id: project.workspace_id, source_id: src.id, language: res.language, words: res.words, asr_provider: "deepgram", asr_model: "nova-3" }).select("id,words,language").single(), "transcript");
     } else m.asr_ms = 0; // reutilizado
     if (!tr) throw new Error("transcript no disponible");
-    const words = tr.words as TWord[];
+    const rs = src.range_start_ms != null && src.range_end_ms ? src.range_start_ms / 1000 : null, re = src.range_end_ms ? src.range_end_ms / 1000 : null;
+    const words = (tr.words as TWord[]).filter((w) => rs == null || re == null || (w.start >= rs && w.end <= re));
+    if (!words.length) throw Object.assign(new Error("No hay habla en el tramo elegido."), { permanent: true });
+    if (project.mode !== "clips") return await processWhole(job, project, src, dir, path, words, t0, m, tr.id);
 
     // 2) Selección guiada por brief
     await setStatus(job.id, "selecting");
@@ -168,7 +214,16 @@ async function processRender(job: Job) {
     const fontsDir = await fontsFor(clip.workspace_id, comp.style.fontName, dir);
     writeFileSync(ass, buildAss(comp.words, { ...styleForRatio(comp.style, ratio), fontName: renderFamily(comp.style.fontName) }, RATIO_SIZE[ratio]));
     const t1 = Date.now();
-    sh("ffmpeg", ffmpegArgs(comp, { input: inp, assPath: ass, output: out, fontsDir }));
+    // B-roll propio: solo rutas del mismo workspace, descargadas una vez
+    const broll: { local: string; kind: "video" | "photo"; start: number; dur: number }[] = [];
+    for (const [bi, b] of (comp.broll ?? []).entries()) {
+      if (!b.path.startsWith(`${clip.workspace_id}/media/`)) throw Object.assign(new Error("B-roll fuera de tu workspace."), { permanent: true });
+      const bd = await sb.storage.from("originals").download(b.path);
+      if (bd.error || !bd.data) throw new Error(`descarga de B-roll: ${bd.error?.message}`);
+      const lp = join(dir, `broll${bi}`); writeFileSync(lp, Buffer.from(await bd.data.arrayBuffer()));
+      broll.push({ local: lp, kind: b.kind, start: b.start, dur: b.dur });
+    }
+    sh("ffmpeg", ffmpegArgs(comp, { input: inp, assPath: ass, output: out, fontsDir, broll }));
     const probe = JSON.parse(sh("ffprobe", ["-v", "error", "-print_format", "json", "-show_streams", "-show_format", out]));
     const vs = probe.streams.find((x: { codec_type: string }) => x.codec_type === "video");
     const { width, height } = RATIO_SIZE[ratio];

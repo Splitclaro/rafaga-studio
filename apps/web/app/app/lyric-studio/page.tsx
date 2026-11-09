@@ -5,6 +5,8 @@ import { PRESETS, caseOf, type SubtitleStyle } from "@rafaga/composition";
 import { supabase, MAX_UPLOAD_BYTES } from "../../../lib/supabase";
 import { STAGE } from "../../../lib/projects";
 import CollectionsPicker, { Thumb, useCollections } from "../../../components/Collections";
+import RangePicker from "../../../components/RangePicker";
+import { useSearchParams } from "next/navigation";
 
 type Song = { id: string; title: string; artist: string | null; storage_path: string; lyrics_text: string | null };
 type Batch = { id: string; status: string; error_message: string | null; params: { n: number; ratio: string }; created_at: string };
@@ -48,6 +50,7 @@ function Step({ n: k, title, children }: { n: number; title: string; children: R
 }
 
 export default function LyricStudio() {
+  const params = useSearchParams();
   const { cols, reload: reloadCols } = useCollections();
   const [songs, setSongs] = useState<Song[] | null>(null);
   const [song, setSong] = useState<Song | null>(null);
@@ -61,7 +64,7 @@ export default function LyricStudio() {
   const [settings, setSettings] = useState<BgSettings>(DEFAULT_BG);
   const [textScale, setTextScale] = useState(1);
   const [n, setN] = useState(3);
-  const [ratio, setRatio] = useState<"9:16" | "1:1" | "16:9">("9:16");
+  const [ratio, setRatio] = useState<"9:16" | "4:5" | "1:1" | "16:9">("9:16");
   const [seed, setSeed] = useState(1);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -75,8 +78,10 @@ export default function LyricStudio() {
   const loadSongs = useCallback(async () => {
     const { data } = await supabase.from("songs").select("id,title,artist,storage_path,lyrics_text").order("created_at", { ascending: false });
     setSongs((data ?? []) as Song[]);
+    return (data ?? []) as Song[];
   }, []);
-  useEffect(() => { loadSongs(); }, [loadSongs]);
+  const wanted = params.get("song");
+  useEffect(() => { loadSongs().then((l) => { const w = l.find((x) => x.id === wanted); if (w) choose(w); }); }, [loadSongs, wanted]); // eslint-disable-line react-hooks/exhaustive-deps
   const loadBatches = useCallback(async (s: Song) => {
     const { data } = await supabase.from("jobs").select("id,status,error_message,params,created_at").eq("kind", "lyrics").contains("params", { song_id: s.id }).order("created_at", { ascending: false }).limit(20);
     setBatches((data ?? []) as Batch[]);
@@ -184,12 +189,8 @@ export default function LyricStudio() {
           {!song ? (
             <div className="grid min-h-80 place-items-center rounded-3xl border-2 border-dashed border-[var(--border)] p-10 text-center"><p className="font-display text-2xl text-[var(--muted)]">Elige o sube una canción<br />para empezar</p></div>
           ) : (<>
-            <Step n={1} title={song.title}>
-              <audio controls src={audioUrl} className="w-full" />
-              <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
-                <label>Desde (s)<input type="number" min={0} step={0.5} value={start} onChange={(e) => setStart(Number(e.target.value))} className="tnum mt-1 w-full rounded-xl border border-[var(--border)] px-3 py-1.5" /></label>
-                <label>Hasta (s), 0 para el final<input type="number" min={0} step={0.5} value={end} onChange={(e) => setEnd(Number(e.target.value))} className="tnum mt-1 w-full rounded-xl border border-[var(--border)] px-3 py-1.5" /></label>
-              </div>
+            <Step n={1} title={`${song.title}: elige el tramo`}>
+              {audioUrl ? <RangePicker songId={song.id} audioUrl={audioUrl} start={start} end={end} onChange={(a, b) => { setStart(a); setEnd(b); }} /> : <div className="skeleton h-28" />}
             </Step>
             <Step n={2} title="Letra">
               <div className="mb-2 flex justify-end"><label className="cursor-pointer rounded-full border border-[var(--border)] px-3 py-1 text-sm">Importar TXT, LRC, SRT o VTT<input type="file" accept=".txt,.lrc,.srt,.vtt,text/plain" className="sr-only" onChange={(e) => importLyrics(e.target.files?.[0])} /></label></div>
@@ -240,7 +241,7 @@ export default function LyricStudio() {
             <Step n={6} title="Cuántos vídeos">
               <div className="flex flex-wrap items-end gap-4 text-sm">
                 <label>Vídeos<input type="number" min={1} max={200} value={n} onChange={(e) => setN(Math.max(1, Math.min(200, Math.floor(Number(e.target.value) || 1))))} className="font-display mt-1 block w-24 rounded-2xl border border-[var(--border)] px-3 py-2 text-2xl tnum" /></label>
-                <label>Formato<select value={ratio} onChange={(e) => setRatio(e.target.value as typeof ratio)} className="mt-1 block rounded-full border border-[var(--border)] bg-white px-3 py-2"><option value="9:16">Vertical 9:16</option><option value="1:1">Cuadrado 1:1</option><option value="16:9">Horizontal 16:9</option></select></label>
+                <label>Formato<select value={ratio} onChange={(e) => setRatio(e.target.value as typeof ratio)} className="mt-1 block rounded-full border border-[var(--border)] bg-white px-3 py-2"><option value="9:16">Vertical 9:16</option><option value="4:5">Retrato 4:5</option><option value="1:1">Cuadrado 1:1</option><option value="16:9">Horizontal 16:9</option></select></label>
                 <label>Variación<span className="mt-1 flex gap-1"><input type="number" value={seed} onChange={(e) => setSeed(Math.floor(Number(e.target.value) || 1))} className="tnum w-20 rounded-full border border-[var(--border)] px-3 py-2" /><button onClick={() => setSeed(Math.floor(Math.random() * 99999) + 1)} className="rounded-full border border-[var(--border)] px-3">Otra</button></span></label>
               </div>
               {!("error" in plan) && (
@@ -255,7 +256,7 @@ export default function LyricStudio() {
 
         {/* Vista previa y resultados */}
         <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
-          <div className={`relative mx-auto w-full max-w-[300px] overflow-hidden rounded-[22px] bg-black ${ratio === "16:9" ? "aspect-video" : ratio === "1:1" ? "aspect-square" : "aspect-[9/16]"}`} aria-label="Vista previa aproximada">
+          <div className={`relative mx-auto w-full max-w-[300px] overflow-hidden rounded-[22px] bg-black ${ratio === "16:9" ? "aspect-video" : ratio === "1:1" ? "aspect-square" : ratio === "4:5" ? "aspect-[4/5]" : "aspect-[9/16]"}`} aria-label="Vista previa aproximada">
             {bgMode === "collection" && selectedCol?.items[0] ? <Thumb item={selectedCol.items[0]} className="absolute inset-0 h-full w-full" /> : <div className="absolute inset-0" style={{ background: colors[0] ?? "#111" }} />}
             <div className="absolute inset-0" style={{ backdropFilter: cssFilter, WebkitBackdropFilter: cssFilter }} />
             <div className="absolute inset-0 bg-black" style={{ opacity: settings.dim }} />

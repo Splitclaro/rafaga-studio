@@ -1,81 +1,150 @@
 "use client";
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabase";
 import Icon from "../../components/Icon";
+import CommandPalette, { type NavItem } from "../../components/CommandPalette";
 
-const NAV = [
-  { href: "/app", label: "Inicio", icon: "home", ready: true },
-  { href: "/app/proyectos", label: "Proyectos", icon: "film", ready: true },
-  { href: "/app/lyric-studio", label: "Lyric Studio", icon: "music", ready: true },
-  { href: "/app/style-studio", label: "Style Studio", icon: "type", ready: false },
-  { href: "/app/en-vivo", label: "En vivo", icon: "live", ready: false },
-  { href: "/app/automatizaciones", label: "Automatizaciones", icon: "bolt", ready: false },
-  { href: "/app/biblioteca", label: "Biblioteca", icon: "download", ready: false },
-  { href: "/app/brand-kits", label: "Brand kits", icon: "brand", ready: true },
-  { href: "/app/calendario", label: "Calendario", icon: "calendar", ready: false },
-  { href: "/app/conexiones", label: "Conexiones", icon: "link", ready: false },
-  { href: "/app/analitica", label: "Analítica", icon: "chart", ready: true },
-  { href: "/app/ajustes", label: "Uso y ajustes", icon: "gear", ready: true },
+const NAV: NavItem[] = [
+  { href: "/app", label: "Inicio", icon: "home", ready: true, group: "Crear" },
+  { href: "/app/proyectos", label: "Proyectos", icon: "film", ready: true, group: "Crear" },
+  { href: "/app/lyric-studio", label: "Lyric Studio", icon: "music", ready: true, group: "Crear" },
+  { href: "/app/style-studio", label: "Style Studio", icon: "type", ready: false, group: "Crear" },
+  { href: "/app/biblioteca", label: "Biblioteca", icon: "folder", ready: false, group: "Crear" },
+  { href: "/app/brand-kits", label: "Brand kit", icon: "brand", ready: true, group: "Crear" },
+  { href: "/app/calendario", label: "Calendario", icon: "calendar", ready: false, group: "Publicar" },
+  { href: "/app/analitica", label: "Analítica", icon: "chart", ready: true, group: "Publicar" },
+  { href: "/app/conexiones", label: "Conexiones", icon: "link", ready: false, group: "Publicar" },
+  { href: "/app/automatizaciones", label: "Automatizaciones", icon: "bolt", ready: false, group: "Automatizar" },
+  { href: "/app/en-vivo", label: "En vivo", icon: "live", ready: false, group: "Automatizar" },
 ];
+const GROUPS = ["Crear", "Publicar", "Automatizar"];
+type Note = { id: string; status: string; kind: string; updated_at: string; error_message: string | null };
 
 export default function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const path = usePathname();
   const [email, setEmail] = useState<string | null>(null);
-  const [ws, setWs] = useState<string>("");
+  const [ws, setWs] = useState("");
   const [collapsed, setCollapsed] = useState(false);
   const [menu, setMenu] = useState(false);
+  const [palette, setPalette] = useState(false);
+  const [running, setRunning] = useState(0);
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [bell, setBell] = useState(false);
+  const [seen, setSeen] = useState(0);
+
+  const poll = useCallback(async () => {
+    const { data } = await supabase.from("jobs").select("id,status,kind,updated_at,error_message").order("updated_at", { ascending: false }).limit(15);
+    const list = (data ?? []) as Note[];
+    setRunning(list.filter((j) => !["done", "failed", "cancelled"].includes(j.status)).length);
+    setNotes(list.filter((j) => ["done", "failed"].includes(j.status)).slice(0, 8));
+  }, []);
 
   useEffect(() => {
-    try { setCollapsed(localStorage.getItem("rafaga.sidebar") === "1"); } catch {}
+    try { setCollapsed(localStorage.getItem("rafaga.sidebar") === "1"); setSeen(Number(localStorage.getItem("rafaga.seen") ?? 0)); } catch {}
     supabase.auth.getSession().then(async ({ data }) => {
       if (!data.session) return router.replace("/login");
       setEmail(data.session.user.email ?? "");
       const { data: w } = await supabase.from("workspaces").select("name").limit(1).maybeSingle();
       setWs(w?.name ?? "Mi espacio");
+      poll();
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => { if (!s) router.replace("/login"); });
-    return () => sub.subscription.unsubscribe();
-  }, [router]);
+    const t = setInterval(poll, 8000);
+    const k = (e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setPalette((p) => !p); } };
+    window.addEventListener("keydown", k);
+    return () => { sub.subscription.unsubscribe(); clearInterval(t); window.removeEventListener("keydown", k); };
+  }, [router, poll]);
 
   const toggle = () => { const v = !collapsed; setCollapsed(v); try { localStorage.setItem("rafaga.sidebar", v ? "1" : "0"); } catch {} };
-  if (email === null) return <div className="grid min-h-screen place-items-center text-[var(--muted)]">Cargando…</div>;
+  const unread = notes.filter((n) => new Date(n.updated_at).getTime() > seen).length;
+  const openBell = () => { setBell((b) => !b); const now = Date.now(); setSeen(now); try { localStorage.setItem("rafaga.seen", String(now)); } catch {} };
+  if (email === null) return <div className="grid min-h-screen place-items-center"><span className="pulse" aria-label="Cargando" /></div>;
   const active = (h: string) => (h === "/app" ? path === "/app" : path.startsWith(h));
+  const current = NAV.find((n) => active(n.href))?.label ?? (path.startsWith("/app/c/") ? "Editor de clip" : path.startsWith("/app/p/") ? "Proyecto" : path.startsWith("/app/ajustes") ? "Uso y ajustes" : "");
 
   return (
     <div className="min-h-screen md:flex">
-      <aside className={`border-b border-[var(--border)] bg-[var(--surface)] md:sticky md:top-0 md:flex md:h-screen md:shrink-0 md:flex-col md:border-b-0 md:border-r ${collapsed ? "md:w-16" : "md:w-60"}`}>
+      <aside className={`z-20 border-b hairline bg-[var(--surface)] md:sticky md:top-0 md:flex md:h-screen md:shrink-0 md:flex-col md:border-b-0 md:border-r ${collapsed ? "md:w-[68px]" : "md:w-64"}`}>
         <div className="flex items-center justify-between gap-2 px-4 py-3 md:px-3 md:py-4">
-          <Link href="/app" className="flex min-w-0 items-center gap-2 font-semibold"><span aria-hidden className="font-display grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#111] text-base font-semibold text-white">R</span><span className={`font-display text-lg ${collapsed ? "md:sr-only" : ""}`}>Ráfaga Studio</span></Link>
-          <button onClick={toggle} aria-label={collapsed ? "Expandir menú" : "Plegar menú"} aria-expanded={!collapsed} className="hidden rounded p-1 text-[var(--muted)] hover:bg-[var(--hover)] md:block"><Icon n={collapsed ? "chevR" : "chevL"} className="h-4 w-4" /></button>
+          <Link href="/app" className="flex min-w-0 items-center gap-2.5 font-semibold" aria-label="Ráfaga Studio, inicio">
+            <span aria-hidden className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] bg-[#111] text-white shadow-[inset_0_1px_0_rgba(255,255,255,.2)]"><Icon n="bolt" className="h-4 w-4" /></span>
+            <span className={`text-[15px] tracking-tight ${collapsed ? "md:sr-only" : ""}`}>Ráfaga Studio</span>
+          </Link>
+          <button onClick={toggle} aria-label={collapsed ? "Expandir menú" : "Plegar menú"} aria-expanded={!collapsed} className="hidden rounded-lg p-1.5 text-[var(--muted)] hover:bg-[var(--hover)] md:block"><Icon n={collapsed ? "chevR" : "chevL"} className="h-4 w-4" /></button>
         </div>
+
         {!collapsed && (
-          <div className="relative mx-3 mb-3 hidden md:block">
-            <button onClick={() => setMenu(!menu)} aria-expanded={menu} className="flex w-full items-center justify-between rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-left text-sm">
-              <span className="min-w-0"><span className="block truncate font-medium">{ws}</span><span className="block truncate text-xs text-[var(--muted)]">{email}</span></span><Icon n="chevD" className="h-4 w-4" />
+          <div className="relative mx-3 mb-2 hidden md:block">
+            <button onClick={() => setMenu(!menu)} aria-expanded={menu} className="card flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm hover:bg-[var(--hover)]">
+              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#111] text-xs font-semibold text-white">{(email[0] ?? "?").toUpperCase()}</span>
+              <span className="min-w-0 flex-1"><span className="block truncate font-medium leading-tight">{ws}</span><span className="block truncate text-xs text-[var(--muted)]">{email}</span></span>
+              <Icon n="chevD" className="h-4 w-4 text-[var(--muted)]" />
             </button>
             {menu && (
-              <div role="menu" className="absolute z-10 mt-1 w-full rounded-lg border border-[var(--border)] bg-white p-1 text-sm shadow-sm">
-                <div className="px-3 py-2 text-xs text-[var(--muted)]">Workspace activo: {ws}. Por ahora hay uno por cuenta.</div>
-                <Link role="menuitem" href="/app/ajustes" className="block rounded px-3 py-2 hover:bg-[var(--hover)]">Uso y ajustes</Link>
-                <button role="menuitem" className="block w-full rounded px-3 py-2 text-left hover:bg-[var(--hover)]" onClick={async () => { await supabase.auth.signOut(); router.replace("/login"); }}>Cerrar sesión</button>
+              <div role="menu" className="card-raised absolute z-10 mt-1 w-full p-1 text-sm">
+                <div className="px-3 py-2 text-xs text-[var(--muted)]">Workspace activo: {ws}. Hay uno por cuenta.</div>
+                <Link role="menuitem" href="/app/ajustes" onClick={() => setMenu(false)} className="block rounded-lg px-3 py-2 hover:bg-[var(--hover)]">Uso y ajustes</Link>
+                <button role="menuitem" className="block w-full rounded-lg px-3 py-2 text-left hover:bg-[var(--hover)]" onClick={async () => { await supabase.auth.signOut(); router.replace("/login"); }}>Cerrar sesión</button>
               </div>
             )}
           </div>
         )}
-        <nav aria-label="Principal" className="flex gap-1 overflow-x-auto px-3 pb-3 md:block md:flex-1 md:space-y-0.5 md:overflow-y-auto md:pb-4">
-          {NAV.map((n) => (
-            <Link key={n.href} href={n.href} title={collapsed ? n.label : undefined} aria-current={active(n.href) ? "page" : undefined}
-              className={`flex shrink-0 items-center gap-3 rounded-lg px-3 py-2 text-sm ${active(n.href) ? "bg-black/[0.06] font-medium text-[var(--text)]" : "text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--text)]"}`}>
-              <Icon n={n.icon} className="h-[18px] w-[18px] shrink-0" /><span className={collapsed ? "md:sr-only" : ""}>{n.label}</span>
-              {!n.ready && !collapsed && <span className="ml-auto hidden rounded border border-[var(--border)] px-1.5 text-[11px] text-[var(--muted)] md:inline">Pronto</span>}
-            </Link>
+
+        <nav aria-label="Principal" className="flex gap-1 overflow-x-auto px-3 pb-3 md:block md:flex-1 md:overflow-y-auto md:pb-4">
+          {GROUPS.map((g) => (
+            <div key={g} className="md:mt-3 md:first:mt-0">
+              {!collapsed && <div className="hidden px-3 pb-1 pt-2 text-xs font-medium text-[var(--muted)] md:block">{g}</div>}
+              <div className="flex gap-1 md:block md:space-y-0.5">
+                {NAV.filter((n) => n.group === g).map((n) => (
+                  <Link key={n.href} href={n.href} title={collapsed ? n.label : undefined} aria-current={active(n.href) ? "page" : undefined}
+                    className={`group relative flex shrink-0 items-center gap-3 rounded-[10px] px-3 py-2 text-sm transition-colors ${active(n.href) ? "bg-white font-medium text-[var(--text)] shadow-[var(--shadow-1)] ring-1 ring-[var(--border)]" : "text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--text)]"}`}>
+                    {active(n.href) && <span aria-hidden className="absolute -left-3 top-2 hidden h-5 w-[3px] rounded-r bg-[#111] md:block" />}
+                    <Icon n={n.icon} className="h-[18px] w-[18px] shrink-0" /><span className={collapsed ? "md:sr-only" : ""}>{n.label}</span>
+                    {!n.ready && !collapsed && <span className="ml-auto hidden rounded-md border hairline px-1.5 text-[10px] text-[var(--muted)] md:inline">Pronto</span>}
+                  </Link>
+                ))}
+              </div>
+            </div>
           ))}
         </nav>
+
+        <div className="hidden border-t hairline p-3 md:block">
+          <Link href="/app/ajustes" aria-current={path.startsWith("/app/ajustes") ? "page" : undefined} className="flex items-center gap-3 rounded-[10px] px-3 py-2 text-sm text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--text)]"><Icon n="gear" className="h-[18px] w-[18px]" /><span className={collapsed ? "sr-only" : ""}>Uso y ajustes</span></Link>
+          <a href="https://github.com/Splitclaro/rafaga-studio#readme" target="_blank" rel="noreferrer" className="flex items-center gap-3 rounded-[10px] px-3 py-2 text-sm text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--text)]"><Icon n="help" className="h-[18px] w-[18px]" /><span className={collapsed ? "sr-only" : ""}>Ayuda</span></a>
+        </div>
       </aside>
-      <div className="min-w-0 flex-1">{children}</div>
+
+      <div className="min-w-0 flex-1">
+        <header className="sticky top-0 z-10 flex items-center gap-3 border-b hairline bg-white/85 px-4 py-2.5 backdrop-blur md:px-8">
+          <span className="hidden text-sm text-[var(--muted)] md:block">{current}</span>
+          <button onClick={() => setPalette(true)} className="card ml-auto flex min-w-0 items-center gap-2 px-3 py-1.5 text-sm text-[var(--muted)] hover:bg-[var(--hover)] md:ml-6 md:w-72" aria-label="Buscar o ir a (Cmd+K)">
+            <Icon n="search" className="h-4 w-4 shrink-0" /><span className="min-w-0 flex-1 truncate text-left">Buscar o ir a…</span><span className="kbd hidden md:inline">⌘K</span>
+          </button>
+          {running > 0 && <Link href="/app/proyectos" className="chip" aria-label={`${running} trabajos en curso`}><span className="pulse" aria-hidden /> <span className="tnum">{running}</span> en curso</Link>}
+          <div className="relative">
+            <button onClick={openBell} aria-label={`Notificaciones${unread ? `, ${unread} nuevas` : ""}`} aria-expanded={bell} className="card relative grid h-9 w-9 place-items-center hover:bg-[var(--hover)]">
+              <Icon n="bell" className="h-4 w-4" />{unread > 0 && <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-[#111] px-1 text-[10px] font-medium text-white">{unread}</span>}
+            </button>
+            {bell && (
+              <div role="region" aria-label="Notificaciones" className="card-raised absolute right-0 z-20 mt-2 w-80 p-2">
+                <div className="px-2 py-1.5 text-sm font-medium">Actividad reciente</div>
+                {!notes.length && <p className="px-2 py-4 text-sm text-[var(--muted)]">Todavía no hay actividad terminada.</p>}
+                <ul>{notes.map((n) => (
+                  <li key={n.id} className="flex items-start gap-2 rounded-lg px-2 py-2 text-sm">
+                    <Icon n={n.status === "done" ? "check" : "x"} className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span className="min-w-0"><span className="block font-medium">{n.kind === "lyrics" ? "Vídeos con letra" : n.kind === "render" ? "Exportación" : "Detección de momentos"} {n.status === "done" ? "listo" : "fallido"}</span>
+                      <span className="block truncate text-xs text-[var(--muted)]">{n.error_message ?? new Date(n.updated_at).toLocaleString("es", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span></span>
+                  </li>))}</ul>
+              </div>
+            )}
+          </div>
+        </header>
+        {children}
+      </div>
+      <CommandPalette nav={NAV} open={palette} onClose={() => setPalette(false)} />
     </div>
   );
 }
