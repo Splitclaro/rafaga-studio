@@ -166,3 +166,53 @@ Probar Lyric Studio con una canción real (canto + instrumental). Siguiente: Sty
 - Verificado: 166 pruebas locales, ninguna omitida. 12 de planificador; RLS PGlite (validación, reutilización, aislamiento, escritura solo del worker, cola); e2e real con una cara real (foto de dominio público de la NASA, fixture 22 KB) que cruza un 16:9: con reencuadre la cara aparece en el 100 % de las muestras del 9:16 resultante, con encuadre central fijo en el 42 %; también con un clip que empieza en el segundo 4 (tiempos relativos). Navegador contra Supabase simulado: análisis → aplicar → la vista previa sigue los keyframes (47,5 % en t=8 s entre 10 % y 85 %).
 - Límites: Haar detecta bien caras frontales o casi; con la cabeza muy girada, gafas oscuras, caras pequeñas o mucha luz contraluz puede perderlas (se mantiene la última posición hasta 6 s). No hay seguimiento por voz/quién habla ni reencuadre vertical (solo horizontal). Validado con una sola cara real sintética, no con vídeos de entrevistas reales.
 - Autoprueba en la nube (`gh workflow run worker.yml -f mode=reframe-selftest`, run 42803309892, sin fallos): OpenCV 4.10 instalado en Actions, 36 muestras analizadas en 1,1 s, cara visible en el 100 % del 9:16 con reencuadre frente al 39 % con encuadre central fijo. NO probado todavía: un trabajo `reframe` real desde el editor con un clip de usuario (descarga de la fuente completa + análisis).
+
+## Sesión 20 — Rendimiento 1/10/50, criterio editorial, YouTube, capa de IA, directos (migraciones 26–28)
+**Medido (local, 10 núcleos, fuente 1080p de 30 min, clips de 40 s con subtítulos, miniatura y sonda; sin ASR, IA, descarga ni subida):**
+
+| Clips | Paralelo | Total | Primer clip | s/clip | clips/min |
+|---|---|---|---|---|---|
+| 1 | 1–4 | 4,3–4,5 s | 4,3–4,5 s | 4,4 | ~13,7 |
+| 10 | 2 (mejor) | 37,5 s | 7,2 s | 3,75 | 16,0 |
+| 50 | 2 (mejor) | 185,9 s | 6,6 s | 3,72 | 16,1 |
+| 50 | 1 / 4 | 218,6 s / 192,1 s | 4,4 s / 14,1 s | 4,37 / 3,84 | 13,7 / 15,6 |
+
+- Antes de optimizar, cada clip tardaba ~25 s (fondo desenfocado a 1080×1920). Ahora el fondo se desenfoca a 1/6 y se reescala: **5,6× más rápido**, mismo tamaño de archivo (≈21 MB por clip de 40 s). Con 4 en paralelo no mejora y retrasa el primer clip: se mantiene «primer clip solo y el resto de 2 en 2», y ahora el primero en renderizarse es el **mejor puntuado**, no el primero en el tiempo.
+- NO medido (necesita datos reales): ASR, IA, descarga del original y subida a Storage. La fuente de 30 min pesa 2,1 GB, muy por encima del límite de 50 MB de Supabase Free (F-01).
+- Reproducible: `node workers/media/src/perf-selftest.ts` (env `PERF_NS`, `PERF_CONC`, `PERF_SRC_MIN`) o `gh workflow run worker.yml -f mode=perf-selftest`.
+
+**Criterio editorial** (`packages/selection/src/editorial.ts`, `lexicalCandidates` lo usa como respaldo sin IA y `refineBounds` se aplica también a lo que propone un modelo):
+- Entiende el encargo en lenguaje natural: cantidad, duración, público, tono, prioridades, **exclusiones obligatorias** («evita/excluye») frente a **preferencias** («prioriza/menos»), «debe incluir», remate, aclaración solo ante contradicciones. Las exclusiones terminan donde empieza la siguiente indicación.
+- Puntúa con señales observables (tipo de contenido, gancho, autonomía, cierre) y exige que un corte no abra ni cierre con una frase ajena al encargo.
+- Decide entrada y salida: recupera la frase que da contexto, incluye la pregunta, extiende hasta la respuesta, deja oír el remate (solo hacia un cierre real). Holgura de 0,25 s / 0,4 s sin invadir palabras vecinas.
+- Diversidad por similitud de contenido y solape; explicación con citas del inicio y del final que existen en el transcript; sin promesas de viralidad.
+- Instrucciones: `parseDirective` interpreta «incluye la pregunta», «busca solo reacciones», «más como este», «menos polémica», «haz cinco variantes» y distingue alcance de clip o de búsqueda. **Solo el motor: aún no hay caja de texto en el proyecto.**
+- Música / DJ casi sin voz: `audioMoments` (subidas de energía tras una pausa con su preparación). Estimación por volumen; probado con audio sintético, no con música real.
+- Evidencia: `docs/audit/EDITORIAL_DEMO.md` (misma fuente, tres encargos, cortes exportados a 9:16 con subtítulos; `node workers/media/src/editorial-demo.ts`).
+- La tarjeta de cada clip muestra ahora el intervalo de origen y la razón.
+
+**YouTube** (`packages/providers/src/youtube.ts`, `/api/youtube/search`, `/api/youtube/video`, componente `YouTubeSearch`, migración 26 `youtube_picks` + `projects.youtube_id`):
+- Búsqueda desde el servidor con `YOUTUBE_API_KEY` (la clave nunca llega al navegador), filtros oficiales (`eventType`), miniatura, canal, duración, hora de próximos directos, grabaciones de directos anteriores, espera al escribir, descarte de respuestas antiguas, «Cargar más», caché de 60 s y límite de 40 búsquedas/hora/usuario (la búsqueda cuesta 100 de las 10 000 unidades diarias). «Sin resultados», cuota, clave inválida y fallo de red se distinguen. Al seleccionar se vuelve a consultar el estado.
+- Selección conservada con su brief; siguiente paso según el caso: **Generar clips** (original vinculado), **Vincular original**, **Conectar señal del directo**, **Preparar directo**. YouTube no entrega el original: ver F-02.
+- Verificado: 8 pruebas del proveedor, 4 casos y estados de error en navegador contra una API de YouTube simulada (`YOUTUBE_API_BASE`), rutas desplegadas en producción respondiendo 401 sin sesión. **NO verificado con la API real (falta `YOUTUBE_API_KEY`).**
+
+**Capa de IA** (`groq.ts`, `cost.ts`, `workers/media/src/{asr,ledger}.ts`, migración 27):
+- Groq: transcripción (whisper-large-v3-turbo; large-v3 para fragmentos difíciles y respaldo en Deepgram), selección editorial en JSON con el mismo prompt y la misma validación contra el transcript real, y visión (`groqDescribeFrames`, no conectada a la selección). Modelos configurables por entorno. Probado contra un servidor falso con la forma documentada de la API. **NO verificado contra Groq real.**
+- Coste por trabajo: STT por hora de audio, tokens, fotogramas, render (estimado), almacenamiento y descarga (estimados); lo medido y lo estimado se distinguen; coste a tarifa de pago aunque se use el nivel gratuito; coste por clip y **por clip aprobado**. Tarifas anotadas de memoria: **verificar en la cuenta**.
+- Cuotas por espacio (120 min/semana, 10 clips/lote, 60 min/directo, presupuesto mensual 20 USD, variantes e idiomas adicionales), editables en Ajustes por responsables con topes duros (`set_ai_limits`); consulta previa y avisos; el directo reserva por tramos de 2 min y se detiene conservando lo entregado. Límite global diario de transcripción compatible con la cuota gratuita (~480 min/día de whisper-turbo; verificar). El paso a facturación de pago es decisión explícita (`billed_usd` = 0 mientras no se active).
+- Transcribir una vez por fuente: el transcript guardado se reutiliza al cambiar brief, estilo o pedir traducciones. **Traducción y glosario por proyecto: NO implementados** (la corrección de un nombre no llega aún a una traducción porque no hay pista traducida).
+
+**Directos** (`livectx.ts`, migración 28): cada ventana arranca con la cola (≤30 s) de la anterior; los momentos que caen en el contexto o ya entregados se descartan (tiempo absoluto, también tras reconexiones); lógica y concatenación con ffmpeg real probadas. NO medida la latencia real (necesita una señal HLS autorizada): fórmula `liveLatency` lista; con ventanas de 120 s la latencia mínima esperable es ~2 min + análisis + render. «Marcar este momento» y límite de clips por directo: no implementados.
+
+**Seguridad:** RLS verificada en 29 pruebas PGlite y en producción tras las migraciones 26, 27 y 28 (tablas nuevas: `anon` sin acceso; `authenticated` con SELECT; consumo solo lo escribe el worker).
+
+**Hallazgos corregidos de paso:** exclusión que se tragaba el resto de la frase y remate que se extendía hacia otra pregunta (demo editorial); el build de producción habría fallado por importar módulos de Node en el cliente (subruta `@rafaga/providers/youtube`).
+
+**Para dejarlo operativo, exactamente qué falta (credenciales/infra):**
+1. `YOUTUBE_API_KEY` en Vercel (YouTube Data API v3 habilitada) → búsqueda real.
+2. `GROQ_API_KEY` en GitHub Actions (+ variables `ASR_PROVIDER=groq`, `LLM_PROVIDER=groq` si se quiere usarlo) → verificar modelos, cuota gratuita y tarifas; sin ella todo sigue con Deepgram + selección editorial.
+3. Supabase Pro (o subida por partes) para fuentes >50 MB.
+4. Un servidor de ingesta RTMP/HLS para la segunda salida del codificador (hoy solo se acepta una lista HLS ya publicada).
+5. `GH_DISPATCH_TOKEN` en Vercel para arrancar el worker al instante.
+
+**Benchmark de render en la nube (run 42808923078, GitHub Actions 4 vCPU, misma fuente 1080p de 30 min):** 1 clip 15,2 s · 10 clips 129 s (paralelo 2, 4,6 clips/min) · 50 clips 641 s (10,7 min, paralelo 2, 4,7 clips/min; en serie 774 s). Es ~3,4× más lento que en local (10 núcleos): con ese runner, un lote de 10 clips tarda ~2 min de render y el primer clip ~15 s después de empezar a renderizar. Sigue sin medirse ASR, IA, descarga ni subida.
