@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import Icon from "../../../components/Icon";
 import { supabase } from "../../../lib/supabase";
+import OpsStatus from "../../../components/OpsStatus";
 
 type Rule = { id: string; name: string; feed_url: string; review_first: boolean; clip_count: number; brief: string | null; daily_limit: number; active: boolean; cursor_published: string | null; last_checked_at: string | null; last_error: string | null };
 type Run = { id: string; rule_id: string; entry_title: string | null; entry_url: string | null; status: string; detail: string | null; project_id: string | null; created_at: string };
@@ -122,7 +123,8 @@ export default function Automatizaciones() {
           );
         })}
       </ul>
-      <p className="mt-6 text-xs text-[var(--muted)]">El worker revisa las reglas activas cada 15 minutos mientras está en marcha (se enciende al lanzar procesos o desde «Comprobar ahora»). Sin él, las reglas esperan. Los vídeos importados están limitados a 50 MB por el plan gratuito de almacenamiento.</p>
+      <div className="mt-6"><OpsStatus /></div>
+      <p className="mt-2 text-xs text-[var(--muted)]">Los vídeos importados están limitados a 50 MB por archivo (límite del plan gratuito de almacenamiento).</p>
     </main>
   );
 }

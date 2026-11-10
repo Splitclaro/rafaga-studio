@@ -50,6 +50,7 @@ before(async () => {
   await db.exec(readFileSync(new URL("../migrations/20261110000012_live.sql", import.meta.url), "utf8"));
   await db.exec("grant select on public.live_sessions, public.live_windows to authenticated; grant execute on function public.start_live_session(text, text), public.set_live_status(uuid, text) to authenticated;");
   await db.exec(readFileSync(new URL("../migrations/20261110000013_lyric_looks.sql", import.meta.url), "utf8"));
+  await db.exec(readFileSync(new URL("../migrations/20261110000015_scheduler.sql", import.meta.url), "utf8"));
   await db.exec("grant select, insert, delete on public.songs to authenticated; grant select on public.song_alignments, public.lyric_videos to authenticated; grant execute on function public.request_lyrics(uuid, jsonb, text) to authenticated;");
   await db.exec("grant execute on function public.request_detection(uuid, text) to authenticated; grant execute on function public.request_render(uuid, int, text, boolean) to authenticated;");
   await db.exec(`insert into auth.users values ('${A}','a@test.dev'),('${B}','b@test.dev');`);
@@ -297,4 +298,24 @@ test("Sincronización manual: misma clave que el worker, validación de tiempos 
   });
   const r = (await db.query<{ words: { origin: string }[] }>(`select words from song_alignments where lyrics_sha256='${expected}'`)).rows[0];
   assert.equal(r.words[0].origin, "manual");
+});
+
+test("Programador: encola revisiones vencidas sin duplicar, cierra huérfanos y no lanza worker sin token", async () => {
+  const rule = (await db.query<{ id: string }>(`insert into automation_rules(workspace_id,name,feed_url,active,created_by,last_checked_at) values ('${wsA}','Sched','https://example.com/f.xml',true,'${A}', now() - interval '1 hour') returning id`)).rows[0].id;
+  const orphan = (await db.query<{ id: string }>(`insert into jobs(workspace_id,kind,idempotency_key,status,attempts,heartbeat_at,created_by) values ('${wsA}','detect','orph-1','transcribing',3, now() - interval '1 hour','${A}') returning id`)).rows[0].id;
+  const r1 = (await db.query<{ r: { enqueued: number; orphaned: number; dispatch: string; pending: number } }>(`select public.scheduler_tick() r`)).rows[0].r;
+  assert.equal(r1.enqueued, 1); assert.equal(r1.orphaned, 1);
+  assert.ok(r1.pending >= 1); assert.equal(r1.dispatch, "not_configured");
+  const r2 = (await db.query<{ r: { enqueued: number } }>(`select public.scheduler_tick() r`)).rows[0].r;
+  assert.equal(r2.enqueued, 0, "no duplica mientras hay una revisión pendiente");
+  assert.equal((await db.query<{ status: string; error_code: string }>(`select status, error_code from jobs where id='${orphan}'`)).rows[0].error_code, "orphaned");
+  assert.equal((await db.query(`select * from jobs where kind='automation' and params->>'rule_id'='${rule}'`)).rows.length, 1);
+  // con worker vivo no se lanza otro
+  await db.exec(`insert into worker_heartbeats(id) values ('run-1')`);
+  assert.equal((await db.query<{ r: { dispatch: string } }>(`select public.scheduler_tick() r`)).rows[0].r.dispatch, "not_needed");
+  await asUser(A, async () => {
+    await rejects(`select public.scheduler_tick()`);
+    await rejects(`insert into worker_heartbeats(id) values ('x')`);
+    assert.ok((await db.query(`select * from scheduler_runs`)).rows.length >= 3);
+  });
 });

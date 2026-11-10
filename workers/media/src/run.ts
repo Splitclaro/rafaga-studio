@@ -489,8 +489,15 @@ const maxMs = Number(process.env.WORKER_MAX_SECONDS ?? 3000) * 1000;
 const started = Date.now();
 let processed = 0, lastWork = Date.now();
 const liveRuns: Promise<void>[] = [];
+const workerId = process.env.GITHUB_RUN_ID ? `gh-${process.env.GITHUB_RUN_ID}` : `local-${process.pid}`;
+let lastBeat = 0;
+async function beat() {   // latido para el programador (scheduler_tick): evita lanzar otro worker si este está vivo
+  if (Date.now() - lastBeat < 30_000) return; lastBeat = Date.now();
+  await sb.from("worker_heartbeats").upsert({ id: workerId, seen_at: new Date().toISOString(), info: { processed, live: liveActive } });
+}
 for (;;) {
   const elapsedMs = Date.now() - started;
+  await beat().catch(() => {});
   if (elapsedMs > maxMs && liveActive === 0) break;
   await tickAutomations().catch((e) => console.error("tick:", (e as Error).message));
   if (elapsedMs > maxMs) { await new Promise((r) => setTimeout(r, 3000)); continue; }       // solo esperar a que termine el directo
