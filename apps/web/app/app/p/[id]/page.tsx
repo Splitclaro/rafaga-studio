@@ -9,7 +9,7 @@ import { STAGE, MODE_LABEL } from "../../../../lib/projects";
 type Project = { id: string; name: string; project_brief: string | null; clip_count: number; mode: string; source_id: string };
 type Job = { id: string; status: string; error_code: string | null; error_message: string | null; created_at: string; updated_at: string; attempts: number; metrics: Record<string, number | string> | null };
 type Scores = { overall?: number; relevance?: number; hook?: number; standalone?: number; closure?: number; label?: string };
-type Clip = { id: string; title: string; generation_id: string; favorite: boolean; created_at: string; candidate: { reason: string | null; brief_fit: string | null; scores: Scores | null; start_ms: number; end_ms: number } | null; url?: string; path?: string; bytes?: number };
+type Clip = { id: string; title: string; thumb_path: string | null; title_source: string; thumb?: string; generation_id: string; favorite: boolean; created_at: string; candidate: { title?: string | null; reason: string | null; brief_fit: string | null; scores: Scores | null; start_ms: number; end_ms: number } | null; url?: string; path?: string; bytes?: number };
 type Gen = { id: string; model: string; created_at: string; params: { rejected?: { reason: string }[]; fallbackReason?: string | null } | null };
 
 const PHASES = ["queued", "extracting", "transcribing", "selecting", "rendering", "done"] as const;
@@ -40,7 +40,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
     const { data: j } = await supabase.from("jobs").select("id,status,error_code,error_message,created_at,updated_at,attempts,metrics").eq("project_id", id).eq("kind", "detect").order("created_at", { ascending: false }).limit(1);
     setJob((j?.[0] as Job) ?? null);
     const [{ data: cs }, { data: gs }] = await Promise.all([
-      supabase.from("clips").select("id,title,generation_id,favorite,created_at,candidate:clip_candidates(reason,brief_fit,scores,start_ms,end_ms)").eq("project_id", id).eq("discarded", false).order("created_at", { ascending: false }),
+      supabase.from("clips").select("id,title,thumb_path,title_source,generation_id,favorite,created_at,candidate:clip_candidates(title,reason,brief_fit,scores,start_ms,end_ms)").eq("project_id", id).eq("discarded", false).order("created_at", { ascending: false }),
       supabase.from("generations").select("id,model,created_at,params").eq("project_id", id).order("created_at", { ascending: false }),
     ]);
     setGens((gs ?? []) as Gen[]);
@@ -51,6 +51,8 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
       const r = (rs ?? []).find((x: { clip_id: string }) => x.clip_id === c.id) as { storage_path: string; probe: { size?: string | number } | null } | undefined;
       if (r) { c.path = r.storage_path; c.bytes = Number(r.probe?.size ?? 0); c.url = (await supabase.storage.from("renders").createSignedUrl(r.storage_path, 900)).data?.signedUrl; }
     }
+    const tp = list.map((c) => c.thumb_path).filter((x): x is string => !!x);
+    if (tp.length) { const { data: sg } = await supabase.storage.from("renders").createSignedUrls(tp, 3600); const m = new Map((sg ?? []).map((x) => [x.path, x.signedUrl])); for (const c of list) if (c.thumb_path) c.thumb = m.get(c.thumb_path) ?? undefined; }
     setClips(list);
   }, [id]);
 
@@ -88,6 +90,16 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
     } finally { busyRef.current = false; setBusy(false); }
   }
   detectRef.current = detect;
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [draftTitle, setDraftTitle] = useState("");
+  async function rename(c: Clip, title: string, mode: "edit" | "restore" = "edit") {
+    const t = title.trim().replace(/\s+/g, " ");
+    if (!t) return setMsg("El título no puede estar vacío.");
+    const src = mode === "restore" ? (gens.find((g) => g.id === c.generation_id)?.model.startsWith("lexical") ? "lexical" : "ai") : "user";
+    const { error } = await supabase.from("clips").update({ title: t.slice(0, 160), title_source: src }).eq("id", c.id);
+    if (error) return setMsg(error.message);
+    setClips((l) => l.map((x) => (x.id === c.id ? { ...x, title: t.slice(0, 160), title_source: src } : x))); setRenaming(null);
+  }
   async function patch(c: Clip, v: Partial<{ favorite: boolean; discarded: boolean }>) {
     const { error } = await supabase.from("clips").update(v).eq("id", c.id);
     if (error) return setMsg(error.message);
@@ -191,12 +203,23 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
               return (
                 <li key={c.id} className="card overflow-hidden">
                   <div className="relative bg-black">
-                    {c.url ? <video src={c.url} controls preload="metadata" className="mx-auto aspect-[9/16] max-h-[420px] w-full object-contain" /> : <div className="grid aspect-[9/16] max-h-[420px] place-items-center text-sm text-white/70"><span className="pulse !bg-white" aria-hidden />Renderizando…</div>}
+                    {c.url ? <video src={c.url} poster={c.thumb} controls preload="none" className="mx-auto aspect-[9/16] max-h-[420px] w-full object-contain" /> : <div className="grid aspect-[9/16] max-h-[420px] place-items-center text-sm text-white/70"><span className="pulse !bg-white" aria-hidden />Renderizando…</div>}
                     {c.candidate && <span className="mono absolute right-2 top-2 rounded-lg bg-white px-2 py-0.5 text-xs">{dur(c.candidate.end_ms - c.candidate.start_ms)}</span>}
                     {total != null && <span className="absolute left-2 top-2 rounded-lg bg-white px-2 py-1 text-sm font-semibold leading-none">{total}<span className="text-xs font-normal text-[var(--muted)]">/100</span></span>}
                   </div>
                   <div className="p-4">
-                    <h3 className="text-[15px] leading-snug">{c.title}</h3>
+                    {renaming === c.id ? (
+                      <form onSubmit={(e) => { e.preventDefault(); rename(c, draftTitle); }} className="flex gap-1.5">
+                        <label className="sr-only" htmlFor={`t-${c.id}`}>Título del clip</label>
+                        <input id={`t-${c.id}`} value={draftTitle} onChange={(e) => setDraftTitle(e.target.value)} maxLength={160} autoFocus className="input min-w-0 flex-1 !py-1 text-sm" onKeyDown={(e) => e.key === "Escape" && setRenaming(null)} />
+                        <button className="btn btn-primary !px-2.5 !py-1 !text-xs">Guardar</button>
+                      </form>
+                    ) : (
+                      <div className="flex items-start gap-2"><h3 className="min-w-0 flex-1 text-[15px] leading-snug">{c.title}</h3>
+                        <button onClick={() => { setRenaming(c.id); setDraftTitle(c.title); }} className="shrink-0 text-xs underline" aria-label={`Renombrar ${c.title}`}>Renombrar</button></div>
+                    )}
+                    {c.title_source !== "user" && c.title_source !== "project" && renaming !== c.id && <div className="mt-1 text-[11px] text-[var(--muted)]">Título sugerido a partir del contenido{c.title_source === "ai" ? " (IA)" : ""}. Revísalo.</div>}
+                    {c.title_source === "user" && c.candidate?.title && c.candidate.title !== c.title && renaming !== c.id && <button onClick={() => rename(c, c.candidate!.title!, "restore")} className="mt-1 text-[11px] underline">Usar el título sugerido</button>}
                     {isLex(c) && <div className="chip mt-1 !py-0.5 text-xs">Selección sin IA</div>}
                     {c.candidate && <div className="mono mt-1 text-xs text-[var(--muted)]">{dur(c.candidate.start_ms)} → {dur(c.candidate.end_ms)} en el original{c.bytes ? ` · ${(c.bytes / 1048576).toFixed(1)} MB` : ""}</div>}
                     {sc && sc.relevance != null && (

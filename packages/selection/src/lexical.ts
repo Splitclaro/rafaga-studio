@@ -1,3 +1,4 @@
+import { suggestTitle } from "./title.ts";
 // Selector de respaldo SIN IA: coincidencia léxica con el brief, exclusiones explícitas y cortes en fin de frase.
 // Se usa solo si el LLM no está disponible y se etiqueta como tal. No pretende entender el contenido.
 import { isSentenceEnd, type RawCandidate, type TWord } from "./index.ts";
@@ -39,7 +40,7 @@ export function lexicalCandidates(words: TWord[], brief: string | null, o: { min
       const rel = want.length ? Math.min(10, 10 * (0.4 * (hits / Math.min(want.length, 6)) + 0.6 * Math.min(1, 5 * density)) ) * (startsOnTopic ? 1 : 0.55) : 5;
       const hook = /[?¡!]|\d/.test(firstSent) ? 7 : 5;
       const scores = { relevance: Math.round(rel * 10) / 10, hook, standalone: 6, closure: 7 };
-      out.push({ startWord: a, endWord: b, title: firstSent.split(" ").slice(0, 8).join(" ").replace(/[.,;:]$/, ""),
+      out.push({ startWord: a, endWord: b, title: suggestTitle(words.slice(a, b + 1).map((w) => w.text).join(" "), brief) || firstSent.split(" ").slice(0, 8).join(" ").replace(/[.,;:]$/, ""),
         reason: "Selección por coincidencia de palabras (sin IA)", briefFit: want.length ? `Coinciden ${hits} término(s) del enfoque` : "Sin enfoque: fragmento autónomo",
         excluded: hitsExcl > 0, scores, _s: rel + hook / 10 });
     }

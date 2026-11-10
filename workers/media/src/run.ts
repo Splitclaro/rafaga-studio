@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { buildAss, buildComposition, ffmpegArgs, styleForRatio, renderFamily, groupsFrom, sanitizeLogo, type BrandLogo, validateStyle, SYSTEM_FONT, escapeFilterPath, PRESETS, RATIO_SIZE, type Composition, type Ratio, type Word } from "@rafaga/composition";
 import { transcribe, proposeClips, safeGet, parseFeed, captureHls, concatWindow, type WindowOut } from "@rafaga/providers";
 import { alignLyrics, lyricsFromAsr, parseLyrics, planVariants, lyricFfmpegArgs, sequenceFor, DEFAULT_BG, LOOKS, resolveLook, varyLook, layoutLyrics, layoutToAss, planShots, lookFfmpegArgs, canvasSize, LOOK_ENGINE_VERSION, type BgItem, type BgSettings, type TimedWord, type ShotItem, type DeepPartial, type LyricLook } from "@rafaga/lyrics";
+import { extractThumb } from "./thumb.ts";
 import { briefHash, RUBRIC_VERSION, validateCandidates, windows, transcriptText, lexicalCandidates, LEXICAL_VERSION, type TWord, type RawCandidate } from "@rafaga/selection";
 
 const need = (k: string) => { const v = process.env[k]; if (!v) { console.error(`Falta el secreto ${k}`); process.exit(2); } return v; };
@@ -71,7 +72,7 @@ async function processWhole(job: Job, project: ProjectRow, src: { id: string; ra
   }
   const gen = ok(await sb.from("generations").insert({ workspace_id: project.workspace_id, project_id: project.id, transcript_id: trId, brief_snapshot: null, brief_sha256: briefHash(null), rubric_version: "whole-video", model: `herramienta-${project.mode}`, params: { mode: project.mode, startSec, endSec }, status: "running" }).select("id").single(), "generación");
   const cand = ok(await sb.from("clip_candidates").insert({ workspace_id: project.workspace_id, generation_id: gen.id, start_ms: Math.round(startSec * 1000), end_ms: Math.round(endSec * 1000), title: project.name, reason: `Vídeo completo (${project.mode})`, brief_fit: null, scores: { label: "sin puntuación: herramienta sobre el vídeo entero" } }).select("id").single(), "candidato");
-  const clip = ok(await sb.from("clips").insert({ workspace_id: project.workspace_id, project_id: project.id, generation_id: gen.id, candidate_id: cand.id, title: project.name }).select("id").single(), "clip");
+  const clip = ok(await sb.from("clips").insert({ workspace_id: project.workspace_id, project_id: project.id, generation_id: gen.id, candidate_id: cand.id, title: project.name, title_source: "project" }).select("id").single(), "clip");
   const comp = { ...buildComposition({ words: words as Word[], startSec, endSec }), layout: (project.mode === "social" ? "fill" : "blur") as Composition["layout"], burnSubtitles: project.mode !== "reframe" };
   await sb.from("clip_versions").insert({ clip_id: clip.id, workspace_id: project.workspace_id, version: 1, composition: comp });
   const ass = join(dir, "w.ass"), out = join(dir, "w.mp4");
@@ -83,6 +84,7 @@ async function processWhole(job: Job, project: ProjectRow, src: { id: string; ra
   const up = await sb.storage.from("renders").upload(rpath, readFileSync(out), { contentType: "video/mp4", upsert: true });
   if (up.error) throw new Error(`subida render: ${up.error.message}`);
   await sb.from("renders").insert({ workspace_id: project.workspace_id, clip_id: clip.id, clip_version: 1, ratio: "9:16", burn_subtitles: comp.burnSubtitles, spec_sha256: briefHash(JSON.stringify(comp)), storage_path: rpath, status: "ready", probe: { duration: probe.format.duration, size: probe.format.size } });
+  await saveThumb(project.workspace_id, clip.id, out, dir);
   await sb.from("generations").update({ status: "done" }).eq("id", gen.id);
   m.render_ms = Date.now() - t1; m.first_clip_ms = Date.now() - t0; m.all_clips_ms = Date.now() - t0; m.mode = project.mode;
   await setStatus(job.id, "done", { generation_id: gen.id, metrics: m });
@@ -164,7 +166,7 @@ async function processJob(job: Job) {
     let firstClipMs = 0;
     const renderOne = async (i: number, c: (typeof accepted)[number]) => {
       const cand = ok(await sb.from("clip_candidates").insert({ workspace_id: project.workspace_id, generation_id: gen.id, start_ms: Math.round(c.startSec * 1000), end_ms: Math.round(c.endSec * 1000), title: c.title, reason: c.reason, brief_fit: c.briefFit, scores: { ...c.scores, overall: c.overall, label: "estimación editorial de IA" } }).select("id").single(), "candidato");
-      const clip = ok(await sb.from("clips").insert({ workspace_id: project.workspace_id, project_id: project.id, generation_id: gen.id, candidate_id: cand.id, title: c.title }).select("id").single(), "clip");
+      const clip = ok(await sb.from("clips").insert({ workspace_id: project.workspace_id, project_id: project.id, generation_id: gen.id, candidate_id: cand.id, title: c.title, title_source: selector === LEXICAL_VERSION ? "lexical" : "ai" }).select("id").single(), "clip");
       const comp = buildComposition({ words: words as Word[], startSec: c.startSec, endSec: c.endSec });
       await sb.from("clip_versions").insert({ clip_id: clip.id, workspace_id: project.workspace_id, version: 1, composition: comp });
       const ass = join(dir, `c${i}.ass`), out = join(dir, `c${i}.mp4`);
@@ -176,6 +178,7 @@ async function processJob(job: Job) {
       const up = await sb.storage.from("renders").upload(rpath, readFileSync(out), { contentType: "video/mp4", upsert: true });
       if (up.error) throw new Error(`subida render: ${up.error.message}`);
       await sb.from("renders").insert({ workspace_id: project.workspace_id, clip_id: clip.id, clip_version: 1, ratio: "9:16", burn_subtitles: true, spec_sha256: briefHash(JSON.stringify(comp)), storage_path: rpath, status: "ready", probe: { duration: probe.format.duration, size: probe.format.size, streams: probe.streams.map((s: { codec_name: string; width?: number; height?: number }) => [s.codec_name, s.width, s.height]) } });
+      await saveThumb(project.workspace_id, clip.id, out, dir);
       m[`render_ms_${i}`] = Date.now() - t3;
       if (i === 0) firstClipMs = Date.now() - t0;
         };
@@ -192,6 +195,34 @@ async function processJob(job: Job) {
     // Permanente: no se reintenta. Transitorio: vuelve a la cola hasta 3 intentos (claim_job lo limita).
     await setStatus(job.id, err.permanent || job.attempts >= 3 ? "failed" : "queued", { error_code: (err as { code?: string }).code ?? (err.permanent ? "permanent" : "transient"), error_message: err.message.slice(0, 300), metrics: m });
   } finally { rmSync(dir, { recursive: true, force: true }); }
+}
+
+/** Miniatura real del clip (mejor de 3 fotogramas) en renders/<ws>/<clip>/thumb.jpg. Un fallo aquí nunca rompe el clip. */
+async function saveThumb(ws: string, clipId: string, videoPath: string, dir: string) {
+  try {
+    const jpg = join(dir, `thumb-${clipId}.jpg`);
+    extractThumb(videoPath, jpg);
+    const path = `${ws}/${clipId}/thumb.jpg`;
+    const up = await sb.storage.from("renders").upload(path, readFileSync(jpg), { contentType: "image/jpeg", upsert: true });
+    if (up.error) throw new Error(up.error.message);
+    await sb.from("clips").update({ thumb_path: path }).eq("id", clipId);
+  } catch (e) { console.error("miniatura:", (e as Error).message); }
+}
+/** Relleno de miniaturas para clips anteriores a esta función: pocos por pasada, sin bloquear trabajos. */
+let lastThumbTick = 0;
+async function tickThumbs() {
+  if (Date.now() - lastThumbTick < 45_000) return; lastThumbTick = Date.now();
+  const { data } = await sb.from("clips").select("id,workspace_id,renders!inner(storage_path,status,created_at)").is("thumb_path", null).eq("renders.status", "ready").order("created_at", { ascending: false }).limit(2);
+  for (const c of (data ?? []) as unknown as { id: string; workspace_id: string; renders: { storage_path: string; created_at: string }[] }[]) {
+    const dir = mkdtempSync(join(tmpdir(), "rafaga-t-"));
+    try {
+      const r = [...c.renders].sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+      const d = await sb.storage.from("renders").download(r.storage_path);
+      if (d.error || !d.data) continue;
+      const vp = join(dir, "v.mp4"); writeFileSync(vp, Buffer.from(await d.data.arrayBuffer()));
+      await saveThumb(c.workspace_id, c.id, vp, dir);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  }
 }
 
 /** Export bajo demanda: versión inmutable del clip → MP4 en el formato pedido. */
@@ -520,6 +551,7 @@ for (;;) {
   await beat().catch(() => {});
   if (elapsedMs > maxMs && liveActive === 0) break;
   await tickAutomations().catch((e) => console.error("tick:", (e as Error).message));
+  await tickThumbs().catch((e) => console.error("thumbs:", (e as Error).message));
   if (elapsedMs > maxMs) { await new Promise((r) => setTimeout(r, 3000)); continue; }       // solo esperar a que termine el directo
   const { data, error } = await sb.rpc("claim_job");
   if (error) { console.error("claim_job:", error.message); process.exit(1); }

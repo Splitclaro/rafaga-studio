@@ -101,3 +101,6 @@ Probar Lyric Studio con una canción real (canto + instrumental). Siguiente: Sty
 
 ## Sesión 10 — H12 editor y resultados
 - Editor de 3 paneles con transcripción por frases, panel plegable/redimensionable y vista previa mayor; resultados de Lyric Studio a todo el ancho. Revisado en 4 anchos con servidor Supabase simulado local (solo QA, no está en el repositorio). Pendiente: timeline visual con miniaturas y recorte.
+
+## Sesión 11 — H13 y endurecimiento de privilegios
+- Títulos sugeridos sin IA fieles al contenido y miniaturas reales por clip (worker + relleno de antiguos). Migración 19 (columnas, privilegios) y 20 (anon, clip_versions) aplicadas y verificadas.

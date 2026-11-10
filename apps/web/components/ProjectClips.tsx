@@ -5,7 +5,7 @@ import { supabase } from "../lib/supabase";
 import { Chip, isActive, type Row } from "./ProjectList";
 import Icon from "./Icon";
 
-type ClipRow = { id: string; title: string; ratio?: string; version?: number; path?: string; bytes?: number; url?: string; score?: number; ms: number };
+type ClipRow = { id: string; title: string; thumb?: string; ratio?: string; version?: number; path?: string; bytes?: number; url?: string; score?: number; ms: number };
 const mb = (n: number) => `${(n / 1048576).toFixed(1)} MB`;
 const dur = (ms: number) => { const s = Math.round(ms / 1000); return s >= 60 ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}` : `${s}s`; };
 const safe = (t: string) => t.replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "").slice(0, 60) || "clip";
@@ -18,14 +18,17 @@ export default function ProjectClips({ p, onDelete }: { p: Row; onDelete: (id: s
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
-    const { data: cs } = await supabase.from("clips").select("id,title,candidate:clip_candidates(start_ms,end_ms,scores)").eq("project_id", p.id).eq("discarded", false).order("created_at", { ascending: true });
-    const list = (cs ?? []) as unknown as { id: string; title: string; candidate: { start_ms: number; end_ms: number; scores: { overall?: number } | null } | null }[];
+    const { data: cs } = await supabase.from("clips").select("id,title,thumb_path,candidate:clip_candidates(start_ms,end_ms,scores)").eq("project_id", p.id).eq("discarded", false).order("created_at", { ascending: true });
+    const list = (cs ?? []) as unknown as { id: string; title: string; thumb_path: string | null; candidate: { start_ms: number; end_ms: number; scores: { overall?: number } | null } | null }[];
     const ids = list.map((c) => c.id);
     const { data: rs } = ids.length ? await supabase.from("renders").select("clip_id,storage_path,probe,ratio,clip_version,created_at").in("clip_id", ids).eq("status", "ready").order("created_at", { ascending: false }) : { data: [] };
+    const tp = list.map((c) => c.thumb_path).filter((x): x is string => !!x);
+    const sg = tp.length ? (await supabase.storage.from("renders").createSignedUrls(tp, 3600)).data ?? [] : [];
+    const tm = new Map(sg.map((x) => [x.path, x.signedUrl]));
     const out: ClipRow[] = await Promise.all(list.map(async (c) => {
       const r = (rs ?? []).find((x) => x.clip_id === c.id);
       const url = r ? (await supabase.storage.from("renders").createSignedUrl(r.storage_path, 900)).data?.signedUrl : undefined;
-      return { id: c.id, title: c.title, ratio: r?.ratio, version: r?.clip_version, path: r?.storage_path, bytes: Number((r?.probe as { size?: string } | null)?.size ?? 0), url, score: c.candidate?.scores?.overall, ms: c.candidate ? c.candidate.end_ms - c.candidate.start_ms : 0 };
+      return { id: c.id, title: c.title, thumb: c.thumb_path ? tm.get(c.thumb_path) ?? undefined : undefined, ratio: r?.ratio, version: r?.clip_version, path: r?.storage_path, bytes: Number((r?.probe as { size?: string } | null)?.size ?? 0), url, score: c.candidate?.scores?.overall, ms: c.candidate ? c.candidate.end_ms - c.candidate.start_ms : 0 };
     }));
     setClips(out);
   }, [p.id]);
@@ -70,7 +73,7 @@ export default function ProjectClips({ p, onDelete }: { p: Row; onDelete: (id: s
           {!clips ? <div className="skeleton h-32" /> : !clips.length ? <p className="rounded-xl border border-dashed border-[var(--border)] p-5 text-center text-sm text-[var(--muted)]">{isActive(p.status) ? "Creando clips… aparecerán aquí según estén listos." : "Este proyecto aún no tiene clips. Ábrelo para detectar momentos."}</p> : (
             <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">{clips.map((c) => (
               <li key={c.id} className="overflow-hidden rounded-xl border border-[var(--border)] bg-white">
-                {c.url ? <video src={c.url} controls preload="metadata" className="aspect-[9/16] w-full bg-black object-cover" /> : <Link href={`/app/c/${c.id}`} className="grid aspect-[9/16] place-items-center bg-[#111] px-2 text-center text-xs text-white/80">Sin exportar<br />Abrir y exportar</Link>}
+                {c.url ? <video src={c.url} poster={c.thumb} controls preload="none" className="aspect-[9/16] w-full bg-black object-cover" /> : <Link href={`/app/c/${c.id}`} className="grid aspect-[9/16] place-items-center bg-[#111] px-2 text-center text-xs text-white/80">Sin exportar<br />Abrir y exportar</Link>}
                 <div className="p-2"><div className="truncate text-xs font-medium" title={c.title}>{c.title}</div>
                   <div className="mono mt-0.5 text-[11px] text-[var(--muted)]">{c.ms ? dur(c.ms) : ""}{c.bytes ? ` · ${mb(c.bytes)}` : ""}</div>
                   <div className="mt-1.5 flex gap-1"><Link href={`/app/c/${c.id}`} className="btn btn-ghost !px-2 !py-1 !text-[11px]">Editar</Link>{c.path && <button onClick={() => dl(c)} className="btn btn-primary !px-2 !py-1 !text-[11px]" aria-label={`Descargar ${c.title}`}><Icon n="download" className="h-3 w-3" /></button>}</div></div>

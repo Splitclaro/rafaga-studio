@@ -54,6 +54,8 @@ before(async () => {
   await db.exec(readFileSync(new URL("../migrations/20261110000016_job_timing_fair_queue.sql", import.meta.url), "utf8"));
   await db.exec(readFileSync(new URL("../migrations/20261110000017_workspaces_roles.sql", import.meta.url), "utf8"));
   await db.exec(readFileSync(new URL("../migrations/20261110000018_brand_kits.sql", import.meta.url), "utf8"));
+  await db.exec(readFileSync(new URL("../migrations/20261110000019_clip_thumbs_titles.sql", import.meta.url), "utf8"));
+  await db.exec(readFileSync(new URL("../migrations/20261110000020_privilege_hardening.sql", import.meta.url), "utf8"));
   await db.exec("grant select, insert, delete on public.songs to authenticated; grant select on public.song_alignments, public.lyric_videos to authenticated; grant execute on function public.request_lyrics(uuid, jsonb, text) to authenticated;");
   await db.exec("grant execute on function public.request_detection(uuid, text) to authenticated; grant execute on function public.request_render(uuid, int, text, boolean) to authenticated;");
   await db.exec(`insert into auth.users values ('${A}','a@test.dev'),('${B}','b@test.dev');`);
@@ -428,4 +430,25 @@ test("Brand kits: versión automática, instantáneas inmutables, aplicar/revert
     await rejects(`select public.apply_brand_kit('${proj}','${kit}')`);
     await rejects(`select public.revert_brand_application('${app}')`);
   });
+});
+
+test("Miniaturas y títulos: el usuario renombra y marca su título; no toca la miniatura; título acotado", async () => {
+  const c = (await db.query<{ id: string }>(`select id from clips where workspace_id='${wsA}' limit 1`)).rows[0].id;
+  await asUser(A, async () => {
+    await db.query(`update clips set title='Mi título', title_source='user' where id='${c}'`);
+    assert.equal((await db.query<{ t: string }>(`select title_source t from clips where id='${c}'`)).rows[0].t, "user");
+    await rejects(`update clips set title_source='otro' where id='${c}'`);
+    await rejects(`update clips set title='' where id='${c}'`);
+    await rejects(`update clips set thumb_path='${wsA}/x/thumb.jpg' where id='${c}'`);   // solo el servidor
+  });
+  await db.exec(`update clips set thumb_path='${wsA}/${c}/thumb.jpg' where id='${c}'`);
+  await assert.rejects(() => db.exec(`update clips set thumb_path='${wsB}/${c}/thumb.jpg' where id='${c}'`));   // fuera de su espacio
+});
+
+test("Privilegios: anon sin acceso a ninguna tabla y versiones de clip inmutables", async () => {
+  const t = (await db.query<{ n: number }>(`select count(*)::int n from pg_class c where c.relnamespace='public'::regnamespace and c.relkind='r' and has_table_privilege('anon', c.oid, 'SELECT')`)).rows[0].n;
+  assert.equal(t, 0);
+  const cv = (await db.query<{ u: boolean; d: boolean }>(`select has_table_privilege('authenticated','public.clip_versions','UPDATE') u, has_table_privilege('authenticated','public.clip_versions','DELETE') d`)).rows[0];
+  assert.deepEqual([cv.u, cv.d], [false, false]);
+  assert.equal((await db.query<{ s: boolean }>(`select has_table_privilege('authenticated','public.clip_versions','SELECT') s`)).rows[0].s, true);
 });

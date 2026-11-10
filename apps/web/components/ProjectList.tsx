@@ -17,14 +17,20 @@ export function useProjects() {
     const srcIds = [...new Set((data ?? []).map((p) => p.source_id))];
     const [jobs, clips, srcs] = await Promise.all([
       ids.length ? supabase.from("jobs").select("project_id,status,created_at").in("project_id", ids).eq("kind", "detect").order("created_at", { ascending: false }) : { data: [] },
-      ids.length ? supabase.from("clips").select("project_id").in("project_id", ids).eq("discarded", false) : { data: [] },
+      ids.length ? supabase.from("clips").select("project_id,thumb_path,created_at").in("project_id", ids).eq("discarded", false).order("created_at") : { data: [] },
       srcIds.length ? supabase.from("sources").select("id,thumb_path").in("id", srcIds) : { data: [] },
     ]);
     const paths = (srcs.data ?? []).filter((x: { thumb_path: string | null }) => x.thumb_path).map((x: { thumb_path: string }) => x.thumb_path);
     const signed = paths.length ? (await supabase.storage.from("originals").createSignedUrls(paths, 3600)).data ?? [] : [];
     const urlByPath = new Map(signed.map((x) => [x.path, x.signedUrl]));
     const thumbBySrc = new Map((srcs.data ?? []).map((x: { id: string; thumb_path: string | null }) => [x.id, x.thumb_path ? urlByPath.get(x.thumb_path) : undefined]));
-    setRows((data ?? []).map((p) => ({ id: p.id, name: p.name, created_at: p.created_at, project_brief: p.project_brief, mode: p.mode, thumb: thumbBySrc.get(p.source_id) as string | undefined,
+    // Sin miniatura de la fuente: la del primer clip con miniatura propia
+    const clipThumb = new Map<string, string>();
+    for (const c of (clips.data ?? []) as { project_id: string; thumb_path: string | null }[]) if (c.thumb_path && !clipThumb.has(c.project_id)) clipThumb.set(c.project_id, c.thumb_path);
+    const ctPaths = [...clipThumb.values()];
+    const ctSigned = ctPaths.length ? (await supabase.storage.from("renders").createSignedUrls(ctPaths, 3600)).data ?? [] : [];
+    const ctUrl = new Map(ctSigned.map((x) => [x.path, x.signedUrl]));
+    setRows((data ?? []).map((p) => ({ id: p.id, name: p.name, created_at: p.created_at, project_brief: p.project_brief, mode: p.mode, thumb: ((thumbBySrc.get(p.source_id) as string | null | undefined) ?? undefined) ?? (clipThumb.get(p.id) ? ctUrl.get(clipThumb.get(p.id)!) ?? undefined : undefined),
       status: (jobs.data ?? []).find((j: { project_id: string }) => j.project_id === p.id)?.status ?? null, clips: (clips.data ?? []).filter((c: { project_id: string }) => c.project_id === p.id).length })));
   }, []);
   useEffect(() => { load(); }, [load]);
