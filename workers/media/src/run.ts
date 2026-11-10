@@ -5,10 +5,11 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, writeFileSync, readFileSync, rmSync, existsSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { buildAss, buildComposition, ffmpegArgs, styleForRatio, renderFamily, groupsFrom, sanitizeLogo, type BrandLogo, validateStyle, SYSTEM_FONT, escapeFilterPath, PRESETS, RATIO_SIZE, type Composition, type Ratio, type Word } from "@rafaga/composition";
+import { buildAss, buildComposition, ffmpegArgs, styleForRatio, renderFamily, groupsFrom, toSRT, toVTT, toTranscript, sanitizeLogo, type BrandLogo, validateStyle, SYSTEM_FONT, escapeFilterPath, PRESETS, RATIO_SIZE, type Composition, type Ratio, type Word } from "@rafaga/composition";
 import { transcribe, proposeClips, safeGet, parseFeed, captureHls, concatWindow, type WindowOut } from "@rafaga/providers";
 import { alignLyrics, lyricsFromAsr, parseLyrics, planVariants, lyricFfmpegArgs, sequenceFor, DEFAULT_BG, LOOKS, resolveLook, varyLook, layoutLyrics, layoutToAss, planShots, lookFfmpegArgs, canvasSize, LOOK_ENGINE_VERSION, type BgItem, type BgSettings, type TimedWord, type ShotItem, type DeepPartial, type LyricLook } from "@rafaga/lyrics";
 import { extractThumb } from "./thumb.ts";
+import { ZipBuilder } from "./zip.ts";
 import { briefHash, RUBRIC_VERSION, validateCandidates, windows, transcriptText, lexicalCandidates, LEXICAL_VERSION, suggestTitle, type TWord, type RawCandidate } from "@rafaga/selection";
 
 const need = (k: string) => { const v = process.env[k]; if (!v) { console.error(`Falta el secreto ${k}`); process.exit(2); } return v; };
@@ -440,6 +441,87 @@ async function processLyrics(job: Job) {
   } finally { rmSync(dir, { recursive: true, force: true }); }
 }
 
+/** Paquete de entrega: ZIP por partes (≤ 40 MB cada una por el límite de archivo del almacenamiento actual) + manifiesto. */
+const PART_MAX = 40 * 1024 * 1024;
+const safeName = (t: string) => t.replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "").slice(0, 50) || "pieza";
+async function processPackage(job: Job) {
+  const t0 = Date.now();
+  const pkgId = (job.params as { package_id?: string }).package_id;
+  const uploaded: string[] = [];
+  try {
+    const pkg = ok(await sb.from("delivery_packages").select("id,workspace_id,delivery_id,options,status").eq("id", pkgId!).single(), "paquete");
+    if (pkg.status === "cancelled") return void (await setStatus(job.id, "cancelled"));
+    const opt = pkg.options as { only_approved: boolean; include: string[]; clips: string[] | null };
+    await sb.from("delivery_packages").update({ status: "building", progress: { phase: "collecting", done: 0, total: 0 } }).eq("id", pkg.id);
+    await setStatus(job.id, "rendering");
+    const del = ok(await sb.from("deliveries").select("name,project_id").eq("id", pkg.delivery_id).single(), "entrega");
+    const prj = ok(await sb.from("projects").select("name,brand_kit_id").eq("id", del.project_id).single(), "proyecto");
+    const brand = prj.brand_kit_id ? (await sb.from("brand_kits").select("name").eq("id", prj.brand_kit_id).maybeSingle()).data?.name : null;
+    const base = `${safeName(brand ?? prj.name)}_${safeName(del.name)}`;
+    const items = ((await sb.from("delivery_items").select("clip_id,version,position,clip:clips!inner(title,review_status,approved_version,current_version,thumb_path)").eq("delivery_id", pkg.delivery_id).order("position")).data ?? []) as unknown as { clip_id: string; version: number; position: number; clip: { title: string; review_status: string; approved_version: number | null; current_version: number; thumb_path: string | null } }[];
+    const chosen = items.filter((x) => (!opt.clips || opt.clips.includes(x.clip_id)) && (!opt.only_approved || (x.clip.review_status === "approved" && x.clip.approved_version === x.version)));
+    if (!chosen.length) throw Object.assign(new Error(opt.only_approved ? "Ninguna pieza de la entrega está aprobada en su versión entregada." : "La selección no contiene piezas."), { permanent: true });
+    const manifest: Record<string, unknown>[] = []; const parts: { path: string; name: string; bytes: number; files: number; kind: string }[] = [];
+    let zip = new ZipBuilder(), partFiles: string[] = [], partN = 0, partErr: string | null = null, verified = 0;
+    const flush = async (last = false) => {
+      if (!zip.count) return;
+      partN++; const name = `${base}-parte${partN}.zip`; const path = `${pkg.workspace_id}/packages/${pkg.id}/${name}`;
+      zip.add(`manifiesto-parte${partN}.json`, Buffer.from(JSON.stringify({ parte: partN, archivos: partFiles }, null, 2)));
+      const buf = zip.build();
+      // Integridad: se comprueba el ZIP con unzip antes de subirlo (si la herramienta existe en el worker)
+      const tmpZip = join(tmpdir(), `pkg-${pkg.id}-${partN}.zip`); writeFileSync(tmpZip, buf);
+      const chk = spawnSync("unzip", ["-tq", tmpZip], { encoding: "utf8" }); rmSync(tmpZip, { force: true });
+      if (chk.error == null) { if (chk.status !== 0) throw new Error(`El ZIP de la parte ${partN} no pasó la comprobación de integridad`); verified++; }
+      const up = await sb.storage.from("renders").upload(path, buf, { contentType: "application/zip", upsert: true });
+      if (up.error) throw new Error(`No se pudo subir ${name} (${(buf.length / 1048576).toFixed(1)} MB): ${up.error.message}`);
+      uploaded.push(path); parts.push({ path, name, bytes: buf.length, files: partFiles.length + 1, kind: "zip" });
+      zip = new ZipBuilder(); partFiles = []; void last; void partErr;
+    };
+    const addFile = async (name: string, data: Buffer) => { if (zip.count && zip.size + data.length > PART_MAX) await flush(); zip.add(name, data); partFiles.push(name); };
+    let i = 0, mp4Bytes = 0;
+    for (const it of chosen) {
+      const cur = (await sb.from("delivery_packages").select("status").eq("id", pkg.id).single()).data?.status;
+      if (cur === "cancelled") { await sb.storage.from("renders").remove(uploaded); return void (await setStatus(job.id, "cancelled")); }
+      i++; await sb.from("delivery_packages").update({ progress: { phase: "packing", done: i - 1, total: chosen.length, current: it.clip.title } }).eq("id", pkg.id);
+      await sb.from("jobs").update({ heartbeat_at: new Date().toISOString() }).eq("id", job.id);
+      const stem = `${base}_${String(i).padStart(2, "0")}-${safeName(it.clip.title)}`;
+      const r = (await sb.from("renders").select("storage_path,ratio,probe,burn_subtitles").eq("clip_id", it.clip_id).eq("clip_version", it.version).eq("status", "ready").order("created_at", { ascending: false }).limit(1)).data?.[0];
+      const row: Record<string, unknown> = { titulo: it.clip.title, version: it.version, estado: it.clip.review_status === "approved" && it.clip.approved_version === it.version ? "Aprobado" : "Sin aprobar", id_interno: it.clip_id, archivos: [] as string[] };
+      const ratio = (r?.ratio ?? "9:16").replace(":", "x");
+      if (opt.include.includes("mp4")) {
+        if (r) { const d = await sb.storage.from("renders").download(r.storage_path); if (d.error || !d.data) throw new Error(`descarga de «${it.clip.title}»: ${d.error?.message}`); const buf = Buffer.from(await d.data.arrayBuffer()); mp4Bytes += buf.length; const f = `video/${stem}_${ratio}_v${it.version}.mp4`; await addFile(f, buf); (row.archivos as string[]).push(f); Object.assign(row, { formato: r.ratio, duracion_s: r.probe?.duration ? +Number(r.probe.duration).toFixed(1) : null, subtitulos_incrustados: r.burn_subtitles }); }
+        else { row.incluido = false; row.motivo = `La v${it.version} no tiene MP4 exportado`; }
+      }
+      if (opt.include.includes("thumbs") && it.clip.thumb_path) { const d = await sb.storage.from("renders").download(it.clip.thumb_path); if (!d.error && d.data) { const f = `portadas/${stem}.jpg`; await addFile(f, Buffer.from(await d.data.arrayBuffer())); (row.archivos as string[]).push(f); } }
+      if (["srt", "vtt", "transcript"].some((k) => opt.include.includes(k))) {
+        const cv = (await sb.from("clip_versions").select("composition").eq("clip_id", it.clip_id).eq("version", it.version).maybeSingle()).data?.composition as Composition | undefined;
+        if (cv?.words?.length) {
+          if (opt.include.includes("srt")) { const f = `subtitulos/${stem}_v${it.version}.srt`; await addFile(f, Buffer.from(toSRT(cv.words, cv.style), "utf8")); (row.archivos as string[]).push(f); }
+          if (opt.include.includes("vtt")) { const f = `subtitulos/${stem}_v${it.version}.vtt`; await addFile(f, Buffer.from(toVTT(cv.words, cv.style), "utf8")); (row.archivos as string[]).push(f); }
+          if (opt.include.includes("transcript")) { const f = `transcripciones/${stem}_v${it.version}.txt`; await addFile(f, Buffer.from(toTranscript(cv.words) + "\n", "utf8")); (row.archivos as string[]).push(f); }
+        } else if (["srt", "vtt", "transcript"].some((k) => opt.include.includes(k))) row.sin_texto = "Esta versión no tiene palabras transcritas";
+      }
+      manifest.push(row);
+    }
+    await flush(true);
+    const mf = Buffer.from(JSON.stringify({ entrega: del.name, proyecto: prj.name, marca: brand, generado: new Date().toISOString(), solo_aprobadas: opt.only_approved, contenido: opt.include, partes: parts.map((p) => ({ archivo: p.name, bytes: p.bytes, archivos: p.files })), piezas: manifest }, null, 2), "utf8");
+    const mpath = `${pkg.workspace_id}/packages/${pkg.id}/${base}-manifiesto.json`;
+    const mu = await sb.storage.from("renders").upload(mpath, mf, { contentType: "application/json", upsert: true });
+    if (mu.error) throw new Error(`manifiesto: ${mu.error.message}`);
+    uploaded.push(mpath); parts.push({ path: mpath, name: `${base}-manifiesto.json`, bytes: mf.length, files: 1, kind: "manifest" });
+    await sb.from("delivery_packages").update({ status: "ready", parts, progress: { phase: "done", done: chosen.length, total: chosen.length }, finished_at: new Date().toISOString(), error: null }).eq("id", pkg.id);
+    await setStatus(job.id, "done", { metrics: { items: chosen.length, mp4_bytes: mp4Bytes, parts: parts.length - 1, zip_verified: verified, total_ms: Date.now() - t0 } });
+    console.log("package ok", pkg.id, chosen.length, "piezas", parts.length - 1, "partes", Date.now() - t0, "ms");
+  } catch (e) {
+    const err = e as Error & { permanent?: boolean };
+    console.error("package fallo", job.id, err.message);
+    const final = !!err.permanent || job.attempts >= 3;
+    if (uploaded.length && final) await sb.storage.from("renders").remove(uploaded).catch(() => {});
+    if (pkgId) await sb.from("delivery_packages").update(final ? { status: "failed", error: err.message.slice(0, 400), finished_at: new Date().toISOString() } : { status: "queued", error: `Reintentando: ${err.message.slice(0, 200)}` }).eq("id", pkgId);
+    await setStatus(job.id, final ? "failed" : "queued", { error_code: err.permanent ? "permanent" : "transient", error_message: err.message.slice(0, 300) });
+  }
+}
+
 /** Automatizaciones: feed RSS HTTPS autorizado → entradas nuevas (posteriores al cursor) → proyecto + detección. Una entrada nunca se procesa dos veces. */
 type RuleRow = { id: string; workspace_id: string; name: string; feed_url: string; review_first: boolean; clip_count: number; brief: string | null; daily_limit: number; active: boolean; cursor_published: string | null; created_by: string };
 async function checkRule(rule: RuleRow): Promise<string> {
@@ -584,7 +666,7 @@ for (;;) {
   }
   lastWork = Date.now();
   if (job.kind === "live") { liveRuns.push(processLive(job, Math.max(60, Math.floor((maxMs - (Date.now() - started)) / 1000) - 120))); continue; }   // en segundo plano: no bloquea otros trabajos
-  await (job.kind === "render" ? processRender(job) : job.kind === "lyrics" ? processLyrics(job) : job.kind === "automation" ? processAutomation(job) : processJob(job)); processed++; lastWork = Date.now();
+  await (job.kind === "render" ? processRender(job) : job.kind === "lyrics" ? processLyrics(job) : job.kind === "automation" ? processAutomation(job) : job.kind === "package" ? processPackage(job) : processJob(job)); processed++; lastWork = Date.now();
 }
 await Promise.allSettled(liveRuns);
 console.log(`terminado: ${processed} job(s) en ${Math.round((Date.now() - started) / 1000)} s`);

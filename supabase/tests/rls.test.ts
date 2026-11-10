@@ -57,6 +57,8 @@ before(async () => {
   await db.exec(readFileSync(new URL("../migrations/20261110000019_clip_thumbs_titles.sql", import.meta.url), "utf8"));
   await db.exec(readFileSync(new URL("../migrations/20261110000020_privilege_hardening.sql", import.meta.url), "utf8"));
   await db.exec(readFileSync(new URL("../migrations/20261110000021_review_deliveries.sql", import.meta.url), "utf8"));
+  await db.exec(readFileSync(new URL("../migrations/20261110000022_share_links_packages.sql", import.meta.url), "utf8"));
+  await db.exec("grant execute on function public.share_view(text), public.share_comment(text, uuid, numeric, text, text), public.share_decide(text, uuid, text, text, text), public.share_path_ok(text) to anon;");
   await db.exec("grant select, insert, delete on public.songs to authenticated; grant select on public.song_alignments, public.lyric_videos to authenticated; grant execute on function public.request_lyrics(uuid, jsonb, text) to authenticated;");
   await db.exec("grant execute on function public.request_detection(uuid, text) to authenticated; grant execute on function public.request_render(uuid, int, text, boolean) to authenticated;");
   await db.exec(`insert into auth.users values ('${A}','a@test.dev'),('${B}','b@test.dev');`);
@@ -496,4 +498,74 @@ test("Revisión: aprobación ligada a la versión, comentarios con permisos y en
     assert.equal((await db.query(`select * from deliveries`)).rows.length, 0, "en su espacio no ve las de A");
     await db.exec(`reset role`); await db.exec(`set role authenticated; select set_config('request.jwt.claim.sub','${A}',false)`);
   });
+});
+
+test("Enlaces de revisión: token acotado, permisos, caducidad, revocación, versión obsoleta y paquetes", async () => {
+  await db.exec(`update profiles set active_workspace_id = null where id in ('${A}','${B}')`);
+  const src = (await db.query<{ id: string }>(`insert into sources(workspace_id,kind,storage_path,mime,bytes,created_by) values ('${wsA}','upload','${wsA}/s/sh.mp4','video/mp4',10,'${A}') returning id`)).rows[0].id;
+  const proj = (await db.query<{ id: string }>(`insert into projects(workspace_id,source_id,name,created_by) values ('${wsA}','${src}','P share','${A}') returning id`)).rows[0].id;
+  const tr = (await db.query<{ id: string }>(`insert into transcripts(workspace_id,source_id,words) values ('${wsA}','${src}','[]') returning id`)).rows[0].id;
+  const gen = (await db.query<{ id: string }>(`insert into generations(workspace_id,project_id,transcript_id,rubric_version,model) values ('${wsA}','${proj}','${tr}','r','m') returning id`)).rows[0].id;
+  const clip = (await db.query<{ id: string }>(`insert into clips(workspace_id,project_id,generation_id,title,current_version,thumb_path) values ('${wsA}','${proj}','${gen}','Clip share',1,'${wsA}/x/thumb.jpg') returning id`)).rows[0].id;
+  const other = (await db.query<{ id: string }>(`insert into clips(workspace_id,project_id,generation_id,title,current_version) values ('${wsA}','${proj}','${gen}','Fuera de la entrega',1) returning id`)).rows[0].id;
+  await db.exec(`insert into clip_versions(clip_id,workspace_id,version,composition) values ('${clip}','${wsA}',1,'{}'),('${clip}','${wsA}',2,'{}'),('${other}','${wsA}',1,'{}')`);
+  await db.exec(`insert into renders(workspace_id,clip_id,clip_version,ratio,burn_subtitles,spec_sha256,storage_path,status,probe) values ('${wsA}','${clip}',1,'9:16',true,'h1','${wsA}/${clip}/v1.mp4','ready','{"duration":"20","size":"1000"}')`);
+  let del = "", tok = "", tokRO = "";
+  await asUser(A, async () => {
+    del = (await db.query<{ d: string }>(`select public.create_delivery('${proj}','Entrega share','', '[{"clip_id":"${clip}","version":1}]'::jsonb) d`)).rows[0].d;
+    await rejects(`select public.create_share_link('${del}', 0, false, true, false)`);
+    await rejects(`select public.create_share_link('${del}', 200, false, true, false)`);
+    tok = (await db.query<{ t: string }>(`select public.create_share_link('${del}', 7, true, true, true, 'Cliente') t`)).rows[0].t;
+    tokRO = (await db.query<{ t: string }>(`select public.create_share_link('${del}', 3, false, false, true) t`)).rows[0].t;   // approve sin comment → se anula
+    assert.equal(tok.length, 64);
+    await rejects(`select token_sha256 from share_links`);                         // el hash no se lee desde el cliente
+  });
+  await asUser(null, async () => {   // anónimo
+    await rejects(`select * from deliveries`); await rejects(`select * from share_links`);
+    const v = (await db.query<{ v: { delivery: { name: string }; items: { clip_id: string; render_path: string; thumb_path: string }[]; perms: Record<string, boolean>; error?: string } }>(`select public.share_view('${tok}') v`)).rows[0].v;
+    assert.equal(v.delivery.name, "Entrega share"); assert.equal(v.items.length, 1); assert.equal(v.items[0].render_path, `${wsA}/${clip}/v1.mp4`);
+    assert.deepEqual(v.perms, { download: true, comment: true, approve: true });
+    assert.equal((await db.query<{ v: { error: string } }>(`select public.share_view('mal-token') v`)).rows[0].v.error, "invalid");
+    assert.equal((await db.query<{ ok: boolean }>(`select public.share_path_ok('${wsA}/${clip}/v1.mp4') ok`)).rows[0].ok, true);
+    assert.equal((await db.query<{ ok: boolean }>(`select public.share_path_ok('${wsA}/otro/archivo.mp4') ok`)).rows[0].ok, false);
+    // comentarios
+    await db.query(`select public.share_comment('${tok}','${clip}',3.2,'Me gusta','Marta')`);
+    await rejects(`select public.share_comment('${tok}','${clip}',1,'sin nombre','')`);
+    await rejects(`select public.share_comment('${tok}','${other}',1,'pieza ajena','Marta')`);
+    await rejects(`select public.share_comment('${tokRO}','${clip}',1,'sin permiso','Marta')`);
+    // decisión
+    await rejects(`select public.share_decide('${tokRO}','${clip}','approved',null,'Marta')`.replace(tokRO, "x" + tokRO.slice(1)));
+    await db.query(`select public.share_decide('${tok}','${clip}','approved','Perfecto','Marta')`);
+    assert.equal((await db.query<{ v: { items: { review_status: string }[] } }>(`select public.share_view('${tok}') v`)).rows[0].v.items[0].review_status, "approved");
+  });
+  // el clip pasa a v2: la entrega conserva v1 y una decisión externa sobre una versión obsoleta se rechaza
+  await db.exec(`update clips set current_version = 2 where id='${clip}'`);
+  await asUser(null, async () => { await rejects(`select public.share_decide('${tok}','${clip}','approved',null,'Marta')`); });
+  // revocación y caducidad
+  await asUser(A, async () => {
+    const id = (await db.query<{ id: string }>(`select id from share_links where label='Cliente'`)).rows[0].id;
+    await db.query(`select public.revoke_share_link('${id}')`);
+  });
+  await asUser(null, async () => {
+    assert.equal((await db.query<{ v: { error: string } }>(`select public.share_view('${tok}') v`)).rows[0].v.error, "revoked");
+    await rejects(`select public.share_comment('${tok}','${clip}',1,'x','Marta')`);
+  });
+  await db.exec(`update share_links set expires_at = now() - interval '1 minute' where revoked_at is null`);
+  await asUser(null, async () => {
+    assert.equal((await db.query<{ v: { error: string } }>(`select public.share_view('${tokRO}') v`)).rows[0].v.error, "expired");
+    assert.equal((await db.query<{ ok: boolean }>(`select public.share_path_ok('${wsA}/${clip}/v1.mp4') ok`)).rows[0].ok, false, "sin enlaces activos no hay acceso a archivos");
+  });
+  // paquetes
+  await asUser(A, async () => {
+    const p1 = (await db.query<{ p: string }>(`select public.request_package('${del}','{"only_approved":false,"include":["mp4","srt","thumbs"]}'::jsonb) p`)).rows[0].p;
+    const p2 = (await db.query<{ p: string }>(`select public.request_package('${del}','{"include":["thumbs","srt","mp4"],"only_approved":false}'::jsonb) p`)).rows[0].p;
+    assert.equal(p1, p2, "mismas opciones: reutiliza el paquete");
+    await rejects(`select public.request_package('${del}','{"include":["exe"]}'::jsonb)`);
+    assert.equal((await db.query<{ n: number }>(`select count(*)::int n from jobs where kind='package' and params->>'package_id'='${p1}'`)).rows[0].n, 1);
+    await rejects(`select public.retry_package('${p1}')`);                  // en cola: no se reintenta
+    await db.query(`select public.cancel_package('${p1}')`);
+    await db.query(`select public.retry_package('${p1}')`);
+    assert.equal((await db.query<{ s: string }>(`select status s from delivery_packages where id='${p1}'`)).rows[0].s, "queued");
+  });
+  await asUser(B, async () => { await rejects(`select public.request_package('${del}','{}'::jsonb)`); assert.equal((await db.query(`select * from delivery_packages`)).rows.length, 0); });
 });

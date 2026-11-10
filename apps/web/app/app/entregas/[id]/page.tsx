@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../../../lib/supabase";
 import Icon from "../../../../components/Icon";
+import ShareLinks from "../../../../components/ui/ShareLinks";
+import PackagePanel from "../../../../components/ui/PackagePanel";
 import { StatusLabel, STATUS_LABEL, pieceStatus, fmtDur } from "../../../../components/ui/status";
 
 type Item = { clip_id: string; version: number; position: number; clip: { title: string; review_status: string; approved_version: number | null; current_version: number; thumb_path: string | null; project_id: string } ; render?: { storage_path: string; ratio: string; probe: { duration?: string | number; size?: string | number; brand?: string | null } | null; burn_subtitles: boolean }; thumb?: string };
@@ -59,7 +61,7 @@ export default function Entrega({ params }: { params: Promise<{ id: string }> })
   }
   async function downloadAll() {
     if (!withFile.length) return setMsg("Ninguna pieza de esta selección tiene MP4 de la versión entregada.");
-    setBusy(`Descargando ${withFile.length}…`); setMsg("Si el navegador pide permiso para varias descargas, acéptalo. No se genera un ZIP: son descargas individuales más el manifiesto.");
+    setBusy(`Descargando ${withFile.length}…`); setMsg("Si el navegador pide permiso para varias descargas, acéptalo. Para un ZIP usa «Paquete de entrega» más abajo: son descargas individuales más el manifiesto.");
     for (const r of withFile) { await downloadOne(r, rows.indexOf(r)); await new Promise((res) => setTimeout(res, 900)); }
     const manifest = { entrega: d?.name, proyecto: project, marca: brand, exportado: new Date().toISOString(), piezas: withFile.map((r) => ({ titulo: r.x.clip.title, archivo: nameOf(r, rows.indexOf(r)), version: r.x.version, formato: r.x.render!.ratio, duracion_s: r.x.render!.probe?.duration ? +Number(r.x.render!.probe!.duration).toFixed(1) : null, subtitulos_incrustados: r.x.render!.burn_subtitles, estado: STATUS_LABEL(r.st.status), id_interno: r.x.clip_id })) };
     const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(manifest, null, 2)], { type: "application/json" })); a.download = `${safe(project)}_${safe(d?.name ?? "entrega")}_manifiesto.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
@@ -105,8 +107,8 @@ export default function Entrega({ params }: { params: Promise<{ id: string }> })
               <div className="mt-2.5 flex gap-1.5"><Link href={`/app/r/${r.x.clip_id}`} className="btn btn-ghost flex-1 !py-1.5 !text-xs">Abrir revisión</Link><button onClick={() => downloadOne(r, i)} disabled={!r.x.render} aria-label={`Descargar ${r.x.clip.title}`} className="btn btn-ghost !px-3 !py-1.5 disabled:opacity-40"><Icon n="download" className="h-4 w-4" /></button></div></div>
           </li>); })}</ul>)}
 
-      <section className="mt-10 rounded-2xl bg-[var(--surface)] p-5 text-sm" aria-labelledby="inc-h"><h2 id="inc-h" className="text-base font-medium">Qué incluye esta descarga</h2>
-        <ul className="mt-2 list-disc space-y-1 pl-5 text-[var(--muted)]"><li>{withFile.length} MP4 con nombres legibles: <span className="mono text-xs">marca_proyecto_NN-título_formato_vN.mp4</span>.</li><li>Un manifiesto JSON con título, archivo, versión, formato, duración, estado de aprobación y fecha de exportación.</li><li>No incluye todavía portadas, SRT/VTT ni ZIP: no se generan para entregas (pendiente).</li></ul></section>
+      <PackagePanel deliveryId={id} canEdit={canEdit} total={rows.length} approved={approvedN} bytes={{ all: rows.reduce((a, r) => a + Number(r.x.render?.probe?.size ?? 0), 0), approved: rows.filter((r) => r.st.status === "approved").reduce((a, r) => a + Number(r.x.render?.probe?.size ?? 0), 0) }} />
+      <ShareLinks deliveryId={id} canEdit={canEdit} />
     </main>
   );
 }
