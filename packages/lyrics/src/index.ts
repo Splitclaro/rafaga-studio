@@ -87,4 +87,5 @@ export * from "./background.ts";
 export * from "./moments.ts";
 export * from "./looks.ts";
 export * from "./ttf.ts";
+export * from "./beats.ts";
 export * from "./metrics.ts";

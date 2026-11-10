@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { transcribe } from "@rafaga/providers";
 import { escapeFilterPath, buildAss, groupsFrom, PRESETS } from "@rafaga/composition";
-import { alignLyrics, parseLyrics, planVariants, LOOKS, resolveLook, varyLook, layoutLyrics, layoutToAss, planShots, lookFfmpegArgs, canvasSize, readMetrics, METRIC_CODEPOINTS, SANS_REGULAR, SANS_BOLD, measure, type TimedWord, type ShotItem } from "@rafaga/lyrics";
+import { alignLyrics, parseLyrics, planVariants, planShotsOnBeats, detectBeats, beatsReliable, LOOKS, resolveLook, varyLook, layoutLyrics, layoutToAss, planShots, lookFfmpegArgs, canvasSize, readMetrics, METRIC_CODEPOINTS, SANS_REGULAR, SANS_BOLD, measure, type TimedWord, type ShotItem } from "@rafaga/lyrics";
 
 const sh = (c: string, a: string[]) => { const r = spawnSync(c, a, { encoding: "utf8", maxBuffer: 1 << 28 }); if (r.status) throw new Error(`${c}: ${r.stderr.slice(-400)}`); return r.stdout; };
 const OUT = process.env.LOOKS_OUT ?? join(process.cwd(), "looks-out"); mkdirSync(OUT, { recursive: true });
@@ -118,6 +118,31 @@ report.renders = [
     res[n] = diff; if (diff < 300) fail.push(`tratamiento sin texto visible: ${n} (${diff})`);
   }
   report.fxTreatments = { count: Object.keys(res).length, visiblePixels: res };
+}
+
+// 7) Montaje al ritmo (beats): pista con pulso a 100 BPM → detección en el worker → cortes → render → los cambios de plano caen en los golpes
+{
+  const dir = OUT;
+  sh("ffmpeg", ["-y", "-v", "error", "-f", "lavfi", "-i", "aevalsrc='sin(2*PI*(100-60*mod(t,0.6)/0.6)*mod(t,0.6))*exp(-mod(t,0.6)*28)*0.9':s=44100:d=16", "-c:a", "aac", join(dir, "kick.m4a")]);
+  const pcm = spawnSync("ffmpeg", ["-v", "error", "-i", join(dir, "kick.m4a"), "-ac", "1", "-ar", "22050", "-f", "f32le", "-"], { maxBuffer: 1 << 29 }).stdout as Buffer;
+  const x = new Float32Array(pcm.buffer.slice(pcm.byteOffset, pcm.byteOffset + pcm.length - (pcm.length % 4)));
+  const t0b = Date.now(); const det = detectBeats(x, 22050); const detMs = Date.now() - t0b;
+  const cols = ["0xff0000", "0x00ff00", "0x0000ff"];
+  cols.forEach((c, i) => sh("ffmpeg", ["-y", "-v", "error", "-f", "lavfi", "-i", `color=c=${c}:s=320x180:r=30:d=16`, "-pix_fmt", "yuv420p", join(dir, `bc${i}.mp4`)]));
+  const bitems: ShotItem[] = cols.map((_, i) => ({ path: join(dir, `bc${i}.mp4`), kind: "video", duration: 16 }));
+  const look = resolveLook("diario", { treatment: { desaturate: 0 }, image: { aspect: 16 / 9 } as never });
+  const { shots, info } = planShotsOnBeats(bitems, det, 16, { ...look.montage, cut: "beat", intensity: "medium" }, 9, beatsReliable(det));
+  writeFileSync(join(dir, "b.ass"), "[Script Info]\nPlayResX: 360\nPlayResY: 640\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize\nStyle: W,Arial,20\n\n[Events]\nFormat: Layer, Start, End, Style, Text\n");
+  sh("ffmpeg", lookFfmpegArgs({ look, W: 360, H: 640, len: 16, shots, color: "#000000", seed: 1, audio: join(dir, "kick.m4a"), ass: join(dir, "b.ass"), out: join(dir, "beat-montage.mp4"), escape: escapeFilterPath }));
+  const raw = spawnSync("ffmpeg", ["-v", "error", "-i", join(dir, "beat-montage.mp4"), "-vf", "crop=2:2:178:280,format=rgb24", "-f", "rawvideo", "-"], { maxBuffer: 1 << 26 }).stdout as Buffer;
+  const colr = (k: number) => [raw[k * 12], raw[k * 12 + 1], raw[k * 12 + 2]].map((v) => (v > 128 ? 1 : 0)).join("");
+  const changes: number[] = []; for (let k = 1; k < raw.length / 12; k++) if (colr(k) !== colr(k - 1)) changes.push(k / 30);
+  const clicks = Array.from({ length: 26 }, (_, i) => i * 0.6);
+  const offs = changes.map((c) => Math.min(...clicks.map((t) => Math.abs(t - c))));
+  const maxOff = offs.length ? Math.round(Math.max(...offs) * 1000) : null;
+  report.beatMontage = { bpm: det.bpm, confidence: det.confidence, detect_ms: detMs, reliable: beatsReliable(det), mode: info.mode, every: info.every, cuts: changes.length, max_cut_offset_ms: maxOff };
+  if (!beatsReliable(det) || Math.abs(det.bpm - 100) > 3 && Math.abs(det.bpm - 50) > 3) fail.push(`beats: ${det.bpm} BPM, confianza ${det.confidence}`);
+  if (changes.length < 3 || (maxOff ?? 999) > 90) fail.push(`montaje al ritmo: ${changes.length} cortes, desfase máx ${maxOff} ms`);
 }
 
 report.fail = fail;

@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildAss, buildComposition, ffmpegArgs, styleForRatio, renderFamily, groupsFrom, toSRT, toVTT, toTranscript, sanitizeLogo, type BrandLogo, validateStyle, SYSTEM_FONT, escapeFilterPath, PRESETS, RATIO_SIZE, type Composition, type Ratio, type Word } from "@rafaga/composition";
 import { transcribe, proposeClips, safeGet, parseFeed, captureHls, concatWindow, type WindowOut } from "@rafaga/providers";
-import { alignLyrics, lyricsFromAsr, parseLyrics, planVariants, lyricFfmpegArgs, sequenceFor, DEFAULT_BG, LOOKS, resolveLook, varyLook, layoutLyrics, layoutToAss, planShots, lookFfmpegArgs, canvasSize, LOOK_ENGINE_VERSION, type BgItem, type BgSettings, type TimedWord, type ShotItem, type DeepPartial, type LyricLook } from "@rafaga/lyrics";
+import { alignLyrics, lyricsFromAsr, parseLyrics, planVariants, lyricFfmpegArgs, sequenceFor, DEFAULT_BG, LOOKS, resolveLook, varyLook, layoutLyrics, layoutToAss, planShots, planShotsOnBeats, detectBeats, beatsReliable, type BeatResult, lookFfmpegArgs, canvasSize, LOOK_ENGINE_VERSION, type BgItem, type BgSettings, type TimedWord, type ShotItem, type DeepPartial, type LyricLook } from "@rafaga/lyrics";
 import { extractThumb } from "./thumb.ts";
 import { ZipBuilder } from "./zip.ts";
 import { briefHash, RUBRIC_VERSION, validateCandidates, windows, transcriptText, lexicalCandidates, LEXICAL_VERSION, suggestTitle, normalizeBrief, composeBrief, lexicalBrief, BRIEF_VERSION, type TWord, type RawCandidate } from "@rafaga/selection";
@@ -380,6 +380,21 @@ async function processLyrics(job: Job) {
         shotItems.push({ path: fp, kind: it.kind as "video" | "photo", duration });
       }
     }
+    // Ritmo del tramo (solo si algún look usa montaje al ritmo): se detecta una vez y se cachea por canción y tramo
+    let beatMemo: BeatResult | null | undefined;
+    const getBeats = async (): Promise<BeatResult | null> => {
+      if (beatMemo !== undefined) return beatMemo;
+      const key = `beats:v1:${start.toFixed(2)}:${end.toFixed(2)}`;
+      const hit = (await sb.from("song_alignments").select("words").eq("song_id", song.id).eq("lyrics_sha256", key).maybeSingle()).data?.words as BeatResult | undefined;
+      if (hit && typeof hit === "object" && "bpm" in hit) { m.beats = "cache"; return (beatMemo = hit); }
+      const t3 = Date.now();
+      const r = spawnSync("ffmpeg", ["-v", "error", "-i", seg, "-ac", "1", "-ar", "22050", "-f", "f32le", "-"], { maxBuffer: 1 << 29 });
+      if (r.status !== 0 || !r.stdout?.length) return (beatMemo = null);
+      const out = r.stdout as Buffer; const x = new Float32Array(out.buffer.slice(out.byteOffset, out.byteOffset + out.length - (out.length % 4)));
+      beatMemo = detectBeats(x, 22050); m.beats_ms = Date.now() - t3; m.bpm = beatMemo.bpm; m.beat_confidence = beatMemo.confidence;
+      await sb.from("song_alignments").insert({ workspace_id: song.workspace_id, song_id: song.id, lyrics_sha256: key, words: beatMemo, asr_words: 0 });
+      return beatMemo;
+    };
     // Plan exacto de N variantes
     const plan = planVariants(p.n ?? 1, p.styles?.length ? p.styles : ["Letra"], items.length ? ["coleccion"] : p.backgrounds?.length ? p.backgrounds : ["#111111"], p.seed ?? 1);
     m.n = plan.variants.length; m.distinct = plan.distinct;
@@ -400,14 +415,18 @@ async function processLyrics(job: Job) {
         const L = layoutLyrics(words, look, LW, LH, len);
         const ass = join(dir, `v${v.index}.ass`), out = join(dir, `v${v.index}.mp4`);
         writeFileSync(ass, layoutToAss(L));
-        const shots = planShots(shotItems, L.pages, len, look.montage, v.seed);
+        let shots: ReturnType<typeof planShots>; let montageInfo: Record<string, unknown> = { mode: look.montage.cut === "interval" ? "interval" : "phrases" };
+        if (look.montage.cut === "beat" && shotItems.length) {
+          const b = await getBeats(); const pl = planShotsOnBeats(shotItems, b, len, look.montage, v.seed, !!b && beatsReliable(b));
+          shots = pl.shots; montageInfo = { ...pl.info };
+        } else shots = planShots(shotItems, L.pages, len, look.montage, v.seed);
         const t2 = Date.now();
         sh("ffmpeg", lookFfmpegArgs({ look, W: LW, H: LH, len, shots, color: /^#[0-9a-f]{6}$/i.test(v.background) ? v.background : "#111111", seed: v.seed, audio: seg, ass, out, escape: escapeFilterPath }));
         const probe = JSON.parse(sh("ffprobe", ["-v", "error", "-print_format", "json", "-show_entries", "stream=codec_name,width,height:format=duration,size", out]));
         const rpath = `${song.workspace_id}/lyrics/${job.id}/${v.index}.mp4`;
         const up = await sb.storage.from("renders").upload(rpath, readFileSync(out), { contentType: "video/mp4", upsert: true });
         if (up.error) throw new Error(`subida: ${up.error.message}`);
-        await sb.from("lyric_videos").update({ storage_path: rpath, status: "ready", probe, params: { ...v, look: { id, version: look.version, engine: LOOK_ENGINE_VERSION, resolved: look }, shots: shots.map((x) => ({ start: x.start, dur: x.dur, entry: x.entry, item: shotItems.indexOf(x.item) })), res: p.res ?? 1080, collection_id: p.collection_id ?? null, alignment: m.alignment } }).eq("job_id", job.id).eq("variant", v.index);
+        await sb.from("lyric_videos").update({ storage_path: rpath, status: "ready", probe, params: { ...v, look: { id, version: look.version, engine: LOOK_ENGINE_VERSION, resolved: look }, shots: shots.map((x) => ({ start: x.start, dur: x.dur, entry: x.entry, item: shotItems.indexOf(x.item) })), montage: montageInfo, res: p.res ?? 1080, collection_id: p.collection_id ?? null, alignment: m.alignment } }).eq("job_id", job.id).eq("variant", v.index);
         if (v.index === 1) m.first_ms = Date.now() - t0;
         m[`render_ms_${v.index}`] = Date.now() - t2;
         await sb.from("jobs").update({ heartbeat_at: new Date().toISOString(), metrics: m }).eq("id", job.id);

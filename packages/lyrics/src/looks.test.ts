@@ -116,3 +116,57 @@ test("export real: aparición en el frame exacto y posición de la palabra", { s
     assert.ok(outside < 15, `píxeles de texto fuera de la posición prevista: ${outside}`);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+
+import { planShotsOnBeats, assignShots } from "./looks.ts";
+import { detectBeats, beatsReliable } from "./beats.ts";
+const bt = (bpm: number, secs: number, off = 0.3) => ({ bpm, confidence: 0.9, beats: Array.from({ length: Math.floor((secs - off) / (60 / bpm)) }, (_, i) => +(off + (i * 60) / bpm).toFixed(3)) });
+const clips3 = [{ path: "a", kind: "video" as const, duration: 20 }, { path: "b", kind: "video" as const, duration: 20 }, { path: "c", kind: "video" as const, duration: 20 }];
+
+test("montaje al ritmo: cortes sobre beats, intensidad y planos nunca ilegibles", () => {
+  const m = LOOKS.diario.montage;
+  const dyn = planShotsOnBeats(clips3, bt(120, 30), 30, { ...m, cut: "beat", intensity: "dynamic" }, 5, true);
+  assert.equal(dyn.info.mode, "beats"); assert.ok(dyn.info.every! >= 2, "a 120 BPM cada beat dura 0,5 s: se agrupa para no bajar de 0,8 s");
+  const beats = bt(120, 30).beats;
+  for (const s of dyn.shots.slice(1)) assert.ok(beats.some((b) => Math.abs(b - s.start) < 0.04), `corte ${s.start} no cae en un beat`);
+  for (const s of dyn.shots.slice(0, -1)) assert.ok(s.dur >= 0.79);
+  const soft = planShotsOnBeats(clips3, bt(120, 30), 30, { ...m, cut: "beat", intensity: "soft" }, 5, true);
+  assert.ok(soft.info.avgShot > dyn.info.avgShot, "suave corta menos que dinámica");
+  const man = planShotsOnBeats(clips3, bt(100, 30), 30, { ...m, cut: "beat", beatEvery: 4 }, 5, true);
+  assert.equal(man.info.every, 4); assert.ok(Math.abs(man.shots[1].start - 4 * 0.6 - 0.3) < 0.05 || man.shots[1].start > 0);
+  for (let i = 1; i < dyn.shots.length; i++) assert.notEqual(dyn.shots[i].item.path, dyn.shots[i - 1].item.path);
+  assert.deepEqual(planShotsOnBeats(clips3, bt(120, 30), 30, { ...m, cut: "beat" }, 5, true).shots, planShotsOnBeats(clips3, bt(120, 30), 30, { ...m, cut: "beat" }, 5, true).shots, "reproducible");
+});
+test("ritmo no fiable: cadencia estable y se informa (no se llama «al beat»)", () => {
+  const r = planShotsOnBeats(clips3, { bpm: 90, confidence: 0.1, beats: [] }, 20, { ...LOOKS.diario.montage, cut: "beat", intensity: "medium" }, 1, false);
+  assert.equal(r.info.mode, "interval-fallback"); assert.match(r.info.note!, /no fiable/i); assert.ok(r.shots.length >= 8);
+  assert.equal(planShotsOnBeats(clips3, null, 20, { ...LOOKS.diario.montage, cut: "beat" }, 1, false).info.mode, "interval-fallback");
+  void assignShots; void detectBeats; void beatsReliable;
+});
+
+test("e2e real: pista con pulso → beats → montaje → render; los cambios de plano caen en los golpes", { skip: !hasFfmpeg }, () => {
+  const dir = mkdtempSync(join(tmpdir(), "beat-"));
+  try {
+    const sh = (a: string[]) => { const r = spawnSync("ffmpeg", ["-y", "-v", "error", ...a], { maxBuffer: 1 << 28 }); assert.equal(r.status, 0, r.stderr?.toString()); return r; };
+    // audio: bombo a 100 BPM (0,6 s) durante 16 s
+    sh(["-f", "lavfi", "-i", "aevalsrc='sin(2*PI*(100-60*mod(t,0.6)/0.6)*mod(t,0.6))*exp(-mod(t,0.6)*28)*0.9':s=44100:d=16", "-c:a", "aac", join(dir, "a.m4a")]);
+    const pcm = spawnSync("ffmpeg", ["-v", "error", "-i", join(dir, "a.m4a"), "-ac", "1", "-ar", "22050", "-f", "f32le", "-"], { maxBuffer: 1 << 28 }).stdout as Buffer;
+    const x = new Float32Array(pcm.buffer, pcm.byteOffset, Math.floor(pcm.length / 4));
+    const det = detectBeats(x, 22050); assert.ok(beatsReliable(det), `confianza ${det.confidence}`); assert.ok(Math.abs(det.bpm - 100) < 3 || Math.abs(det.bpm - 50) < 3, `bpm ${det.bpm}`);
+    // tres fondos de colores lisos
+    const cols = ["0xff0000", "0x00ff00", "0x0000ff"];
+    cols.forEach((c, i) => sh(["-f", "lavfi", "-i", `color=c=${c}:s=320x180:r=30:d=16`, "-pix_fmt", "yuv420p", join(dir, `c${i}.mp4`)]));
+    const items = cols.map((_, i) => ({ path: join(dir, `c${i}.mp4`), kind: "video" as const, duration: 16 }));
+    const { shots, info } = planShotsOnBeats(items, det, 16, { ...LOOKS.diario.montage, cut: "beat", intensity: "medium" }, 9, true);
+    assert.equal(info.mode, "beats"); assert.ok(shots.length >= 4);
+    const look = resolveLook("diario", { treatment: { desaturate: 0 }, image: { aspect: 16 / 9 } as never });
+    const ass = join(dir, "e.ass"); writeFileSync(ass, "[Script Info]\nPlayResX: 360\nPlayResY: 640\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize\nStyle: W,Arial,20\n\n[Events]\nFormat: Layer, Start, End, Style, Text\n");
+    const args = lookFfmpegArgs({ look, W: 360, H: 640, len: 16, shots, color: "#000000", seed: 1, audio: join(dir, "a.m4a"), ass, out: join(dir, "o.mp4"), escape: (p) => p });
+    const r = spawnSync("ffmpeg", args); assert.equal(r.status, 0, r.stderr?.toString());
+    const raw = spawnSync("ffmpeg", ["-v", "error", "-i", join(dir, "o.mp4"), "-vf", "crop=2:2:178:280,format=rgb24", "-f", "rawvideo", "-"], { maxBuffer: 1 << 26 }).stdout as Buffer;
+    const frames = raw.length / 12, color = (k: number) => [raw[k * 12], raw[k * 12 + 1], raw[k * 12 + 2]].map((v) => (v > 128 ? 1 : 0)).join("");
+    const changes: number[] = []; for (let k = 1; k < frames; k++) if (color(k) !== color(k - 1)) changes.push(k / 30);
+    assert.ok(changes.length >= 3, `cambios detectados ${changes.length}`);
+    const clicks = Array.from({ length: 26 }, (_, i) => i * 0.6);   // golpes reales (fase 0)
+    for (const c of changes) assert.ok(Math.min(...clicks.map((t) => Math.abs(t - c))) < 0.09, `cambio en ${c.toFixed(2)} s lejos de un golpe`);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});

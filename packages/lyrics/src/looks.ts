@@ -51,7 +51,7 @@ export interface LookFlow {
   fadeOut: number;       // s
 }
 export interface LookTreatment { grain: number; soften: number; desaturate: number; tint: [number, number, number]; aberration: number; instability: number; vignette: number; brightness: number }
-export interface LookMontage { cut: "phrase" | "interval"; interval: number; minShot: number; maxShot: number }
+export interface LookMontage { cut: "phrase" | "interval" | "beat"; interval: number; minShot: number; maxShot: number; intensity?: "soft" | "medium" | "dynamic"; beatEvery?: 0 | 1 | 2 | 4 | 8 }
 export interface LyricLook {
   id: string; version: number; name: string; description: string;
   canvas: { ratio: string; bg: string };
@@ -110,7 +110,7 @@ export function resolveLook(id: string, o: DeepPartial<LyricLook> = {}): LyricLo
     text: { x: clamp(t.x, 0, 0.6), y: clamp(t.y, 0.05, 0.95), centerY: !!t.centerY, w: clamp(t.w, 0.3, 1), size: clamp(t.size, 0.04, 0.3), weight: t.weight === 700 ? 700 : 400, tracking: clamp(t.tracking, -0.05, 0.2), wordGap: clamp(t.wordGap, 0.3, 4), lineHeight: clamp(t.lineHeight, 1, 3), maxLines: Math.round(clamp(t.maxLines, 1, 3)), align: t.align === "center" ? "center" : "left", case: t.case === "upper" || t.case === "asis" ? t.case : "lower", color: hex(t.color, b.text.color), shadow: clamp(t.shadow, 0, 1) },
     flow: { reveal: f.reveal === "group" || f.reveal === "phrase" ? f.reveal : "word", groupSize: Math.round(clamp(f.groupSize, 1, 6)), hold: clamp(f.hold, 0, 3), minVisible: clamp(f.minVisible, 0.1, 2), fadeIn: clamp(f.fadeIn, 0, 0.5), fadeOut: clamp(f.fadeOut, 0, 0.5) },
     treatment: { grain: clamp(tr.grain, 0, 1), soften: clamp(tr.soften, 0, 1), desaturate: clamp(tr.desaturate, 0, 1), tint: [0, 1, 2].map((k) => clamp(tr.tint?.[k] ?? 0, -0.3, 0.3)) as [number, number, number], aberration: clamp(tr.aberration, 0, 1), instability: clamp(tr.instability, 0, 1), vignette: clamp(tr.vignette, 0, 1), brightness: clamp(tr.brightness, -0.2, 0.2) },
-    montage: { cut: m.cut === "interval" ? "interval" : "phrase", interval: clamp(m.interval, 1.5, 15), minShot: clamp(m.minShot, 0.8, 10), maxShot: clamp(m.maxShot, 1.5, 20) },
+    montage: { cut: m.cut === "interval" || m.cut === "beat" ? m.cut : "phrase", interval: clamp(m.interval, 1.5, 15), minShot: clamp(m.minShot, 0.8, 10), maxShot: clamp(m.maxShot, 1.5, 20), intensity: m.intensity === "soft" || m.intensity === "dynamic" ? m.intensity : "medium", beatEvery: ([1, 2, 4, 8] as const).includes(m.beatEvery as 1) ? (m.beatEvery as 1 | 2 | 4 | 8) : 0 },
   };
 }
 export type DeepPartial<T> = { [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K] };
@@ -276,10 +276,15 @@ export function planShots(items: ShotItem[], pages: { start: number }[], len: nu
   } else {
     for (let s = m.interval; s < len - 0.5; s += m.interval) cuts.push(s);
   }
+  return assignShots(items, cuts, len, seed, fps);
+}
+
+/** Asigna un plano a cada tramo entre cortes: sin repetir el clip anterior si hay alternativas y con punto de entrada reproducible. */
+export function assignShots(items: ShotItem[], cutTimes: number[], len: number, seed: number, fps = FPS): Shot[] {
   const r = rng(seed);
   const out: Shot[] = [];
   let prev = -1;
-  const times = [...new Set(cuts.map((c) => toFrame(c, fps)))].sort((a, b) => a - b);
+  const times = [...new Set(cutTimes.map((c) => toFrame(c, fps)))].sort((a, b) => a - b);
   times.forEach((s, i) => {
     const e = i + 1 < times.length ? times[i + 1] : len;
     let k = Math.floor(r() * items.length);
@@ -290,6 +295,33 @@ export function planShots(items: ShotItem[], pages: { start: number }[], len: nu
     out.push({ item: it, start: s, dur, entry: +(room * r()).toFixed(2) });
   });
   return out.filter((x) => x.dur > 0);
+}
+
+export interface MontageInfo { mode: "beats" | "phrases" | "interval" | "interval-fallback"; bpm?: number; confidence?: number; every?: number; shots: number; avgShot: number; note?: string }
+const TARGET = { soft: 3.2, medium: 2.0, dynamic: 1.1 } as const;
+/**
+ * Montaje al ritmo: cortes en beats detectados (cada 1, 2, 4 u 8 según intensidad o ajuste manual). Si el ritmo no es fiable,
+ * cadencia estable y se informa. Nunca se anuncia «al beat» si solo hay un temporizador.
+ */
+export function planShotsOnBeats(items: ShotItem[], beat: { bpm: number; confidence: number; beats: number[] } | null, len: number, m: LookMontage, seed: number, reliable: boolean, fps = FPS): { shots: Shot[]; info: MontageInfo } {
+  if (!items.length) return { shots: [], info: { mode: "beats", shots: 0, avgShot: 0 } };
+  const target = TARGET[m.intensity ?? "medium"];
+  let cuts: number[] = [0]; let info: MontageInfo;
+  if (beat && reliable && beat.beats.length >= 8) {
+    const period = 60 / beat.bpm;
+    let every = m.beatEvery && m.beatEvery > 0 ? m.beatEvery : ([1, 2, 4, 8] as const).reduce((best, n) => (Math.abs(n * period - target) < Math.abs(best * period - target) ? n : best), 1 as 1 | 2 | 4 | 8);
+    while (every * period < Math.max(0.8, m.minShot) && every < 16) every *= 2;     // nunca planos ilegibles
+    const bs = beat.beats.filter((b) => b > 0.4 && b < len - 0.4);
+    for (let i = 0; i < bs.length; i += every) cuts.push(bs[i]);
+    cuts = cuts.filter((c, i) => i === 0 || c - cuts[i - 1] >= 0.6);
+    info = { mode: "beats", bpm: beat.bpm, confidence: beat.confidence, every, shots: 0, avgShot: 0 };
+  } else {
+    for (let t = target; t < len - 0.5; t += target) cuts.push(t);
+    info = { mode: "interval-fallback", bpm: beat?.bpm, confidence: beat?.confidence, shots: 0, avgShot: 0, note: `Ritmo no fiable${beat ? ` (confianza ${(beat.confidence * 100).toFixed(0)} %)` : ""}: se usa una cadencia estable de ${target.toFixed(1)} s en lugar de cortes al ritmo.` };
+  }
+  const shots = assignShots(items, cuts, len, seed, fps);
+  info.shots = shots.length; info.avgShot = +(len / Math.max(1, shots.length)).toFixed(2);
+  return { shots, info };
 }
 
 /** Argumentos FFmpeg del look: lienzo de color, imagen contenida en su rectángulo, tratamiento, letra (ASS) y audio de la canción. */

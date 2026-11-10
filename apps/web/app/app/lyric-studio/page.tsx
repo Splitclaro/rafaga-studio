@@ -11,6 +11,7 @@ import LyricSample from "../../../components/LyricSample";
 import { useSearchParams } from "next/navigation";
 import LookPreview, { sampleWords } from "../../../components/LookPreview";
 import TapSync from "../../../components/TapSync";
+import BeatAnalysis from "../../../components/BeatAnalysis";
 
 type Overrides = Record<string, DeepPartial<LyricLook>>;
 type StudioSettings = { styles?: string[]; overrides?: Overrides; res?: 1080 | 720; native?: boolean; variation?: number; ratio?: string; settings?: Partial<BgSettings> };
@@ -75,6 +76,7 @@ export default function LyricStudio() {
     setStyles(look && LOOKS[look] ? [`look:${look}`] : style ? [style] : ["look:diario"]); setOverrides({});
     const r = k.config.export?.ratios?.[0]; if (r && ["9:16", "4:5", "1:1", "16:9", "4:3"].includes(r)) setRatio(r as typeof ratio);
     setNative(!!look && look === "archivo");
+    if (look && LOOKS[look] && (k.config as { montage?: string }).montage === "ritmo") setOverrides({ [look]: { montage: { cut: "beat" } } });
   };
   const [res, setRes] = useState<1080 | 720>(1080);
   const [native, setNative] = useState(false);
@@ -297,7 +299,12 @@ export default function LyricStudio() {
                       <label key={l} className="rounded-xl bg-white px-3 py-2">{l} <span className="tnum float-right">{v.toFixed(2)}</span><input type="range" min={a} max={b} step={st} value={v} onChange={(e) => fn(Number(e.target.value))} className="w-full" /></label>))}
                     <label className="rounded-xl bg-white px-3 py-2">Revelado<select value={activeLook.flow.reveal} onChange={(e) => setOv(activeLookId, { flow: { reveal: e.target.value as "word" } })} className="mt-1 block w-full rounded-full border border-[var(--border)] px-2 py-1"><option value="word">Palabra a palabra (se acumulan)</option><option value="group">Por grupos</option><option value="phrase">Frase completa</option></select></label>
                     <label className="rounded-xl bg-white px-3 py-2">Líneas máximas<select value={activeLook.text.maxLines} onChange={(e) => setOv(activeLookId, { text: { maxLines: Number(e.target.value) } })} className="mt-1 block w-full rounded-full border border-[var(--border)] px-2 py-1">{[1, 2, 3].map((x) => <option key={x}>{x}</option>)}</select></label>
-                    <label className="rounded-xl bg-white px-3 py-2">Cambios de plano<select value={activeLook.montage.cut} onChange={(e) => setOv(activeLookId, { montage: { cut: e.target.value as "phrase" } })} className="mt-1 block w-full rounded-full border border-[var(--border)] px-2 py-1"><option value="phrase">En cambios de frase de la letra</option><option value="interval">Intervalo fijo</option></select></label>
+                    <label className="rounded-xl bg-white px-3 py-2">Cambios de plano<select value={activeLook.montage.cut} onChange={(e) => setOv(activeLookId, { montage: { cut: e.target.value as "phrase" } })} className="mt-1 block w-full rounded-full border border-[var(--border)] px-2 py-1"><option value="phrase">En cambios de frase de la letra</option><option value="beat">Al ritmo (beats)</option><option value="interval">Intervalo fijo</option></select></label>
+                    {activeLook.montage.cut === "beat" && <>
+                      <label className="rounded-xl bg-white px-3 py-2">Intensidad<select value={activeLook.montage.intensity ?? "medium"} onChange={(e) => setOv(activeLookId, { montage: { intensity: e.target.value as "soft" } })} className="mt-1 block w-full rounded-full border border-[var(--border)] px-2 py-1"><option value="soft">Suave (planos largos)</option><option value="medium">Media</option><option value="dynamic">Dinámica (planos cortos)</option></select></label>
+                      <label className="rounded-xl bg-white px-3 py-2">Cortar cada<select value={activeLook.montage.beatEvery ?? 0} onChange={(e) => setOv(activeLookId, { montage: { beatEvery: Number(e.target.value) as 0 } })} className="mt-1 block w-full rounded-full border border-[var(--border)] px-2 py-1"><option value={0}>Automático según intensidad</option><option value={1}>Cada beat</option><option value={2}>Cada 2 beats</option><option value={4}>Cada 4 beats</option><option value={8}>Cada 8 beats</option></select></label>
+                      <BeatAnalysis audioUrl={audioUrl} start={start} end={end} enabled intensity={activeLook.montage.intensity ?? "medium"} />
+                    </>}
                     <label className="rounded-xl bg-white px-3 py-2">Peso<select value={activeLook.text.weight} onChange={(e) => setOv(activeLookId, { text: { weight: Number(e.target.value) as 400 } })} className="mt-1 block w-full rounded-full border border-[var(--border)] px-2 py-1"><option value={400}>Regular</option><option value={700}>Negrita</option></select></label>
                   </div>
                   <div className="mt-3 flex gap-2"><button onClick={() => setOverrides((o) => { const c = { ...o }; delete c[activeLookId]; return c; })} className="btn btn-ghost !px-3 !py-1.5 !text-xs">Restablecer valores del estilo</button></div>
