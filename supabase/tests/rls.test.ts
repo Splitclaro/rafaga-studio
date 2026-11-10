@@ -58,6 +58,8 @@ before(async () => {
   await db.exec(readFileSync(new URL("../migrations/20261110000020_privilege_hardening.sql", import.meta.url), "utf8"));
   await db.exec(readFileSync(new URL("../migrations/20261110000021_review_deliveries.sql", import.meta.url), "utf8"));
   await db.exec(readFileSync(new URL("../migrations/20261110000022_share_links_packages.sql", import.meta.url), "utf8"));
+  await db.exec("alter table storage.objects add column if not exists metadata jsonb;");   // Storage real guarda size/eTag aquí
+  await db.exec(readFileSync(new URL("../migrations/20261110000024_library.sql", import.meta.url), "utf8"));
   await db.exec("grant execute on function public.share_view(text), public.share_comment(text, uuid, numeric, text, text), public.share_decide(text, uuid, text, text, text), public.share_path_ok(text) to anon;");
   await db.exec("grant select, insert, delete on public.songs to authenticated; grant select on public.song_alignments, public.lyric_videos to authenticated; grant execute on function public.request_lyrics(uuid, jsonb, text) to authenticated;");
   await db.exec("grant execute on function public.request_detection(uuid, text) to authenticated; grant execute on function public.request_render(uuid, int, text, boolean) to authenticated;");
@@ -568,4 +570,33 @@ test("Enlaces de revisión: token acotado, permisos, caducidad, revocación, ver
     assert.equal((await db.query<{ s: string }>(`select status s from delivery_packages where id='${p1}'`)).rows[0].s, "queued");
   });
   await asUser(B, async () => { await rejects(`select public.request_package('${del}','{}'::jsonb)`); assert.equal((await db.query(`select * from delivery_packages`)).rows.length, 0); });
+});
+
+test("biblioteca única: une tipos, aporta huella de contenido y no cruza workspaces", async () => {
+  await db.exec(`
+    insert into media_collections(id, workspace_id, name, created_by) values ('c0000000-0000-0000-0000-00000000000a','${wsA}','Playa','${A}');
+    insert into media_items(workspace_id, collection_id, kind, name, storage_path, mime, bytes, created_by) values
+      ('${wsA}','c0000000-0000-0000-0000-00000000000a','video','mar.mp4','${wsA}/media/m1.mp4','video/mp4',1000,'${A}'),
+      ('${wsA}','c0000000-0000-0000-0000-00000000000a','video','mar (1).mp4','${wsA}/media/m2.mp4','video/mp4',1000,'${A}'),
+      ('${wsA}','c0000000-0000-0000-0000-00000000000a','photo','sol.jpg','${wsA}/media/p1.jpg','image/jpeg',50,'${A}');
+    insert into songs(workspace_id, title, artist, storage_path, mime, bytes, created_by) values ('${wsA}','Tema','Ana','${wsA}/songs/s.mp3','audio/mpeg',4000,'${A}');
+    insert into storage.objects(bucket_id, name, metadata) values
+      ('originals','${wsA}/media/m1.mp4','{"eTag":"\\"abc\\"","size":1000}'),
+      ('originals','${wsA}/media/m2.mp4','{"eTag":"\\"abc\\"","size":1000}'),
+      ('originals','${wsA}/songs/s.mp3','{"eTag":"\\"zzz\\"","size":4000}');
+  `);
+  await asUser(A, async () => {
+    const all = (await db.query<{ asset_key: string; kind: string; name: string; ref_table: string; bytes: string | null; fingerprint: string | null; fingerprint_kind: string | null; container: string | null }>(`select * from public.library_assets()`)).rows;
+    const r = all.filter((x) => ["mar.mp4", "mar (1).mp4", "sol.jpg", "Tema · Ana"].includes(x.name));   // otras pruebas dejan datos en este workspace
+    assert.equal(r.length, 4);
+    assert.ok(all.every((x) => ["video", "image", "audio", "logo", "font", "export"].includes(x.kind)), "solo tipos conocidos");
+    assert.deepEqual(r.map((x) => x.kind).sort(), ["audio", "image", "video", "video"]);
+    const vids = r.filter((x) => x.kind === "video");
+    assert.equal(vids[0].fingerprint, vids[1].fingerprint, "mismo contenido = misma huella");
+    assert.equal(vids[0].fingerprint_kind, "etag"); assert.equal(vids[0].container, "Playa");
+    assert.equal(r.find((x) => x.kind === "image")!.fingerprint, null, "sin objeto en storage no hay huella inventada");
+    assert.equal(Number(r.find((x) => x.kind === "audio")!.bytes), 4000);
+  });
+  await asUser(B, async () => { assert.equal((await db.query(`select * from public.library_assets()`)).rows.length, 0, "otro workspace no ve nada"); });
+  await asUser(null, async () => { await rejects(`select * from public.library_assets()`); });
 });

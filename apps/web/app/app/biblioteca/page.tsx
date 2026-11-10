@@ -10,19 +10,20 @@ import { useWorkspaceFonts } from "../../../lib/fonts";
 import { useCollections, Thumb } from "../../../components/Collections";
 import ProjectClips from "../../../components/ProjectClips";
 import CollectionsPicker from "../../../components/Collections";
+import LibraryAll from "../../../components/LibraryAll";
 import { useSearchParams } from "next/navigation";
 
-type Tab = "videos" | "lyrics" | "songs" | "collections" | "fonts" | "styles";
+type Tab = "all" | "videos" | "lyrics" | "songs" | "collections" | "fonts" | "styles";
 type LyricRender = { id: string; variant: number; song: string; path: string; style: string; created_at: string; bytes: number; job_id: string };
 type SongRow = { id: string; title: string; artist: string | null; bytes: number; created_at: string; storage_path: string; lyrics: boolean };
 
-const TABS: [Tab, string, string][] = [["videos", "Proyectos", "film"], ["lyrics", "Vídeos con letra", "music"], ["songs", "Canciones", "music"], ["collections", "Packs de medios", "layers"], ["fonts", "Fuentes", "type"], ["styles", "Estilos", "text"]];
+const TABS: [Tab, string, string][] = [["all", "Todo", "layers"], ["videos", "Proyectos", "film"], ["lyrics", "Vídeos con letra", "music"], ["songs", "Canciones", "music"], ["collections", "Packs de medios", "layers"], ["fonts", "Fuentes", "type"], ["styles", "Estilos", "text"]];
 const mb = (n: number) => `${(n / 1048576).toFixed(1)} MB`;
 const day = (d: string) => new Date(d).toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric" });
 
 export default function Biblioteca() {
   const sp = useSearchParams();
-  const [tab, setTab] = useState<Tab>(() => (["videos", "lyrics", "songs", "collections", "fonts", "styles"].includes(sp.get("tab") ?? "") ? (sp.get("tab") as Tab) : "videos"));
+  const [tab, setTab] = useState<Tab>(() => (["all", "videos", "lyrics", "songs", "collections", "fonts", "styles"].includes(sp.get("tab") ?? "") ? (sp.get("tab") as Tab) : "all"));
   const [q, setQ] = useState("");
   const { rows: projects, reload: reloadProjects } = useProjects();
   const { saved: styles, reload: reloadStyles } = useTextStyles();
@@ -70,7 +71,7 @@ export default function Biblioteca() {
     await supabase.from("media_collections").delete().eq("id", id); reloadCols();
   }
 
-  const counts: Record<Tab, number | null> = { videos: projects?.length ?? null, lyrics: lyrics?.length ?? null, songs: songs?.length ?? null, collections: cols?.length ?? null, fonts: fonts ? fonts.length + 2 : null, styles: styles?.length ?? null };
+  const counts: Record<Tab, number | null> = { all: null, videos: projects?.length ?? null, lyrics: lyrics?.length ?? null, songs: songs?.length ?? null, collections: cols?.length ?? null, fonts: fonts ? fonts.length + 2 : null, styles: styles?.length ?? null };
   const Empty = ({ text, href, cta }: { text: string; href: string; cta: string }) => <div className="card border-dashed p-10 text-center"><p className="text-[var(--muted)]">{text}</p><Link href={href} className="btn btn-primary mt-4">{cta}</Link></div>;
   const Skel = () => <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{[0, 1, 2, 3].map((i) => <li key={i} className="skeleton aspect-[4/3]" />)}</ul>;
   const list = useMemo(() => tab, [tab]);
@@ -78,7 +79,7 @@ export default function Biblioteca() {
   return (
     <main className="mx-auto max-w-6xl px-4 pb-20 pt-8 md:px-8">
       <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
-        <div><h1 className="text-3xl">Biblioteca</h1><p className="mt-1 text-[var(--muted)]">Tus proyectos con todos sus clips, canciones, colecciones, fuentes y estilos.</p></div>
+        <div><h1 className="text-3xl">Biblioteca</h1><p className="mt-1 text-[var(--muted)]">Todo lo que has subido o generado en un solo sitio: vídeos, imágenes, audio, logos, fuentes y exportaciones. Detecta archivos repetidos.</p></div>
         <label className="card flex w-full items-center gap-2 px-3 py-2 sm:w-72"><Icon n="search" className="h-4 w-4 text-[var(--muted)]" /><span className="sr-only">Buscar en la biblioteca</span><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nombre" className="w-full bg-transparent text-sm outline-none" /></label>
       </header>
 
@@ -87,6 +88,8 @@ export default function Biblioteca() {
           <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className="chip shrink-0"><Icon n={i} className="h-3.5 w-3.5" />{l}<span className="mono text-xs opacity-70">{counts[k] ?? "·"}</span></button>))}
       </div>
       {msg && <p role="alert" className="card mb-4 p-3 text-sm">{msg}</p>}
+
+      {list === "all" && <LibraryAll q={q} onChanged={() => { reloadCols(); loadLyrics(); }} />}
 
       {list === "videos" && (!projects ? <Skel /> : !projects.filter((p) => match(p.name)).length ? <Empty text={q ? "Nada coincide con tu búsqueda." : "Aún no tienes proyectos. Sube un vídeo y aquí verás sus clips."} href="/app" cta="Crear un proyecto" /> : (
         <ul className="space-y-3">{projects.filter((p) => match(p.name)).map((p) => <ProjectClips key={p.id} p={p} onDelete={delProject} />)}</ul>))}
