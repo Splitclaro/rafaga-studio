@@ -1,4 +1,4 @@
-import { PRESET_LETRA, type SubtitleStyle } from "./subtitles.ts";
+import { PRESET_LETRA, FX_DEFAULT, type SubtitleStyle, type SubtitleFx, type EntryFx } from "./subtitles.ts";
 
 /** PRNG reproducible (mulberry32). */
 function rng(seed: number) {
@@ -9,6 +9,24 @@ function rng(seed: number) {
 const clamp = (v: unknown, lo: number, hi: number, d: number) => (typeof v === "number" && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : d);
 const hex = (v: unknown, d: string) => (typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v) ? v.toUpperCase() : d);
 const family = (v: unknown, d: string) => (typeof v === "string" && /^[\p{L}\p{N} _.-]{1,60}$/u.test(v) ? v : d);
+
+const ENTRIES: EntryFx[] = ["none", "fade", "pop", "rise", "drop", "blur"];
+/** Valida el compositor por evento: valores acotados y palabras clave limpias (sin caracteres de control de ASS). */
+export function validateFx(raw: unknown, base: Partial<SubtitleFx> = {}): Partial<SubtitleFx> | undefined {
+  const o = (raw && typeof raw === "object" ? raw : base) as Record<string, unknown>;
+  const b = { ...FX_DEFAULT, ...base };
+  const box = o.box && typeof o.box === "object" ? (o.box as Record<string, unknown>) : o.box === null ? null : b.box;
+  const kws = Array.isArray(o.keywords) ? o.keywords : b.keywords;
+  const out: SubtitleFx = {
+    entry: ENTRIES.includes(o.entry as EntryFx) ? (o.entry as EntryFx) : b.entry, entryMs: clamp(o.entryMs, 60, 800, b.entryMs),
+    exitFade: clamp(o.exitFade, 0, 600, b.exitFade),
+    box: box ? { color: hex(box.color, "#000000"), opacity: clamp(box.opacity, 0.1, 1, 0.8), pad: clamp(box.pad, 2, 40, 12) } : null,
+    keywords: kws.filter((k): k is string => typeof k === "string").map((k) => k.replace(/[^\p{L}\p{N}' -]/gu, "").trim().slice(0, 30)).filter(Boolean).slice(0, 40),
+    keywordsAuto: o.keywordsAuto === undefined ? b.keywordsAuto : !!o.keywordsAuto, keywordColor: hex(o.keywordColor, b.keywordColor), spacing: clamp(o.spacing, -2, 12, b.spacing), italic: o.italic === undefined ? b.italic : !!o.italic, soften: clamp(o.soften, 0, 6, b.soften),
+  };
+  const differs = JSON.stringify(out) !== JSON.stringify(FX_DEFAULT);
+  return differs ? out : undefined;
+}
 
 /** Valida y normaliza un estilo (importado, guardado o aleatorio). Nunca lanza: devuelve valores seguros. */
 export function validateStyle(raw: unknown, base: SubtitleStyle = PRESET_LETRA): SubtitleStyle {
@@ -22,6 +40,7 @@ export function validateStyle(raw: unknown, base: SubtitleStyle = PRESET_LETRA):
     maxLines: Math.round(clamp(o.maxLines, 1, 3, base.maxLines)), maxCharsPerLine: Math.round(clamp(o.maxCharsPerLine, 8, 40, base.maxCharsPerLine)),
     maxWordsPerGroup: Math.round(clamp(o.maxWordsPerGroup, 1, 12, base.maxWordsPerGroup)),
     uppercase: !!o.uppercase && !o.lowercase, lowercase: !!o.lowercase && !o.uppercase, bold: o.bold === undefined ? base.bold : !!o.bold, highlight: hl,
+    fx: validateFx(o.fx, base.fx),
   };
 }
 
@@ -38,5 +57,5 @@ export function surpriseStyle(seed: number, fontName: string): SubtitleStyle {
   const [primary, active] = pick(PALETTES);
   const dark = primary === "#111111";
   return validateStyle({ fontName, fontSize: 60 + Math.round(r() * 50), primary, active, outline: dark ? "#FFFFFF" : "#000000", outlineWidth: pick([0, 0, 3, 5, 7]), shadow: pick([0, 2, 3, 5]),
-    y: 0.45 + r() * 0.35, maxLines: 2, maxCharsPerLine: 14 + Math.round(r() * 14), maxWordsPerGroup: 3 + Math.round(r() * 5), uppercase: r() < 0.4, lowercase: false, bold: false, highlight: pick(["color", "reveal", "dim"]) });
+    y: 0.45 + r() * 0.35, maxLines: 2, maxCharsPerLine: 14 + Math.round(r() * 14), maxWordsPerGroup: 3 + Math.round(r() * 5), uppercase: r() < 0.4, lowercase: false, bold: false, highlight: pick(["color", "reveal", "dim"]), fx: { entry: pick<EntryFx>(["none", "fade", "pop", "rise", "blur"]), entryMs: 160 + Math.round(r() * 200), spacing: pick([0, 0, 1, 2]), soften: pick([0, 0, 1]) } });
 }

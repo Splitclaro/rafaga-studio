@@ -95,3 +95,6 @@ Probar Lyric Studio con una canción real (canto + instrumental). Siguiente: Sty
 
 ## Sesión 8 — H03 Brand kits
 - Kits versionados con logo, colores, estilo de subtítulos, intro/outro y perfil de export; aplicar/revertir por proyecto; exports con marca (worker + `ffmpegArgs`). Migración 18 aplicada y verificada. Falta: prueba cloud de un export con marca, vocabulario/censura, lower thirds, aplicar a Lyric Studio.
+
+## Sesión 9 — H09 Style Studio
+- Compositor de subtítulos por evento (entrada, salida, caja, palabras clave, tracking, cursiva, suavizado) y 21 tratamientos; Style Studio actualizado. Sin migración. Verificado con libass local; pendiente prueba en el worker cloud.

@@ -55,3 +55,11 @@ h1, h2, h3, .font-display { font-family: var(--font-display); font-weight: 650; 
 .film-edge::before, .film-edge::after { content: ""; position: absolute; left: 14px; right: 14px; height: 8px; pointer-events: none;
   background: radial-gradient(ellipse 4px 3px at 7px 4px, #fff 92%, transparent 100%) 0 0 / 20px 8px repeat-x; opacity: .92; }
 .film-edge::before { top: 10px; } .film-edge::after { bottom: 10px; }
+
+/* Compositor de subtítulos: aproximación visual de las entradas animadas (el export usa libass) */
+@keyframes fx-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fx-pop { from { opacity: 0; transform: scale(.7); } to { opacity: 1; transform: scale(1); } }
+@keyframes fx-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes fx-drop { from { opacity: 0; transform: translateY(-14px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes fx-blur { from { opacity: 0; filter: blur(8px); } to { opacity: 1; filter: blur(0); } }
+@media (prefers-reduced-motion: reduce) { [style*="fx-"] { animation: none !important; } }

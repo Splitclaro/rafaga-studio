@@ -20,7 +20,7 @@ type LV = { id: string; variant: number; status: string; storage_path: string | 
 
 const LOOK_IDS = ["archivo", "diario", "panoramico"] as const;
 const styleLabel = (k: string) => (k.startsWith("look:") ? LOOKS[k.slice(5)]?.name ?? k : k.startsWith("custom:") ? "Mi estilo" : k);
-const LYRIC_STYLES = ["Tune", "Palabra", "Tune mayúsculas", "Letra", "Letra suave", "Karaoke", "Impacto", "Limpio"];
+const LYRIC_STYLES = ["Tune", "Palabra", "Tune mayúsculas", "Letra", "Letra suave", "Karaoke", "Impacto", "Limpio", "Pop", "Cine", "Neón", "Fantasma", "Desenfoque", "Máquina", "Caja negra", "Karaoke con caja"];
 const COLORS = ["#111111", "#1E3A8A", "#7F1D1D", "#14532D", "#4C1D95", "#F5F5F5"];
 const FILTERS: [FilterName, string, string][] = [["none", "Ninguno", "none"], ["midnight", "Midnight", "saturate(.85) hue-rotate(-12deg) brightness(.92)"], ["super8", "Super 8", "sepia(.35) saturate(1.15) contrast(1.05)"], ["noir", "Noir", "grayscale(1) contrast(1.18)"], ["vaporwave", "Vaporwave", "saturate(1.35) hue-rotate(-28deg)"]];
 

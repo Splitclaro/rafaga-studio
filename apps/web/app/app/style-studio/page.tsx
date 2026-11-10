@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { PRESETS, validateStyle, exportStyle, importStyle, surpriseStyle, type SubtitleStyle } from "@rafaga/composition";
+import { PRESETS, validateStyle, exportStyle, importStyle, surpriseStyle, fxOf, type SubtitleStyle, type SubtitleFx, type EntryFx } from "@rafaga/composition";
 import { supabase } from "../../../lib/supabase";
 import { useTextStyles, type SavedStyle } from "../../../lib/textStyles";
 import { useWorkspaceFonts } from "../../../lib/fonts";
@@ -59,6 +59,10 @@ export default function StyleStudio() {
 
   const fontOptions = useMemo(() => ["Bootzy TM", "Arial", ...(fonts ?? []).map((f) => f.family)], [fonts]);
   const s = draft.style;
+  const fx = fxOf(s);
+  const setFx = (patch: Partial<SubtitleFx>) => set({ fx: { ...s.fx, ...patch } });
+  const [kwText, setKwText] = useState("");
+  useEffect(() => { setKwText(fxOf(draft.style).keywords.join(", ")); }, [draft.id, draft.name]); // eslint-disable-line react-hooks/exhaustive-deps
   const bg = dark ? "#151515" : "#F2F2F2";
   const Range = ({ label, k, min, max, step: st = 1, fmt = (v: number) => String(v) }: { label: string; k: keyof SubtitleStyle; min: number; max: number; step?: number; fmt?: (v: number) => string }) => (
     <label className="block text-sm">{label} <span className="mono text-[var(--muted)]">{fmt(s[k] as number)}</span>
@@ -74,8 +78,9 @@ export default function StyleStudio() {
         <aside className="space-y-3 lg:sticky lg:top-20 lg:self-start">
           <div className="card p-3">
             <div className="mb-2 px-1 text-sm font-medium">Estilos base</div>
-            <ul className="space-y-1">{Object.entries(PRESETS).map(([k, v]) => (
-              <li key={k}><button onClick={() => load(k, v, null)} className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm hover:bg-[var(--hover)]">{k}<span className="text-xs text-[var(--muted)]">usar de base</span></button></li>))}</ul>
+            <ul className="grid grid-cols-2 gap-2">{Object.entries(PRESETS).map(([k, v]) => (
+              <li key={k}><button onClick={() => load(k, v, null)} aria-label={`Usar «${k}» de base`} className="w-full overflow-hidden rounded-lg border hairline text-left hover:border-[#111]"><span className="grid h-14 place-items-center bg-[#151515]"><LyricSample style={{ ...v, fontName: v.fontName }} text="bajo la luna" scale={0.17} step={2} /></span><span className="flex items-center justify-between px-2 py-1 text-xs"><span className="truncate">{k}</span>{v.fx && <span className="text-[10px] text-[var(--muted)]">fx</span>}</span></button></li>))}</ul>
+            <p className="mt-2 px-1 text-[11px] text-[var(--muted)]">{Object.keys(PRESETS).length} tratamientos. «fx» = entrada animada, caja o palabras clave.</p>
           </div>
           <div className="card p-3">
             <div className="mb-2 flex items-center justify-between px-1"><span className="text-sm font-medium">Mis estilos</span><span className="mono text-xs text-[var(--muted)]">{saved?.length ?? 0}</span></div>
@@ -111,11 +116,31 @@ export default function StyleStudio() {
             <fieldset className="space-y-3"><legend className="mb-1 text-sm font-medium">Animación de la palabra activa</legend>
               <div role="radiogroup" className="grid gap-1.5">{([["color", "Cambia de color", "La palabra que suena se ilumina."], ["reveal", "Aparece al cantarse", "Las palabras entran según suenan."], ["dim", "Resto atenuado", "Toda la frase visible, lo que falta tenue."]] as const).map(([k, l, d]) => (
                 <button key={k} role="radio" aria-checked={s.highlight === k} onClick={() => set({ highlight: k })} className={`rounded-xl border p-2.5 text-left text-sm ${s.highlight === k ? "border-[#111] ring-1 ring-[#111]" : "hairline hover:bg-[var(--hover)]"}`}><span className="font-medium">{l}</span><span className="block text-xs text-[var(--muted)]">{d}</span></button>))}</div></fieldset>
+            <fieldset className="space-y-3 sm:col-span-2"><legend className="mb-1 text-sm font-medium">Compositor (se exporta al MP4)</legend>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-3 text-sm">
+                  <label className="block">Entrada del bloque<select value={fx.entry} onChange={(e) => setFx({ entry: e.target.value as EntryFx })} className="input mt-1">{([["none", "Corte directo"], ["fade", "Fundido"], ["pop", "Pop (escala)"], ["rise", "Sube"], ["drop", "Cae"], ["blur", "Desenfoque a nítido"]] as const).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></label>
+                  {fx.entry !== "none" && <label className="block">Duración de la entrada <span className="mono text-[var(--muted)]">{fx.entryMs} ms</span><input type="range" min={60} max={800} step={20} value={fx.entryMs} onChange={(e) => setFx({ entryMs: Number(e.target.value) })} className="mt-1 w-full" /></label>}
+                  <label className="block">Fundido de salida <span className="mono text-[var(--muted)]">{fx.exitFade ? `${fx.exitFade} ms` : "corte"}</span><input type="range" min={0} max={600} step={20} value={fx.exitFade} onChange={(e) => setFx({ exitFade: Number(e.target.value) })} className="mt-1 w-full" /></label>
+                  <label className="block">Espaciado entre letras <span className="mono text-[var(--muted)]">{fx.spacing} px</span><input type="range" min={-2} max={12} step={1} value={fx.spacing} onChange={(e) => setFx({ spacing: Number(e.target.value) })} className="mt-1 w-full" /></label>
+                  <label className="block">Suavizado de bordes <span className="mono text-[var(--muted)]">{fx.soften}</span><input type="range" min={0} max={6} step={1} value={fx.soften} onChange={(e) => setFx({ soften: Number(e.target.value) })} className="mt-1 w-full" /></label>
+                  <label className="flex items-center gap-2"><input type="checkbox" checked={fx.italic} onChange={(e) => setFx({ italic: e.target.checked })} />Cursiva</label>
+                </div>
+                <div className="space-y-3 text-sm">
+                  <label className="flex items-center gap-2"><input type="checkbox" checked={!!fx.box} onChange={(e) => setFx({ box: e.target.checked ? { color: "#000000", opacity: 0.8, pad: 12 } : null })} />Caja de color detrás del texto</label>
+                  {fx.box && <div className="grid grid-cols-3 items-end gap-2"><label className="text-xs">Color<input type="color" value={fx.box.color} onChange={(e) => setFx({ box: { ...fx.box!, color: e.target.value.toUpperCase() } })} className="mt-1 block h-9 w-full rounded-lg border hairline bg-white" /></label><label className="text-xs">Opacidad<input type="range" min={0.1} max={1} step={0.05} value={fx.box.opacity} onChange={(e) => setFx({ box: { ...fx.box!, opacity: Number(e.target.value) } })} className="mt-2 w-full" /></label><label className="text-xs">Margen<input type="range" min={2} max={40} step={1} value={fx.box.pad} onChange={(e) => setFx({ box: { ...fx.box!, pad: Number(e.target.value) } })} className="mt-2 w-full" /></label></div>}
+                  <label className="block">Palabras clave (separadas por comas)<input value={kwText} onChange={(e) => setKwText(e.target.value)} onBlur={() => setFx({ keywords: kwText.split(",").map((k) => k.trim()).filter(Boolean) })} placeholder="dinero, error, nunca" className="input mt-1" /></label>
+                  <label className="flex items-center gap-2"><input type="checkbox" checked={fx.keywordsAuto} onChange={(e) => setFx({ keywordsAuto: e.target.checked })} />Además, cifras y palabras de 7+ letras</label>
+                  <label className="block text-xs">Color de palabras clave<input type="color" value={fx.keywordColor} onChange={(e) => setFx({ keywordColor: e.target.value.toUpperCase() })} className="mt-1 block h-9 w-24 rounded-lg border hairline bg-white" /></label>
+                </div>
+              </div>
+              <p className="text-xs text-[var(--muted)]">La vista previa aproxima la animación; el MP4 usa el mismo motor de subtítulos (libass) con estos mismos valores. Las palabras clave son una heurística sencilla, no un análisis de significado.</p>
+            </fieldset>
             <fieldset className="space-y-3"><legend className="mb-1 text-sm font-medium">Composición</legend>
               <Range label="Posición vertical" k="y" min={0.1} max={0.92} step={0.01} fmt={(v) => `${Math.round(v * 100)} %`} />
               <Range label="Líneas máximas" k="maxLines" min={1} max={3} /><Range label="Caracteres por línea" k="maxCharsPerLine" min={8} max={40} /><Range label="Palabras por bloque" k="maxWordsPerGroup" min={1} max={12} /></fieldset>
           </div>
-          <p className="mt-4 text-xs text-[var(--muted)]">Este editor cubre lo que el motor de render actual reproduce con exactitud. Efectos de entrada por letra, capas, brillo, degradados y caos con semilla necesitan un compositor por frames que está en el plan, por eso no aparecen aquí.</p>
+          <p className="mt-4 text-xs text-[var(--muted)]">Aún no incluye: animación por letra, degradados, capas múltiples ni efectos con semilla aleatoria. Lo que ves aquí sí se exporta.</p>
         </section>
 
         {/* Vista previa + acciones */}
