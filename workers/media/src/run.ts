@@ -5,7 +5,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, writeFileSync, readFileSync, rmSync, existsSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { buildAss, buildComposition, ffmpegArgs, styleForRatio, renderFamily, groupsFrom, validateStyle, SYSTEM_FONT, escapeFilterPath, PRESETS, RATIO_SIZE, type Composition, type Ratio, type Word } from "@rafaga/composition";
+import { buildAss, buildComposition, ffmpegArgs, styleForRatio, renderFamily, groupsFrom, sanitizeLogo, type BrandLogo, validateStyle, SYSTEM_FONT, escapeFilterPath, PRESETS, RATIO_SIZE, type Composition, type Ratio, type Word } from "@rafaga/composition";
 import { transcribe, proposeClips, safeGet, parseFeed, captureHls, concatWindow, type WindowOut } from "@rafaga/providers";
 import { alignLyrics, lyricsFromAsr, parseLyrics, planVariants, lyricFfmpegArgs, sequenceFor, DEFAULT_BG, LOOKS, resolveLook, varyLook, layoutLyrics, layoutToAss, planShots, lookFfmpegArgs, canvasSize, LOOK_ENGINE_VERSION, type BgItem, type BgSettings, type TimedWord, type ShotItem, type DeepPartial, type LyricLook } from "@rafaga/lyrics";
 import { briefHash, RUBRIC_VERSION, validateCandidates, windows, transcriptText, lexicalCandidates, LEXICAL_VERSION, type TWord, type RawCandidate } from "@rafaga/selection";
@@ -202,7 +202,7 @@ async function processRender(job: Job) {
     const { version, ratio, burn } = job.params;
     if (!job.clip_id || !version || !ratio) throw Object.assign(new Error("Petición de export incompleta"), { permanent: true });
     const clip = ok(await sb.from("clips").select("id,workspace_id,project_id").eq("id", job.clip_id).single(), "clip");
-    const project = ok(await sb.from("projects").select("source_id,deleted_at").eq("id", clip.project_id).single(), "proyecto");
+    const project = ok(await sb.from("projects").select("source_id,deleted_at,brand_kit_id,brand_kit_version").eq("id", clip.project_id).single(), "proyecto");
     if (project.deleted_at) return void (await setStatus(job.id, "cancelled"));
     const cv = ok(await sb.from("clip_versions").select("composition").eq("clip_id", clip.id).eq("version", version).single(), "versión");
     const comp = { ...(cv.composition as Composition), ratio, burnSubtitles: burn !== false };
@@ -223,7 +223,27 @@ async function processRender(job: Job) {
       const lp = join(dir, `broll${bi}`); writeFileSync(lp, Buffer.from(await bd.data.arrayBuffer()));
       broll.push({ local: lp, kind: b.kind, start: b.start, dur: b.dur });
     }
-    sh("ffmpeg", ffmpegArgs(comp, { input: inp, assPath: ass, output: out, fontsDir, broll }));
+    // Marca: versión fijada del kit aplicado al proyecto (logo, intro, outro). Solo rutas de `<workspace>/brand/`.
+    let brand: Pick<Parameters<typeof ffmpegArgs>[1], "logo" | "intro" | "outro"> = {};
+    let brandRef: string | null = null;
+    if (project.brand_kit_id && project.brand_kit_version) {
+      const bv = (await sb.from("brand_kit_versions").select("snapshot").eq("kit_id", project.brand_kit_id).eq("version", project.brand_kit_version).eq("workspace_id", clip.workspace_id).maybeSingle()).data;
+      if (bv) {
+        const snap = bv.snapshot as { logo_path: string | null; config: { logo?: Partial<BrandLogo>; intro?: { path: string; kind: "video" | "photo"; dur: number; hasAudio: boolean }; outro?: { path: string; kind: "video" | "photo"; dur: number; hasAudio: boolean } } | null };
+        const grab = async (path: string, name: string) => {
+          if (!path.startsWith(`${clip.workspace_id}/brand/`)) throw Object.assign(new Error("Recurso de marca fuera de tu workspace."), { permanent: true });
+          const d2 = await sb.storage.from("originals").download(path);
+          if (d2.error || !d2.data) throw new Error(`descarga de marca (${name}): ${d2.error?.message}`);
+          const lp = join(dir, `brand-${name}`); writeFileSync(lp, Buffer.from(await d2.data.arrayBuffer())); return lp;
+        };
+        if (snap.logo_path) brand.logo = { local: await grab(snap.logo_path, "logo"), ...sanitizeLogo(snap.config?.logo) };
+        if (snap.config?.intro?.path) brand.intro = { local: await grab(snap.config.intro.path, "intro"), kind: snap.config.intro.kind, dur: snap.config.intro.dur, hasAudio: !!snap.config.intro.hasAudio };
+        if (snap.config?.outro?.path) brand.outro = { local: await grab(snap.config.outro.path, "outro"), kind: snap.config.outro.kind, dur: snap.config.outro.dur, hasAudio: !!snap.config.outro.hasAudio };
+        brandRef = `${project.brand_kit_id}@${project.brand_kit_version}`;
+      }
+    }
+    const mainHasAudio = !!JSON.parse(sh("ffprobe", ["-v", "error", "-print_format", "json", "-show_streams", inp])).streams.find((x: { codec_type: string }) => x.codec_type === "audio");
+    sh("ffmpeg", ffmpegArgs(comp, { input: inp, assPath: ass, output: out, fontsDir, broll, ...brand, mainHasAudio }));
     const probe = JSON.parse(sh("ffprobe", ["-v", "error", "-print_format", "json", "-show_streams", "-show_format", out]));
     const vs = probe.streams.find((x: { codec_type: string }) => x.codec_type === "video");
     const { width, height } = RATIO_SIZE[ratio];
@@ -231,7 +251,7 @@ async function processRender(job: Job) {
     const rpath = `${clip.workspace_id}/${clip.id}/v${version}-${ratio.replace(":", "x")}${comp.burnSubtitles ? "" : "-sin-subs"}.mp4`;
     const up = await sb.storage.from("renders").upload(rpath, readFileSync(out), { contentType: "video/mp4", upsert: true });
     if (up.error) throw new Error(`subida render: ${up.error.message}`);
-    const ins = await sb.from("renders").upsert({ workspace_id: clip.workspace_id, clip_id: clip.id, clip_version: version, ratio, burn_subtitles: comp.burnSubtitles, spec_sha256: briefHash(JSON.stringify(comp)), storage_path: rpath, status: "ready", probe: { duration: probe.format.duration, size: probe.format.size, width: vs.width, height: vs.height } }, { onConflict: "workspace_id,clip_id,clip_version,ratio,burn_subtitles,spec_sha256" });
+    const ins = await sb.from("renders").upsert({ workspace_id: clip.workspace_id, clip_id: clip.id, clip_version: version, ratio, burn_subtitles: comp.burnSubtitles, spec_sha256: briefHash(JSON.stringify(comp) + (brandRef ? `|brand:${brandRef}` : "")), storage_path: rpath, status: "ready", probe: { duration: probe.format.duration, size: probe.format.size, width: vs.width, height: vs.height, brand: brandRef } }, { onConflict: "workspace_id,clip_id,clip_version,ratio,burn_subtitles,spec_sha256" });
     if (ins.error) throw new Error(`registro render: ${ins.error.message}`);
     await setStatus(job.id, "done", { metrics: { render_ms: Date.now() - t1, total_ms: Date.now() - t0 } });
     console.log("render ok", job.id, ratio, Date.now() - t0, "ms");

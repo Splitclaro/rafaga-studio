@@ -53,6 +53,7 @@ before(async () => {
   await db.exec(readFileSync(new URL("../migrations/20261110000015_scheduler.sql", import.meta.url), "utf8"));
   await db.exec(readFileSync(new URL("../migrations/20261110000016_job_timing_fair_queue.sql", import.meta.url), "utf8"));
   await db.exec(readFileSync(new URL("../migrations/20261110000017_workspaces_roles.sql", import.meta.url), "utf8"));
+  await db.exec(readFileSync(new URL("../migrations/20261110000018_brand_kits.sql", import.meta.url), "utf8"));
   await db.exec("grant select, insert, delete on public.songs to authenticated; grant select on public.song_alignments, public.lyric_videos to authenticated; grant execute on function public.request_lyrics(uuid, jsonb, text) to authenticated;");
   await db.exec("grant execute on function public.request_detection(uuid, text) to authenticated; grant execute on function public.request_render(uuid, int, text, boolean) to authenticated;");
   await db.exec(`insert into auth.users values ('${A}','a@test.dev'),('${B}','b@test.dev');`);
@@ -378,5 +379,53 @@ test("Espacios: crear, invitar con rol, aislamiento por espacio activo, lector s
     await db.query(`insert into sources(workspace_id,kind,storage_path,mime,bytes,created_by) values ('${client}','upload','${client}/src/z.mp4','video/mp4',10,'${B}')`);
     assert.equal((await db.query(`select * from audit_events`)).rows.length, 0, "auditoría solo para administradores");
     await db.query(`select public.set_active_workspace('${wsB}')`);
+  });
+});
+
+test("Brand kits: versión automática, instantáneas inmutables, aplicar/revertir y aislamiento", async () => {
+  let kit = "", proj = "", clip = "", app = "";
+  await db.exec(`update workspace_members set role='owner' where user_id='${A}'; update profiles set active_workspace_id = null where id in ('${A}','${B}')`);
+  const src = (await db.query<{ id: string }>(`insert into sources(workspace_id,kind,storage_path,mime,bytes,created_by) values ('${wsA}','upload','${wsA}/s/b.mp4','video/mp4',10,'${A}') returning id`)).rows[0].id;
+  proj = (await db.query<{ id: string }>(`insert into projects(workspace_id,source_id,name,created_by) values ('${wsA}','${src}','P brand','${A}') returning id`)).rows[0].id;
+  const tr = (await db.query<{ id: string }>(`insert into transcripts(workspace_id,source_id,words) values ('${wsA}','${src}','[]') returning id`)).rows[0].id;
+  const gen = (await db.query<{ id: string }>(`insert into generations(workspace_id,project_id,transcript_id,rubric_version,model) values ('${wsA}','${proj}','${tr}','r','m') returning id`)).rows[0].id;
+  clip = (await db.query<{ id: string }>(`insert into clips(workspace_id,project_id,generation_id,title,current_version) values ('${wsA}','${proj}','${gen}','C',2) returning id`)).rows[0].id;
+  await db.exec(`insert into clip_versions(clip_id,workspace_id,version,composition) values ('${clip}','${wsA}',1,'{}'),('${clip}','${wsA}',2,'{}')`);
+  await asUser(A, async () => {
+    kit = (await db.query<{ id: string }>(`insert into brand_kits(workspace_id,name,colors,config) values ('${wsA}','Marca A','{"primary":"#111111"}','{"logo":{"position":"tr"}}') returning id`)).rows[0].id;
+    assert.equal((await db.query<{ version: number }>(`select version from brand_kits where id='${kit}'`)).rows[0].version, 1);
+    await db.query(`update brand_kits set colors='{"primary":"#222222"}' where id='${kit}'`);
+    await db.query(`update brand_kits set archived_at=null where id='${kit}'`);     // sin cambio de contenido: no sube versión
+    const v = (await db.query<{ version: number }>(`select version from brand_kits where id='${kit}'`)).rows[0].version;
+    assert.equal(v, 2);
+    const snaps = (await db.query<{ version: number; snapshot: { colors: { primary: string } } }>(`select version, snapshot from brand_kit_versions where kit_id='${kit}' order by version`)).rows;
+    assert.deepEqual(snaps.map((x) => [x.version, x.snapshot.colors.primary]), [[1, "#111111"], [2, "#222222"]]);
+    await rejects(`update brand_kit_versions set snapshot='{}'`);
+    await rejects(`insert into brand_kits(workspace_id,name,logo_path) values ('${wsA}','mal','${wsB}/brand/x.png')`);   // logo fuera de su espacio
+    app = (await db.query<{ a: string }>(`select public.apply_brand_kit('${proj}','${kit}', '[{"clip_id":"${clip}","from":1,"to":2}]'::jsonb) a`)).rows[0].a;
+    const pr = (await db.query<{ brand_kit_id: string; brand_kit_version: number }>(`select brand_kit_id, brand_kit_version from projects where id='${proj}'`)).rows[0];
+    assert.deepEqual([pr.brand_kit_id, pr.brand_kit_version], [kit, 2]);
+    await db.query(`update brand_kits set colors='{"primary":"#333333"}' where id='${kit}'`);   // el kit cambia; el proyecto sigue fijado a v2
+    assert.equal((await db.query<{ v: number }>(`select brand_kit_version v from projects where id='${proj}'`)).rows[0].v, 2);
+    await rejects(`select public.apply_brand_kit('${proj}','${kit}','[{"clip_id":"${clip}","from":9,"to":2}]'::jsonb)`);
+    const n = (await db.query<{ n: number }>(`select public.revert_brand_application('${app}') n`)).rows[0].n;
+    assert.equal(n, 1);
+    assert.equal((await db.query<{ v: number }>(`select current_version v from clips where id='${clip}'`)).rows[0].v, 1);
+    assert.equal((await db.query<{ k: string | null }>(`select brand_kit_id k from projects where id='${proj}'`)).rows[0].k, null);
+    await rejects(`select public.revert_brand_application('${app}')`);
+    // exports: un render hecho sin marca no se reutiliza cuando el proyecto tiene un kit aplicado
+    await db.exec(`reset role`);
+    await db.exec(`insert into renders(workspace_id,clip_id,clip_version,ratio,burn_subtitles,spec_sha256,storage_path,status,probe) values ('${wsA}','${clip}',1,'9:16',true,'h','${wsA}/${clip}/r.mp4','ready','{}')`);
+    await db.exec(`set role authenticated; select set_config('request.jwt.claim.sub','${A}',false)`);
+    assert.equal((await db.query<{ r: { reused: boolean } }>(`select public.request_render('${clip}',1,'9:16',true) r`)).rows[0].r.reused, true);
+    await db.query(`select public.apply_brand_kit('${proj}','${kit}')`);
+    const r2 = (await db.query<{ r: { reused: boolean; job_id: string } }>(`select public.request_render('${clip}',1,'9:16',true) r`)).rows[0].r;
+    assert.equal(r2.reused, false, "con marca aplicada se genera un export nuevo");
+  });
+  await asUser(B, async () => {
+    assert.equal((await db.query(`select * from brand_kits`)).rows.length, 0);
+    assert.equal((await db.query(`select * from brand_kit_versions`)).rows.length, 0);
+    await rejects(`select public.apply_brand_kit('${proj}','${kit}')`);
+    await rejects(`select public.revert_brand_application('${app}')`);
   });
 });

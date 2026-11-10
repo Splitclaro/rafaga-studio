@@ -35,7 +35,19 @@ export function buildComposition(src: { words: Word[]; startSec: number; endSec:
 }
 
 /** Argumentos de FFmpeg (sin shell). `broll` son rutas LOCALES ya descargadas por el worker. */
-export function ffmpegArgs(c: Composition, io: { input: string; assPath: string; output: string; fontsDir?: string; broll?: { local: string; kind: "video" | "photo"; start: number; dur: number }[] }): string[] {
+/** Logo de marca superpuesto en el clip (posición en esquinas, escala relativa al ancho, opacidad). */
+export interface BrandLogo { position: "tl" | "tr" | "bl" | "br"; scale: number; opacity: number; margin: number }
+export interface BrandBumper { kind: "video" | "photo"; dur: number; hasAudio: boolean }
+export const LOGO_DEFAULT: BrandLogo = { position: "tr", scale: 0.16, opacity: 0.9, margin: 0.04 };
+const clampN = (v: unknown, a: number, b: number, d: number) => { const n = Number(v); return Number.isFinite(n) ? Math.min(b, Math.max(a, n)) : d; };
+export function sanitizeLogo(l: Partial<BrandLogo> | null | undefined): BrandLogo {
+  const p = l?.position;
+  return { position: p === "tl" || p === "bl" || p === "br" ? p : "tr", scale: clampN(l?.scale, 0.05, 0.4, LOGO_DEFAULT.scale), opacity: clampN(l?.opacity, 0.1, 1, LOGO_DEFAULT.opacity), margin: clampN(l?.margin, 0, 0.15, LOGO_DEFAULT.margin) };
+}
+
+export function ffmpegArgs(c: Composition, io: { input: string; assPath: string; output: string; fontsDir?: string; broll?: { local: string; kind: "video" | "photo"; start: number; dur: number }[];
+  /** Marca (instantánea de una versión del brand kit): logo sobre el clip e intro/outro concatenados. */
+  logo?: { local: string } & BrandLogo; intro?: { local: string } & BrandBumper; outro?: { local: string } & BrandBumper; mainHasAudio?: boolean }): string[] {
   const { width: W, height: H } = RATIO_SIZE[c.ratio];
   const dur = c.endSec - c.startSec;
   const cx = Math.min(1, Math.max(0, c.crop?.x ?? 0.5));
@@ -57,9 +69,40 @@ export function ffmpegArgs(c: Composition, io: { input: string; assPath: string;
     last = `o${i}`;
   });
   const sub = c.burnSubtitles ? `,subtitles=${escapeFilterPath(io.assPath)}${io.fontsDir ? `:fontsdir=${escapeFilterPath(io.fontsDir)}` : ""}` : "";
-  parts.push(`[${last}]fps=${c.fps},format=yuv420p${sub}[v]`);
+  const nIn = () => extra.filter((x) => x === "-i").length;
+  if (io.logo) {
+    extra.push("-loop", "1", "-t", String(dur), "-i", io.logo.local);
+    const k = nIn(), L = sanitizeLogo(io.logo);
+    const lw = Math.max(16, Math.round((W * L.scale) / 2) * 2), m = Math.round(Math.min(W, H) * L.margin);
+    const x = L.position.endsWith("l") ? `${m}` : `W-w-${m}`, y = L.position.startsWith("t") ? `${m}` : `H-h-${m}`;
+    parts.push(`[${k}:v]scale=${lw}:-2,format=rgba,colorchannelmixer=aa=${L.opacity.toFixed(2)}[lg]`);
+    parts.push(`[${last}][lg]overlay=${x}:${y}:shortest=1[lo]`);
+    last = "lo";
+  }
+  const bumpers = [io.intro ? { b: io.intro, tag: "in" } : null, io.outro ? { b: io.outro, tag: "out" } : null].filter(Boolean) as { b: { local: string } & BrandBumper; tag: string }[];
+  if (!bumpers.length) {
+    parts.push(`[${last}]fps=${c.fps},format=yuv420p${sub}[v]`);
+    return ["-y", "-hide_banner", "-loglevel", "error", "-ss", String(c.startSec), "-t", String(dur), "-i", io.input, ...extra,
+      "-filter_complex", parts.join(";"), "-map", "[v]", "-map", "0:a:0?", "-c:v", "libx264", "-preset", "superfast", "-crf", "22", "-threads", "0", "-r", String(c.fps),
+      "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", io.output];
+  }
+  // Intro/outro: mismo tamaño, fps y formato de audio que el clip; sin audio propio → silencio de su duración
+  parts.push(`[${last}]fps=${c.fps},format=yuv420p${sub}[mv]`);
+  const AF = "aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo";
+  parts.push(io.mainHasAudio === false ? `anullsrc=r=48000:cl=stereo,atrim=duration=${dur.toFixed(3)}[ma]` : `[0:a:0]${AF},atrim=duration=${dur.toFixed(3)},apad=whole_dur=${dur.toFixed(3)}[ma]`);
+  const seg: Record<string, [string, string]> = {};
+  for (const { b, tag } of bumpers) {
+    const d = clampN(b.dur, 0.5, 15, 3);
+    if (b.kind === "photo") extra.push("-loop", "1", "-t", d.toFixed(3), "-i", b.local); else extra.push("-t", d.toFixed(3), "-i", b.local);
+    const k = nIn();
+    parts.push(`[${k}:v]scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:black,setsar=1,fps=${c.fps},format=yuv420p,trim=duration=${d.toFixed(3)},setpts=PTS-STARTPTS[${tag}v]`);
+    parts.push(b.kind === "video" && b.hasAudio ? `[${k}:a:0]${AF},atrim=duration=${d.toFixed(3)},apad=whole_dur=${d.toFixed(3)}[${tag}a]` : `anullsrc=r=48000:cl=stereo,atrim=duration=${d.toFixed(3)}[${tag}a]`);
+    seg[tag] = [`[${tag}v]`, `[${tag}a]`];
+  }
+  const order = [seg.in, ["[mv]", "[ma]"], seg.out].filter(Boolean) as [string, string][];
+  parts.push(`${order.map(([v, a]) => v + a).join("")}concat=n=${order.length}:v=1:a=1[v][a]`);
   return ["-y", "-hide_banner", "-loglevel", "error", "-ss", String(c.startSec), "-t", String(dur), "-i", io.input, ...extra,
-    "-filter_complex", parts.join(";"), "-map", "[v]", "-map", "0:a:0?", "-c:v", "libx264", "-preset", "superfast", "-crf", "22", "-threads", "0", "-r", String(c.fps),
+    "-filter_complex", parts.join(";"), "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-preset", "superfast", "-crf", "22", "-threads", "0", "-r", String(c.fps),
     "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", io.output];
 }
 

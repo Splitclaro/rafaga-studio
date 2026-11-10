@@ -92,3 +92,6 @@ Probar Lyric Studio con una canción real (canto + instrumental). Siguiente: Sty
 - H06: programador `pg_cron` cada minuto en producción (`scheduler_runs`), latido del worker, huérfanos cerrados, cola justa entre espacios. Falta el token de GitHub en Vault (`gh_dispatch_token`) para arrancar el worker solo.
 - H14: Analítica operativa (periodo, tipo, p50/p95 con n, fallos por causa, reintentos, almacenamiento) con `started_at`/`finished_at`.
 - H02: varios espacios, espacio activo en servidor, roles con RLS restrictiva, invitaciones y auditoría (migración 17 aplicada, prueba de humo en producción con rollback).
+
+## Sesión 8 — H03 Brand kits
+- Kits versionados con logo, colores, estilo de subtítulos, intro/outro y perfil de export; aplicar/revertir por proyecto; exports con marca (worker + `ffmpegArgs`). Migración 18 aplicada y verificada. Falta: prueba cloud de un export con marca, vocabulario/censura, lower thirds, aplicar a Lyric Studio.
