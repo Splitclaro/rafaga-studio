@@ -3,22 +3,27 @@ import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   activeWordAt, groupWords, editText, splitWord, mergeWithNext, setTiming, offsetAll, styleForRatio, toSRT, toVTT, toTranscript,
-  PRESETS, RATIO_SIZE, caseOf, type Composition, type BrollItem, type Ratio, type SubtitleStyle, type Word,
+  PRESETS, RATIO_SIZE, caseOf, trimClip, type Composition, type BrollItem, type Ratio, type SubtitleStyle, type Word,
 } from "@rafaga/composition";
 import { supabase } from "../../../../lib/supabase";
 import { useWorkspaceFonts } from "../../../../lib/fonts";
 import { useCollections } from "../../../../components/Collections";
 import { useTextStyles } from "../../../../lib/textStyles";
 import Icon from "../../../../components/Icon";
+import Timeline from "../../../../components/Timeline";
 
 type Layout = "blur" | "fill" | "fit";
-type Doc = { words: Word[]; style: SubtitleStyle; ratio: Ratio; burn: boolean; preset: string; layout: Layout; cropX: number; broll: BrollItem[] };
+type Doc = { startSec: number; endSec: number; words: Word[]; style: SubtitleStyle; ratio: Ratio; burn: boolean; preset: string; layout: Layout; cropX: number; broll: BrollItem[] };
 type Render = { id: string; clip_version: number; ratio: string; burn_subtitles: boolean; storage_path: string; created_at: string };
 
 export default function ClipEditor({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { fonts } = useWorkspaceFonts();
-  const [meta, setMeta] = useState<{ title: string; ws: string; projectId: string; version: number; base: Composition; src: string } | null>(null);
+  const [meta, setMeta] = useState<{ title: string; ws: string; projectId: string; sourceId: string; version: number; base: Composition; src: string } | null>(null);
+  const [mode, setMode] = useState<"quick" | "advanced">("quick");
+  const [srcDur, setSrcDur] = useState(0);
+  const [trimMsg, setTrimMsg] = useState<string | null>(null);
+  const srcWords = useRef<Word[] | null>(null);
   const [doc, setDoc] = useState<Doc | null>(null);
   const [past, setPast] = useState<Doc[]>([]);
   const [future, setFuture] = useState<Doc[]>([]);
@@ -29,6 +34,7 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
   const [q, setQ] = useState("");
   const [sel, setSel] = useState<number | null>(null);
   const [tab, setTab] = useState<"texto" | "estilo" | "encuadre" | "social" | "broll" | "exportar">("texto");
+  const quick = mode === "quick";
   const { cols } = useCollections();
   const { saved: myStyles } = useTextStyles();
   const presetStyle = (name: string): SubtitleStyle => PRESETS[name] ?? myStyles?.find((x) => x.name === name)?.style ?? PRESETS.Impacto;
@@ -44,7 +50,7 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
   const listRef = useRef<HTMLOListElement>(null);
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 1280px)"); const f = () => setXl(mq.matches); f(); mq.addEventListener("change", f);
-    try { setLeftOpen(localStorage.getItem("rafaga.editor.left") !== "0"); const w = Number(localStorage.getItem("rafaga.editor.leftw")); if (w >= 280 && w <= 560) setLeftW(w); } catch {}
+    try { setMode(localStorage.getItem("rafaga.editor.mode") === "advanced" ? "advanced" : "quick"); setLeftOpen(localStorage.getItem("rafaga.editor.left") !== "0"); const w = Number(localStorage.getItem("rafaga.editor.leftw")); if (w >= 280 && w <= 560) setLeftW(w); } catch {}
     return () => mq.removeEventListener("change", f);
   }, []);
   const startResize = (e: React.PointerEvent) => {
@@ -71,8 +77,8 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
       const comp = v.composition as Composition & { preset?: string };
       const signed = await supabase.storage.from("originals").createSignedUrl(`${c.workspace_id}/${p.source_id}/original`, 3600);
       versionRef.current = c.current_version;
-      setMeta({ title: c.title, ws: c.workspace_id, projectId: c.project_id, version: c.current_version, base: comp, src: signed.data?.signedUrl ?? "" });
-      setDoc({ words: comp.words, style: comp.style, ratio: comp.ratio, burn: comp.burnSubtitles, preset: comp.preset ?? "Impacto", layout: comp.layout === "fill" || comp.layout === "fit" ? comp.layout : "blur", cropX: comp.crop?.x ?? 0.5, broll: comp.broll ?? [] });
+      setMeta({ title: c.title, ws: c.workspace_id, projectId: c.project_id, sourceId: p.source_id, version: c.current_version, base: comp, src: signed.data?.signedUrl ?? "" });
+      setDoc({ startSec: comp.startSec, endSec: comp.endSec, words: comp.words, style: comp.style, ratio: comp.ratio, burn: comp.burnSubtitles, preset: comp.preset ?? "Impacto", layout: comp.layout === "fill" || comp.layout === "fit" ? comp.layout : "blur", cropX: comp.crop?.x ?? 0.5, broll: comp.broll ?? [] });
       await loadRenders();
     })();
   }, [id, loadRenders]);
@@ -87,11 +93,12 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
   }, [doc?.broll]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---------- Reproducción sincronizada con el tramo del clip ----------
-  const clipLen = meta ? meta.base.endSec - meta.base.startSec : 0;
+  const clipLen = doc ? doc.endSec - doc.startSec : meta ? meta.base.endSec - meta.base.startSec : 0;
+  const clipStart = doc?.startSec ?? meta?.base.startSec ?? 0;
   useEffect(() => {
     const v = fg.current; if (!v || !meta) return;
     const onTime = () => {
-      const rel = v.currentTime - meta.base.startSec;
+      const rel = v.currentTime - clipStart;
       if (rel >= clipLen) { v.pause(); setPlaying(false); seek(0); return; }
       setT(Math.max(0, rel));
       if (bg.current && Math.abs(bg.current.currentTime - v.currentTime) > 0.25) bg.current.currentTime = v.currentTime;
@@ -100,10 +107,10 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
     let raf = 0; const loop = () => { onTime(); raf = requestAnimationFrame(loop); };
     if (playing) raf = requestAnimationFrame(loop);
     return () => { v.removeEventListener("timeupdate", onTime); cancelAnimationFrame(raf); };
-  }, [meta, playing, clipLen]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [meta, playing, clipLen, clipStart]); // eslint-disable-line react-hooks/exhaustive-deps
   function seek(rel: number) {
     if (!meta) return;
-    const abs = meta.base.startSec + Math.max(0, Math.min(clipLen, rel));
+    const abs = clipStart + Math.max(0, Math.min(clipLen, rel));
     if (fg.current) fg.current.currentTime = abs;
     if (bg.current) bg.current.currentTime = abs;
     setT(Math.max(0, Math.min(clipLen, rel)));
@@ -118,6 +125,24 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
     ro.observe(el); return () => ro.disconnect();
   }, [doc?.ratio, doc]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ---------- Recorte: cambia inicio/fin conservando la edición; al ampliar rellena solo lo nuevo con la transcripción ----------
+  async function applyTrim(ns: number, ne: number) {
+    if (!doc || !meta) return;
+    if (srcWords.current === null) {
+      const { data } = await supabase.from("transcripts").select("words").eq("source_id", meta.sourceId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+      srcWords.current = Array.isArray(data?.words) ? (data!.words as Word[]) : [];
+    }
+    const r = trimClip({ startSec: doc.startSec, endSec: doc.endSec, words: doc.words, broll: doc.broll }, ns, ne, srcDur, srcWords.current);
+    if (!r.ok) return setTrimMsg(r.reason);
+    setTrimMsg(`Clip de ${(r.endSec - r.startSec).toFixed(1)} s${r.dropped ? ` · ${r.dropped} palabra${r.dropped === 1 ? "" : "s"} fuera` : ""}${r.added ? ` · ${r.added} añadida${r.added === 1 ? "" : "s"} de la transcripción` : ""}.`);
+    const keepAbs = clipStart + t;
+    change((d) => ({ ...d, startSec: r.startSec, endSec: r.endSec, words: r.words, broll: r.broll }));
+    setSel(null);
+    const rel = Math.min(Math.max(0, keepAbs - r.startSec), r.endSec - r.startSec);
+    if (fg.current) fg.current.currentTime = r.startSec + rel; if (bg.current) bg.current.currentTime = r.startSec + rel; setT(rel);
+  }
+  const setModeP = (m: "quick" | "advanced") => { setMode(m); try { localStorage.setItem("rafaga.editor.mode", m); } catch {} if (m === "quick" && ["encuadre", "social", "broll"].includes(tab)) setTab("estilo"); };
+
   // ---------- Edición con historial y autosave ----------
   const change = (fn: (d: Doc) => Doc) => {
     if (!doc) return;
@@ -131,7 +156,7 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
     if (!meta) return null;
     setSave("saving");
     const next = versionRef.current + 1;
-    const composition: Composition & { preset: string } = { ...meta.base, words: d.words, style: d.style, ratio: d.ratio, burnSubtitles: d.burn, preset: d.preset, layout: d.layout, crop: { x: d.cropX }, broll: d.broll };
+    const composition: Composition & { preset: string } = { ...meta.base, startSec: d.startSec, endSec: d.endSec, words: d.words, style: d.style, ratio: d.ratio, burnSubtitles: d.burn, preset: d.preset, layout: d.layout, crop: { x: d.cropX }, broll: d.broll };
     const { data: s } = await supabase.auth.getSession();
     const ins = await supabase.from("clip_versions").insert({ clip_id: id, workspace_id: meta.ws, version: next, composition, created_by: s.session?.user.id });
     if (ins.error) { setSave(ins.error.code === "23505" ? "conflict" : "error"); setErr(ins.error.code === "23505" ? "Otra sesión guardó este clip. Recarga para ver la última versión." : ins.error.message); return null; }
@@ -218,8 +243,8 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="mb-2 flex flex-wrap gap-2">
         <input aria-label="Buscar en la transcripción" placeholder="Buscar palabra…" value={q} onChange={(e) => setQ(e.target.value)} className="min-w-0 flex-1 rounded border border-[var(--border)] bg-white px-2 py-1 text-sm" />
-        <button onClick={() => change((d) => ({ ...d, words: offsetAll(d.words, -0.1, clipLen) }))} className="rounded border border-[var(--border)] bg-white px-2 text-xs" title="Adelantar todos los subtítulos 0,1 s">−0,1 s</button>
-        <button onClick={() => change((d) => ({ ...d, words: offsetAll(d.words, 0.1, clipLen) }))} className="rounded border border-[var(--border)] bg-white px-2 text-xs" title="Retrasar todos los subtítulos 0,1 s">+0,1 s</button>
+        {!quick && <button onClick={() => change((d) => ({ ...d, words: offsetAll(d.words, -0.1, clipLen) }))} className="rounded border border-[var(--border)] bg-white px-2 text-xs" title="Adelantar todos los subtítulos 0,1 s">−0,1 s</button>}
+        {!quick && <button onClick={() => change((d) => ({ ...d, words: offsetAll(d.words, 0.1, clipLen) }))} className="rounded border border-[var(--border)] bg-white px-2 text-xs" title="Retrasar todos los subtítulos 0,1 s">+0,1 s</button>}
       </div>
       <p className="mb-2 text-xs text-[var(--muted)]">{doc.words.length} palabras · {phrases.length} frases{ql ? ` · ${shown.length} con «${q}»` : ""}. Pulsa una palabra para ir a ese instante y corregirla; el audio y el vídeo no se cortan.</p>
       <ol ref={listRef} className="min-h-0 flex-1 space-y-2 overflow-auto pr-1 xl:max-h-[calc(100vh-260px)] max-xl:max-h-[56vh]">
@@ -236,10 +261,10 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
               <div className="mb-1 ml-12 mt-1 grid gap-2 rounded-lg bg-[var(--surface)] p-2 text-xs">
                 <label>Texto <input aria-label={`Palabra ${sel + 1}`} value={doc.words[sel].text} onChange={(e) => change((d) => ({ ...d, words: editText(d.words, sel, e.target.value) }))} className="mt-0.5 w-full rounded border border-[var(--border)] bg-white px-1.5 py-1 text-sm" autoFocus /></label>
                 <div className="flex flex-wrap items-center gap-2">
-                  <label>Inicio <input type="number" step={0.01} value={doc.words[sel].start} onChange={(e) => change((d) => ({ ...d, words: setTiming(d.words, sel, Number(e.target.value), d.words[sel].end, clipLen) }))} className="tnum w-20 rounded border border-[var(--border)] bg-white px-1" /></label>
+                  {!quick && <><label>Inicio <input type="number" step={0.01} value={doc.words[sel].start} onChange={(e) => change((d) => ({ ...d, words: setTiming(d.words, sel, Number(e.target.value), d.words[sel].end, clipLen) }))} className="tnum w-20 rounded border border-[var(--border)] bg-white px-1" /></label>
                   <label>Fin <input type="number" step={0.01} value={doc.words[sel].end} onChange={(e) => change((d) => ({ ...d, words: setTiming(d.words, sel, d.words[sel].start, Number(e.target.value), clipLen) }))} className="tnum w-20 rounded border border-[var(--border)] bg-white px-1" /></label>
                   <button onClick={() => change((d) => ({ ...d, words: splitWord(d.words, sel) }))} className="rounded border border-[var(--border)] bg-white px-2 py-1">Dividir</button>
-                  <button onClick={() => change((d) => ({ ...d, words: mergeWithNext(d.words, sel) }))} disabled={sel >= doc.words.length - 1} className="rounded border border-[var(--border)] bg-white px-2 py-1 disabled:opacity-40">Unir con siguiente</button>
+                  <button onClick={() => change((d) => ({ ...d, words: mergeWithNext(d.words, sel) }))} disabled={sel >= doc.words.length - 1} className="rounded border border-[var(--border)] bg-white px-2 py-1 disabled:opacity-40">Unir con siguiente</button></>}
                   <button onClick={() => setSel(null)} className="ml-auto underline">Cerrar</button>
                 </div>
               </div>)}
@@ -248,9 +273,9 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
       </ol>
     </div>
   );
-  const tabsAll = ["texto", "estilo", "encuadre", "social", "broll", "exportar"] as const;
+  const tabsAll = (quick ? ["texto", "estilo", "exportar"] : ["texto", "estilo", "encuadre", "social", "broll", "exportar"]) as readonly ("texto" | "estilo" | "encuadre" | "social" | "broll" | "exportar")[];
   const tabsShown = xl ? tabsAll.filter((x) => x !== "texto") : tabsAll;
-  const tabEff = xl && tab === "texto" ? "estilo" : tab;
+  const tabEff = xl && tab === "texto" ? "estilo" : quick && ["encuadre", "social", "broll"].includes(tab) ? "estilo" : tab;
 
   return (
     <main className="px-4 py-6 md:px-6">
@@ -258,6 +283,7 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
         <Link href={`/app/p/${meta.projectId}`} className="text-sm text-[var(--muted)] underline">← Proyecto</Link>
         <h1 className="min-w-0 flex-1 truncate text-lg font-semibold">{meta.title}</h1>
         <span className="tnum hidden text-xs text-[var(--muted)] sm:inline">{doc.ratio} · {clipLen.toFixed(1)} s · {doc.words.length} palabras</span>
+        <div role="group" aria-label="Modo del editor" className="inline-flex rounded-full bg-[var(--hover)] p-0.5 text-xs">{([["quick", "Rápido"], ["advanced", "Avanzado"]] as const).map(([m, l]) => <button key={m} aria-pressed={mode === m} onClick={() => setModeP(m)} className={`rounded-full px-3 py-1 ${mode === m ? "bg-[#111] text-white" : "text-[var(--muted)]"}`}>{l}</button>)}</div>
         <span role="status" aria-live="polite" className="rounded border border-[var(--border)] px-2 py-0.5 text-xs text-[var(--muted)]">{SAVE}</span>
         <button onClick={undo} disabled={!past.length} className="rounded border border-[var(--border)] px-2 py-1 text-sm disabled:opacity-40" title="Deshacer (Cmd+Z)">Deshacer</button>
         <button onClick={redo} disabled={!future.length} className="rounded border border-[var(--border)] px-2 py-1 text-sm disabled:opacity-40" title="Rehacer (Cmd+Shift+Z)">Rehacer</button>
@@ -277,9 +303,9 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
         </section>
         {/* Preview */}
         <section aria-label="Vista previa" className="flex flex-col items-center gap-3">
-          <div ref={stage} className="relative w-full overflow-hidden rounded-xl bg-black" style={doc.ratio === "16:9" ? { aspectRatio: `${R.width}/${R.height}`, width: "100%", maxWidth: 1000 } : { aspectRatio: `${R.width}/${R.height}`, height: "min(calc(100vh - 240px), 820px)", minHeight: 320, width: "auto", maxWidth: "100%" }}>
+          <div ref={stage} className="relative w-full overflow-hidden rounded-xl bg-black" style={doc.ratio === "16:9" ? { aspectRatio: `${R.width}/${R.height}`, width: "100%", maxWidth: 1000 } : { aspectRatio: `${R.width}/${R.height}`, height: "min(calc(100vh - 330px), 780px)", minHeight: 320, width: "auto", maxWidth: "100%" }}>
             <video ref={bg} src={meta.src} muted playsInline preload="auto" className={`absolute inset-0 h-full w-full scale-110 object-cover blur-2xl ${doc.layout === "blur" ? "" : "hidden"}`} aria-hidden />
-            <video ref={fg} src={meta.src} playsInline preload="auto" className={`absolute inset-0 h-full w-full ${doc.layout === "fill" ? "object-cover" : "object-contain"}`} style={doc.layout === "fill" ? { objectPosition: `${doc.cropX * 100}% 50%` } : undefined} onLoadedMetadata={() => seek(0)} />
+            <video ref={fg} src={meta.src} playsInline preload="auto" className={`absolute inset-0 h-full w-full ${doc.layout === "fill" ? "object-cover" : "object-contain"}`} style={doc.layout === "fill" ? { objectPosition: `${doc.cropX * 100}% 50%` } : undefined} onLoadedMetadata={() => { setSrcDur(fg.current?.duration ?? 0); seek(0); }} />
             {doc.broll.map((b, i) => t >= b.start && t < b.start + b.dur && brollUrls[b.path] ? (b.kind === "photo"
               ? <img key={i} src={brollUrls[b.path]} alt="" className="absolute inset-0 h-full w-full object-cover" />
               : <video key={i} src={brollUrls[b.path]} muted autoPlay loop playsInline className="absolute inset-0 h-full w-full object-cover" />) : null)}
@@ -298,6 +324,8 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
             <input aria-label="Posición en el clip" type="range" min={0} max={clipLen} step={1 / 30} value={t} onChange={(e) => seek(Number(e.target.value))} className="w-full" />
             <span className="tnum w-28 shrink-0 whitespace-nowrap text-right text-sm">{t.toFixed(2)} / {clipLen.toFixed(1)} s</span>
           </div>
+          <Timeline src={meta.src} srcDuration={srcDur} start={doc.startSec} end={doc.endSec} t={t} words={doc.words} broll={doc.broll} tracks={!quick} onTrim={applyTrim} onSeek={seek} onSelectWord={(i) => setSel(i)} />
+          {trimMsg && <p role="status" aria-live="polite" className="w-full max-w-[860px] text-xs text-[var(--muted)]">{trimMsg}</p>}
         </section>
 
         {/* Panel de propiedades */}
