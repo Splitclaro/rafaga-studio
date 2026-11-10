@@ -47,3 +47,11 @@ cambios de plano siguen el beat (nuestros cortes siguen cambios de frase de la l
 ## Pendiente (no verificado)
 - Canto real sobre instrumental en español e inglés: necesita canciones autorizadas del usuario (no hay en el repositorio).
 - Comparación con el mismo audio/medios de la referencia: imposible por derechos; la comparación es de composición y movimiento.
+
+## Resultado en el worker cloud (run 42726768602, commit 4da3c0b, Ubuntu 24.04)
+- Liberation Sans Regular y Bold instaladas: **0 diferencias** de ancho con la tabla de la vista previa.
+- Fidelidad de frame en el worker: palabra 1 apagada en el frame 14 y visible en el 15; palabra 2 apagada en el 29 y visible en el 30.
+- Voz sintética recitada: es 19/20 palabras ancladas al ASR (Deepgram 394 ms), en 21/24 (352 ms; «hums a quiet song» reconocido como «humps are quiet on», la alineación conserva la letra original).
+- Renders 1080p (H.264 30 fps + AAC): Archivo 4:3 1440×1080 7,5 s en 6,8 s; Archivo 9:16 4,5 s; Diario 9:16 1,3 s; Panorámico 9:16 3,1 s (9,1 s de audio); Panorámico 720p 1,7 s.
+- Lote de 10 (720p, 6 s): reparto 4/3/3, **10 fotogramas distintos**, 15,6 s en total.
+- Coste: minutos de GitHub Actions del plan del repositorio + ≈17 s de audio en Deepgram nova-3 (≈0,0013 USD a tarifa pública de pago por uso; cubierto por crédito gratuito).
