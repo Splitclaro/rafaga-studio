@@ -90,3 +90,4 @@ export * from "./ttf.ts";
 export * from "./beats.ts";
 export * from "./metrics.ts";
 export * from "./more.ts";
+export * from "./audiomoments.ts";

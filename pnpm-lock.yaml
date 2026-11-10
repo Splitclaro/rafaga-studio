@@ -178,6 +178,9 @@ importers:
       '@rafaga/lyrics':
         specifier: workspace:*
         version: link:../../packages/lyrics
+      '@rafaga/providers':
+        specifier: workspace:*
+        version: link:../../packages/providers
       '@rafaga/selection':
         specifier: workspace:*
         version: link:../../packages/selection

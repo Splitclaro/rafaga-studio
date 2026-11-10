@@ -120,3 +120,5 @@ export const CANDIDATE_TOOL = {
 export { lexicalCandidates, parseBrief, LEXICAL_VERSION } from "./lexical.ts";
 export * from "./title.ts";
 export * from "./brief.ts";
+export * from "./editorial.ts";
+export * from "./fixture.ts";

@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import BriefFields, { EMPTY_BRIEF, briefText } from "../../components/BriefFields";
 import { normalizeBrief, type BriefData } from "@rafaga/selection/brief";
 import PendingStrip from "../../components/PendingStrip";
+import YouTubeSearch from "../../components/YouTubeSearch";
+import { nextStep, type YtItem } from "@rafaga/providers/youtube";
 import Icon from "../../components/Icon";
 import { ProjectCard, isActive, useProjects } from "../../components/ProjectList";
 import { createProject, uploadSong, validateFile, probeDuration, MIN_SOURCE_SECONDS, WHOLE_VIDEO_MAX_SECONDS, STAGE, type ProjectMode } from "../../lib/projects";
@@ -30,6 +32,9 @@ export default function Dashboard() {
   const fileInput = useRef<HTMLInputElement>(null);
   const audioInput = useRef<HTMLInputElement>(null);
   const [tab, setTab] = useState<Tab>("clips");
+  const [origin, setOrigin] = useState<"file" | "youtube">("file");
+  const [yt, setYt] = useState<YtItem | null>(null);
+  const [ytProject, setYtProject] = useState<string | null>(null);   // proyecto con original autorizado ya vinculado a este vídeo
   const [mode, setMode] = useState<ProjectMode>("clips");
   const [file, setFile] = useState<File | null>(null);
   const [dur, setDur] = useState<number | null>(null);
@@ -74,9 +79,19 @@ export default function Dashboard() {
     if (b != null && dur !== null && b > dur + 0.5) return setMsg("El tramo termina después del final del vídeo.");
     setBusy(true); setMsg(null);
     try {
-      const id = await createProject({ file, name: "", brief, briefData: normalizeBrief(bd), count, mode, maxSeconds: maxLen ? Number(maxLen) : undefined, rangeStart: a ?? 0, rangeEnd: b ?? undefined, onStep: setMsg });
+      const id = await createProject({ file, name: yt?.title ?? "", brief, briefData: normalizeBrief(bd), count, mode, maxSeconds: maxLen ? Number(maxLen) : undefined, rangeStart: a ?? 0, rangeEnd: b ?? undefined, youtubeId: yt?.id, onStep: setMsg });
+      if (yt) await supabase.from("youtube_picks").update({ project_id: id, source_kind: "original", updated_at: new Date().toISOString() }).eq("video_id", yt.id);
       router.push(`/app/p/${id}`);
     } catch (x) { setMsg(x instanceof Error ? x.message : "Error inesperado"); setBusy(false); }
+  }
+  /** Selección en el buscador: se conserva (con el brief) aunque aún no haya fuente, y se averigua qué se puede hacer con ella. */
+  async function onYtPick(it: YtItem) {
+    setYt(it); setMsg(null); setYtProject(null);
+    const { data: s } = await supabase.auth.getSession(); const uid = s.session?.user.id;
+    const { data: ws } = await supabase.from("workspaces").select("id").limit(1).single();
+    if (uid && ws) await supabase.from("youtube_picks").upsert({ workspace_id: ws.id, video_id: it.id, title: it.title, channel: it.channel, thumb: it.thumb, status: it.status, duration_sec: it.durationSec ?? null, scheduled_at: it.scheduledAt ?? null, brief: brief || null, clip_count: Math.min(20, count), created_by: uid, updated_at: new Date().toISOString() }, { onConflict: "workspace_id,video_id,created_by" });
+    const { data: pj } = await supabase.from("projects").select("id").eq("youtube_id", it.id).is("deleted_at", null).order("created_at", { ascending: false }).limit(1);
+    if (pj?.[0]) setYtProject(pj[0].id);
   }
   async function pickAudio(f: File | undefined) {
     if (!f || busy) return;
@@ -109,13 +124,22 @@ export default function Dashboard() {
           {tab === "clips" ? (
             <form onSubmit={submit}>
               <input ref={fileInput} id="file" type="file" accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm" className="sr-only" onChange={(e) => pick(e.target.files?.[0] ?? null)} />
-              <label htmlFor="file" onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)} onDrop={(e) => { e.preventDefault(); setDrag(false); pick(e.dataTransfer.files?.[0] ?? null); }}
+              {mode === "clips" && <div role="group" aria-label="Origen del vídeo" className="mb-3 inline-flex rounded-full bg-[var(--hover)] p-0.5 text-sm">{([["file", "Subir archivo"], ["youtube", "Buscar en YouTube"]] as const).map(([k, l]) => <button key={k} type="button" aria-pressed={origin === k} onClick={() => { setOrigin(k); setMsg(null); }} className={`rounded-full px-4 py-1.5 ${origin === k ? "bg-[#111] text-white" : "text-[var(--muted)]"}`}>{l}</button>)}</div>}
+              {mode === "clips" && origin === "youtube" && (!yt ? <YouTubeSearch onPick={onYtPick} /> : (() => { const st = nextStep(yt, { original: !!ytProject, signal: false });
+                return (<div className="rounded-2xl border hairline bg-white p-3">
+                  <div className="flex items-center gap-3">{/* eslint-disable-next-line @next/next/no-img-element */}<img src={yt.thumb} alt="" className="h-14 w-24 shrink-0 rounded-lg object-cover" /><div className="min-w-0 flex-1"><div className="line-clamp-2 text-sm font-medium">{yt.title}</div><div className="truncate text-xs text-[var(--muted)]">{yt.channel} · {yt.status === "live" ? "En directo ahora" : yt.status === "upcoming" ? "Directo programado" : "Vídeo publicado"}</div></div><button type="button" onClick={() => { setYt(null); setYtProject(null); setFile(null); }} className="btn btn-ghost !px-3 !py-1.5 !text-xs">Cambiar</button></div>
+                  <p className="mt-3 text-sm text-[var(--muted)]">{st.why}</p>
+                  {st.action === "generate" && ytProject && <Link href={`/app/p/${ytProject}`} className="btn btn-primary mt-3">Generar clips</Link>}
+                  {(st.action === "connect_signal" || st.action === "prepare_scheduled" || st.action === "activate_live") && <Link href={`/app/en-vivo?yt=${yt.id}&title=${encodeURIComponent(yt.title)}${brief ? `&brief=${encodeURIComponent(brief.slice(0, 600))}` : ""}`} className="btn btn-primary mt-3">{st.label}</Link>}
+                  {st.action === "link_original" && <p className="mt-2 text-xs text-[var(--muted)]">Tu selección y tu brief se conservan. Elige el archivo original abajo y pulsa «Obtener clips».</p>}
+                </div>); })())}
+              {(mode !== "clips" || origin === "file" || (yt && !ytProject && yt.status === "video")) && <label htmlFor="file" onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)} onDrop={(e) => { e.preventDefault(); setDrag(false); pick(e.dataTransfer.files?.[0] ?? null); }}
                 className={`flex cursor-pointer items-center gap-4 rounded-2xl border border-dashed bg-white px-5 py-5 transition-colors focus-within:shadow-[var(--ring)] ${drag ? "border-[#111] bg-[var(--hover)]" : "hairline hover:border-[#bdbdbd]"}`}>
                 <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#111] text-white"><Icon n="upload" /></span>
                 {file ? <span className="min-w-0 flex-1"><span className="block truncate font-medium">{file.name}</span><span className="mono text-xs text-[var(--muted)]">{(file.size / 1048576).toFixed(1)} MB{dur ? ` · ${Math.floor(dur / 60)}:${String(Math.round(dur % 60)).padStart(2, "0")}` : ""}</span></span>
                   : <span className="min-w-0 flex-1"><span className="block font-medium">Suelta tu vídeo aquí o elige un archivo</span><span className="text-sm text-[var(--muted)]">MP4, MOV o WebM, hasta {MAX_UPLOAD_BYTES / 1048576} MB</span></span>}
                 <span className="btn btn-ghost hidden sm:inline-flex">{file ? "Cambiar" : "Subir"}</span>
-              </label>
+              </label>}
 
               {mode === "clips" ? (
                 <div className="mt-4"><BriefFields value={bd} onChange={setBd} compact /></div>
@@ -126,7 +150,7 @@ export default function Dashboard() {
               <div className="mt-4 flex flex-wrap items-center gap-3">
                 <button type="button" onClick={() => setAdv(!adv)} aria-expanded={adv} className="chip"><Icon n={adv ? "chevD" : "chevR"} className="h-3 w-3" />Ajustes</button>
                 <span className="mono text-xs text-[var(--muted)]">{mode === "clips" ? `${count} clips` : recipe.label}{maxLen ? ` · hasta ${maxLen} s` : ""}{from || to ? ` · ${from || "0:00"}–${to || "fin"}` : ""}</span>
-                <button disabled={busy || !file} className="btn btn-primary ml-auto px-6 py-2.5">{busy ? "Subiendo…" : mode === "clips" ? "Obtener clips" : `Crear con ${recipe.label}`}</button>
+                <button disabled={busy || !file || (origin === "youtube" && (!yt || yt.status !== "video"))} className="btn btn-primary ml-auto px-6 py-2.5">{busy ? "Subiendo…" : mode === "clips" ? "Obtener clips" : `Crear con ${recipe.label}`}</button>
               </div>
               {adv && (
                 <div className="mt-3 grid gap-3 rounded-2xl border hairline bg-white p-4 text-sm sm:grid-cols-2">

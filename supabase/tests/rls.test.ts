@@ -61,6 +61,8 @@ before(async () => {
   await db.exec("alter table storage.objects add column if not exists metadata jsonb;");   // Storage real guarda size/eTag aquí
   await db.exec(readFileSync(new URL("../migrations/20261110000024_library.sql", import.meta.url), "utf8"));
   await db.exec(readFileSync(new URL("../migrations/20261110000025_reframe.sql", import.meta.url), "utf8"));
+  await db.exec(readFileSync(new URL("../migrations/20261110000026_youtube_picks.sql", import.meta.url), "utf8"));
+  await db.exec(readFileSync(new URL("../migrations/20261110000027_ai_usage.sql", import.meta.url), "utf8"));
   await db.exec("grant execute on function public.share_view(text), public.share_comment(text, uuid, numeric, text, text), public.share_decide(text, uuid, text, text, text), public.share_path_ok(text) to anon;");
   await db.exec("grant select, insert, delete on public.songs to authenticated; grant select on public.song_alignments, public.lyric_videos to authenticated; grant execute on function public.request_lyrics(uuid, jsonb, text) to authenticated;");
   await db.exec("grant execute on function public.request_detection(uuid, text) to authenticated; grant execute on function public.request_render(uuid, int, text, boolean) to authenticated;");
@@ -629,4 +631,58 @@ test("reencuadre: petición validada, reutilizada, aislada por workspace y servi
   const claimed = (await db.query<{ kind: string; status: string; params: { track_id: string } }>(`select kind, status, params from public.claim_job()`)).rows;
   assert.equal(claimed.length, 1); assert.equal(claimed[0].kind, "reframe"); assert.equal(claimed[0].status, "validating");
   assert.equal((await db.query<{ n: number }>(`select count(*)::int n from pg_constraint where conname='jobs_kind_check' and pg_get_constraintdef(oid) like '%reframe%'`)).rows[0].n, 1);
+});
+
+test("selecciones de YouTube: solo identidad validada, aisladas por workspace y sin cambiar de dueño", async () => {
+  const ins = (ws: string, uid: string, vid = "dQw4w9WgXcQ", extra = "") => `insert into youtube_picks(workspace_id, video_id, title, channel, thumb, status, brief, created_by${extra ? ", " + extra.split("=")[0] : ""}) values ('${ws}','${vid}','Mi directo','Canal','https://i.ytimg.com/vi/${vid}/mq.jpg','live','cinco cortes','${uid}'${extra ? ", " + extra.split("=")[1] : ""})`;
+  const R = async (l: number, sql: string) => { try { await db.query(sql); } catch { return; } assert.fail(`no rechazó la sentencia #${l}: ${sql.slice(0, 90)}`); };
+  await asUser(A, async () => {
+    await db.query(ins(wsA, A));
+    await R(10, ins(wsA, A));                                       // una selección por vídeo y usuario
+    await R(11, ins(wsA, A, "corto"));                              // ID de YouTube inválido
+    await R(1, `insert into youtube_picks(workspace_id, video_id, title, thumb, status, created_by) values ('${wsA}','aaaaaaaaaaa','x','https://evil.example/x.jpg','live','${A}')`);   // miniatura solo de ytimg.com
+    await R(2, `insert into youtube_picks(workspace_id, video_id, title, status, created_by) values ('${wsA}','bbbbbbbbbbb','x','otro','${A}')`);
+    await R(3, `insert into youtube_picks(workspace_id, video_id, title, status, clip_count, created_by) values ('${wsA}','ccccccccccc','x','video',99,'${A}')`);
+    await R(12, ins(wsA, B, "ddddddddddd"));                        // no se crea a nombre de otro usuario
+    await R(13, ins(wsB, A, "eeeeeeeeeee"));                        // ni en un workspace ajeno
+    await db.query(`update youtube_picks set brief='otro encargo', source_kind='signal' where video_id='dQw4w9WgXcQ'`);
+    await R(4, `update youtube_picks set workspace_id='${wsB}' where video_id='dQw4w9WgXcQ'`);   // sin privilegio de columna
+    await R(5, `update youtube_picks set created_by='${B}' where video_id='dQw4w9WgXcQ'`);
+    await R(6, `update youtube_picks set source_kind='hack' where video_id='dQw4w9WgXcQ'`);
+    await R(7, `update projects set youtube_id='no valido' where id = (select id from projects limit 1)`);
+  });
+  await asUser(B, async () => {
+    assert.equal((await db.query(`select * from youtube_picks`)).rows.length, 0, "otro workspace no ve la selección");
+    assert.equal((await db.query(`update youtube_picks set title='x' returning id`)).rows.length, 0, "no puede editar la de otro workspace");
+    assert.equal((await db.query(`delete from youtube_picks returning id`)).rows.length, 0, "ni puede borrarla");
+  });
+  await asUser(null, async () => { await R(9, `select * from youtube_picks`); });
+  await asUser(A, async () => { assert.equal((await db.query(`delete from youtube_picks where video_id='dQw4w9WgXcQ' returning id`)).rows.length, 1); });
+});
+
+test("coste y límites de IA: solo responsables ven costes y editan límites; el consumo solo lo escribe el servicio", async () => {
+  await db.exec(`insert into ai_usage(workspace_id, kind, provider, model, units, cost_usd, billed_usd, measured) values
+    ('${wsA}','stt','groq','whisper-large-v3-turbo','{"seconds":3600}',0.04,0,true),
+    ('${wsA}','render','github-actions','ffmpeg','{"ms":120000}',0.016,0,false)`);
+  await asUser(A, async () => {
+    const s = (await db.query<{ s: Record<string, unknown> }>(`select public.ai_usage_summary() s`)).rows[0].s as { week_source_minutes: number; month_cost_usd: number; month_measured_usd: number; limits: Record<string, number>; can_edit_limits: boolean };
+    assert.equal(s.week_source_minutes, 60); assert.ok(Math.abs(s.month_cost_usd - 0.056) < 1e-6); assert.ok(Math.abs(s.month_measured_usd - 0.04) < 1e-6, "separa medido de estimado");
+    assert.equal(s.limits.weekly_source_minutes, 120); assert.equal(s.limits.batch_clips, 10); assert.equal(s.can_edit_limits, true);
+    const upd = (await db.query<{ l: Record<string, number> }>(`select public.set_ai_limits('{"weekly_source_minutes": 200, "live_minutes": 45}') l`)).rows[0].l;
+    assert.equal(upd.weekly_source_minutes, 200); assert.equal(upd.live_minutes, 45); assert.equal(upd.batch_clips, 10);
+    await rejects(`select public.set_ai_limits('{"weekly_source_minutes": 999999}')`);   // tope duro
+    await rejects(`select public.set_ai_limits('{"weekly_source_minutes": -1}')`);
+    await rejects(`select public.set_ai_limits('{"inventado": 1}')`);
+    await rejects(`select public.set_ai_limits('{"batch_clips": "mucho"}')`);
+    assert.equal((await db.query(`select * from ai_usage`)).rows.length, 2, "el responsable lee el detalle");
+    await rejects(`insert into ai_usage(workspace_id, kind, provider, model) values ('${wsA}','stt','x','y')`);
+    await rejects(`update workspace_ai_limits set limits='{}'`);
+    await rejects(`delete from ai_usage`);
+  });
+  await asUser(B, async () => {
+    assert.equal((await db.query(`select * from ai_usage`)).rows.length, 0, "otro workspace no ve consumo ajeno");
+    const sb = (await db.query<{ s: { week_source_minutes: number; month_cost_usd?: number } }>(`select public.ai_usage_summary() s`)).rows[0].s;
+    assert.equal(sb.week_source_minutes, 0); assert.equal(sb.month_cost_usd, 0, "B es responsable de SU espacio: ve su coste (0), nunca el de A");
+  });
+  await asUser(null, async () => { await rejects(`select public.ai_usage_summary()`); await rejects(`select public.set_ai_limits('{}')`); });
 });

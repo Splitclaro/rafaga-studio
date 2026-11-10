@@ -6,7 +6,7 @@ import { StatusLabel, pieceStatus, fmtDur } from "./status";
 
 export type WallClip = {
   id: string; title: string; title_source: string; thumb?: string; url?: string; path?: string; bytes?: number; favorite: boolean; version: number; ratio?: string;
-  review_status: string; approved_version: number | null; current_version: number; durMs?: number; score?: number | null; reason?: string | null; brief_fit?: string | null; created_at: string; hasRender: boolean;
+  review_status: string; approved_version: number | null; current_version: number; durMs?: number; score?: number | null; reason?: string | null; brief_fit?: string | null; startMs?: number; endMs?: number; created_at: string; hasRender: boolean;
 };
 
 /** Tarjeta de pieza: miniatura grande, selección, duración, estado con texto+icono y acción de revisión. Útil sin hover. */
@@ -45,6 +45,8 @@ function ClipCardBase({ c, selected, previewing, onSelect, onPreview, aspect = "
         <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1"><StatusLabel status={st.status} note={st.note} /><span className="tnum text-xs text-[var(--muted)]">{c.ratio ?? "—"} · v{c.version}</span></div>
         {st.note && <p className="mt-1 text-[11px] leading-snug text-[var(--muted)]">{st.note}</p>}
         {c.score != null && <p className="mt-1 text-[11px] text-[var(--muted)]" title={c.brief_fit ?? c.reason ?? undefined}>Encaje estimado {Math.round(c.score * 10)}/100{c.brief_fit ? ` · ${c.brief_fit}` : ""}</p>}
+        {c.startMs != null && c.endMs != null && <p className="tnum mt-0.5 text-[11px] text-[var(--muted)]">Origen {fmtDur(c.startMs)}–{fmtDur(c.endMs)}</p>}
+        {c.reason && <p className="mt-1 line-clamp-4 text-[12px] leading-snug text-[var(--text)]" title={c.reason}>{c.reason}</p>}
         <Link href={`/app/r/${c.id}`} className="btn btn-ghost mt-2.5 w-full !py-1.5 !text-xs">Abrir revisión</Link>
       </div>
     </li>

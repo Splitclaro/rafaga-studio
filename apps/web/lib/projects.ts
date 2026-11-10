@@ -48,7 +48,7 @@ export function makeThumb(f: File): Promise<Blob | null> {
   });
 }
 
-export type CreateArgs = { file: File; name: string; brief: string; briefData?: unknown; count: number; mode?: ProjectMode; maxSeconds?: number; rangeStart?: number; rangeEnd?: number; onStep: (s: string) => void };
+export type CreateArgs = { file: File; name: string; brief: string; briefData?: unknown; count: number; mode?: ProjectMode; maxSeconds?: number; rangeStart?: number; rangeEnd?: number; youtubeId?: string; onStep: (s: string) => void };
 
 /** Crea fuente → sube el vídeo (y su portada) → crea proyecto. Devuelve el id del proyecto. */
 export async function createProject(a: CreateArgs): Promise<string> {
@@ -76,6 +76,7 @@ export async function createProject(a: CreateArgs): Promise<string> {
     workspace_id: ws.id, source_id: srcId, name: a.name.trim() || a.file.name.replace(/\.[^.]+$/, ""), created_by: uid,
     project_brief: a.brief.trim() || null, brief_data: a.briefData ?? null, clip_count: a.count, mode: a.mode ?? "clips",
     ...(a.maxSeconds ? { max_seconds: a.maxSeconds, target_seconds: Math.min(60, a.maxSeconds) } : {}),
+    ...(a.youtubeId ? { youtube_id: a.youtubeId } : {}),
   }).select("id").single();
   if (e4 || !prj) throw new Error(e4?.message ?? "No se pudo crear el proyecto.");
   return prj.id;

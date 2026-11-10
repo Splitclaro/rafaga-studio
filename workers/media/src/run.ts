@@ -6,16 +6,22 @@ import { mkdtempSync, writeFileSync, readFileSync, rmSync, existsSync, mkdirSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildAss, buildComposition, ffmpegArgs, styleForRatio, renderFamily, groupsFrom, toSRT, toVTT, toTranscript, sanitizeLogo, type BrandLogo, validateStyle, SYSTEM_FONT, escapeFilterPath, PRESETS, RATIO_SIZE, type Composition, type Ratio, type Word } from "@rafaga/composition";
-import { transcribe, proposeClips, safeGet, parseFeed, captureHls, concatWindow, type WindowOut } from "@rafaga/providers";
+import { proposeClips, safeGet, groqProposeClips, aiConfig, llmLine, renderLine, storageLine, transferLine, loadTariffs, type Line, parseFeed, captureHls, concatWindow, type WindowOut } from "@rafaga/providers";
+import { audioMomentsFromPcm } from "@rafaga/lyrics";
+import { transcribeAuto } from "./asr.ts";
+import { contextTail, freshCandidates, reserveLiveChunk, type Span } from "@rafaga/providers";
+import { recordUsage, enforceQuota, loadLimits, loadUsage } from "./ledger.ts";
 import { scanFaces, reframePath } from "./reframe.ts";
 import { alignLyrics, lyricsFromAsr, parseLyrics, planVariants, lyricFfmpegArgs, sequenceFor, DEFAULT_BG, LOOKS, resolveLook, varyLook, layoutLyrics, layoutToAss, planShots, planShotsOnBeats, detectBeats, beatsReliable, type BeatResult, lookFfmpegArgs, canvasSize, LOOK_ENGINE_VERSION, type BgItem, type BgSettings, type TimedWord, type ShotItem, type DeepPartial, type LyricLook, planMore, restoreShots, swapShots, type MoreLock, type SavedShot, type VariantSpec } from "@rafaga/lyrics";
 import { extractThumb } from "./thumb.ts";
 import { ZipBuilder } from "./zip.ts";
-import { briefHash, RUBRIC_VERSION, validateCandidates, windows, transcriptText, lexicalCandidates, LEXICAL_VERSION, suggestTitle, normalizeBrief, composeBrief, lexicalBrief, BRIEF_VERSION, type TWord, type RawCandidate } from "@rafaga/selection";
+import { interpretBrief, refineBounds, padBounds, briefHash, RUBRIC_VERSION, validateCandidates, windows, transcriptText, lexicalCandidates, LEXICAL_VERSION, suggestTitle, normalizeBrief, composeBrief, lexicalBrief, BRIEF_VERSION, type TWord, type RawCandidate } from "@rafaga/selection";
 
 const need = (k: string) => { const v = process.env[k]; if (!v) { console.error(`Falta el secreto ${k}`); process.exit(2); } return v; };
 const sb = createClient(need("SUPABASE_URL"), need("SUPABASE_SECRET_KEY"), { auth: { persistSession: false } });
-const DG = need("DEEPGRAM_API_KEY"), AN = process.env.ANTHROPIC_API_KEY ?? "";
+const DG = process.env.DEEPGRAM_API_KEY ?? "", AN = process.env.ANTHROPIC_API_KEY ?? "";   // al menos un proveedor de transcripción: Deepgram o Groq
+const AI = aiConfig(process.env), TARIFFS = loadTariffs(process.env.AI_TARIFFS);
+if (!DG && !AI.key) throw new Error("Falta DEEPGRAM_API_KEY o GROQ_API_KEY");
 const MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-5-5";
 
 const sh = (cmd: string, args: string[]) => {
@@ -47,7 +53,7 @@ async function fontsFor(ws: string, family: string, dir: string): Promise<string
   return fd;
 }
 
-type Job = { id: string; kind: string; workspace_id: string; project_id: string | null; clip_id: string | null; attempts: number; params: { session_id?: string; rule_id?: string; manual?: boolean; version?: number; ratio?: Ratio; burn?: boolean; song_id?: string; n?: number; styles?: string[]; backgrounds?: string[]; seed?: number; start?: number; end?: number; collection_id?: string | null; settings?: Partial<BgSettings> & { textScale?: number }; res?: 1080 | 720; native?: boolean; variation?: number; look_overrides?: Record<string, DeepPartial<LyricLook>>; more?: { from_video: string; lock: MoreLock; swap?: number[] } } };
+type Job = { id: string; kind: string; workspace_id: string; project_id: string | null; clip_id: string | null; attempts: number; params: { session_id?: string; rule_id?: string; manual?: boolean; version?: number; ratio?: Ratio; burn?: boolean; song_id?: string; n?: number; styles?: string[]; backgrounds?: string[]; seed?: number; start?: number; end?: number; collection_id?: string | null; settings?: Partial<BgSettings> & { textScale?: number }; res?: 1080 | 720; native?: boolean; variation?: number; look_overrides?: Record<string, DeepPartial<LyricLook>>; live?: { session_id: string; abs_start: number; skip_before: number; window_end_ms?: number }; more?: { from_video: string; lock: MoreLock; swap?: number[] } } };
 const setStatus = (id: string, status: string, extra: Record<string, unknown> = {}) =>
   sb.from("jobs").update({ status, heartbeat_at: new Date().toISOString(), updated_at: new Date().toISOString(), ...extra }).eq("id", id);
 
@@ -122,16 +128,22 @@ async function processJob(job: Job) {
       const audio = join(dir, "a.ogg");
       sh("ffmpeg", ["-y", "-v", "error", "-i", inp, "-vn", "-ac", "1", "-ar", "16000", "-c:a", "libopus", "-b:a", "24k", audio]);
       await setStatus(job.id, "transcribing");
+      // Cuota previa: los minutos de ESTA fuente (o de su tramo) frente a los límites semanales y globales. Lo transcrito antes no vuelve a contar.
+      const srcMin = (src.range_start_ms != null && src.range_end_ms ? (src.range_end_ms - src.range_start_ms) : durationMs) / 60000;
+      const warn = await enforceQuota(sb, project.workspace_id, { sourceMinutes: srcMin, clips: Math.min(20, project.clip_count) });
+      if (warn) m.quota_warning = warn;
       const t1 = Date.now();
-      const res = await transcribe(readFileSync(audio), "audio/ogg", DG, project.language);
-      m.asr_ms = Date.now() - t1;
-      if (!res.words.length) throw Object.assign(new Error("No se detectó voz en el audio (¿solo música o silencio?). La detección de momentos necesita habla; para canciones usa Lyric Studio."), { permanent: true, code: "no_speech" });
-      tr = ok(await sb.from("transcripts").insert({ workspace_id: project.workspace_id, source_id: src.id, language: res.language, words: res.words, asr_provider: "deepgram", asr_model: "nova-3" }).select("id,words,language").single(), "transcript");
+      const res = await transcribeAuto(audio, durationMs / 1000, { language: project.language, dgKey: DG, tariffs: TARIFFS });
+      m.asr_ms = Date.now() - t1; m.asr_provider = res.provider; m.asr_model = res.model; if (res.fallbackNote) m.asr_note = res.fallbackNote;
+      await recordUsage(sb, { ws: project.workspace_id, projectId: project.id, jobId: job.id, lines: res.lines });
+      m.speech_words = res.words.length;   // con poca voz (música, sesiones de DJ) se selecciona por energía del audio, no por texto
+      tr = ok(await sb.from("transcripts").insert({ workspace_id: project.workspace_id, source_id: src.id, language: res.language, words: res.words, asr_provider: res.provider, asr_model: res.model }).select("id,words,language").single(), "transcript");
     } else m.asr_ms = 0; // reutilizado
     if (!tr) throw new Error("transcript no disponible");
     const rs = src.range_start_ms != null && src.range_end_ms ? src.range_start_ms / 1000 : null, re = src.range_end_ms ? src.range_end_ms / 1000 : null;
     const words = (tr.words as TWord[]).filter((w) => rs == null || re == null || (w.start >= rs && w.end <= re));
-    if (!words.length) throw Object.assign(new Error("No hay habla en el tramo elegido."), { permanent: true, code: "no_speech_range" });
+    const musicMode = words.length < 20;   // casi sin voz: sesión musical / DJ → selección por energía y transiciones
+    if (musicMode && project.mode !== "clips" && !words.length) throw Object.assign(new Error("No hay habla en el tramo elegido."), { permanent: true, code: "no_speech_range" });
     if (project.mode !== "clips") return await processWhole(job, project, src, dir, path, words, t0, m, tr.id);
 
     // 2) Selección guiada por brief
@@ -141,21 +153,62 @@ async function processJob(job: Job) {
     const bdata = normalizeBrief(project.brief_data);
     const brief = (bdata ? composeBrief(bdata) : (project.project_brief as string | null)) || null;
     const lexBrief = bdata ? lexicalBrief(bdata) : brief;
+    // Criterio editorial: el encargo en lenguaje natural puede fijar cantidad, duración y exclusiones obligatorias
+    const intent = interpretBrief(lexBrief);
+    const wantCount = Math.min(20, intent.count ?? project.clip_count), minSec = intent.minSec ?? 12, maxSec = Math.max(minSec + 1, intent.maxSec ?? project.max_seconds);
+    if (intent.clarify) m.clarify = intent.clarify;
+    m.intent = JSON.stringify({ count: intent.count, minSec: intent.minSec, maxSec: intent.maxSec, kinds: intent.kinds, exclude: intent.exclude.length, soft: intent.soft.length, payoff: intent.wantsPayoff });
     let raw: RawCandidate[] = [];
     let selector = MODEL, fallbackReason: string | null = null;
+    const llmLines: Line[] = [];
     try {
-      if (!AN) throw new Error("ANTHROPIC_API_KEY no configurada");
-      for (const w of windows(words, 600, 45)) {
-        raw.push(...(await proposeClips({ key: AN, model: MODEL, brief, windowText: transcriptText(words, w.from, w.to), target: `${project.target_seconds}s (máx ${project.max_seconds}s)` })));
+      const useGroq = !!AI.key && (process.env.LLM_PROVIDER === "groq" || !AN);
+      if (!useGroq && !AN) throw new Error("Sin proveedor de IA editorial configurado (ANTHROPIC_API_KEY o GROQ_API_KEY)");
+      if (words.length >= 20) {
+        let tIn = 0, tOut = 0;
+        for (const w of windows(words, 600, 45)) {
+          const target = `${project.target_seconds}s (máx ${project.max_seconds}s)`;
+          if (useGroq) { const r = await groqProposeClips(AI, { brief, windowText: transcriptText(words, w.from, w.to), target }); raw.push(...r.clips); tIn += r.usage.tokensIn; tOut += r.usage.tokensOut; }
+          else { raw.push(...(await proposeClips({ key: AN, model: MODEL, brief, windowText: transcriptText(words, w.from, w.to), target }))); tIn += Math.round(transcriptText(words, w.from, w.to).length / 4); tOut += 400; }
+        }
+        selector = useGroq ? `groq:${AI.editorialModel}` : MODEL;
+        llmLines.push(llmLine(TARIFFS, useGroq ? "groq" : "anthropic", useGroq ? AI.editorialModel : MODEL, tIn, tOut, useGroq));   // Anthropic: tokens estimados (el cliente actual no devuelve el uso)
       }
     } catch (e) {
       // Respaldo sin IA, etiquetado: el usuario ve que la selección es léxica.
       fallbackReason = (e as Error).message.slice(0, 200);
       selector = LEXICAL_VERSION;
-      raw = lexicalCandidates(words, lexBrief, { minSec: 12, maxSec: project.max_seconds, count: project.clip_count });
+      raw = lexicalCandidates(words, lexBrief, { minSec, maxSec, count: wantCount });
     }
     m.selector = selector;
-    const { accepted, rejected } = validateCandidates(words, raw, { minSec: 12, maxSec: project.max_seconds, count: project.clip_count, hasBrief: !!brief?.trim() });
+    // Entrada y salida con criterio: recupera la frase que da contexto, incluye la pregunta y deja oír el remate (también sobre lo que propone la IA)
+    if (selector !== LEXICAL_VERSION) raw = raw.map((c) => { try { const r = refineBounds(words, c.startWord, c.endWord, { maxSec, wantsPayoff: intent.wantsPayoff, wantsQuestion: intent.wantsQuestion }); return { ...c, startWord: r.a, endWord: r.b, reason: r.changes.length ? `${c.reason} (${r.changes.join("; ")})` : c.reason }; } catch { return c; } });
+    const v0 = validateCandidates(words, raw, { minSec, maxSec, count: wantCount, hasBrief: !!brief?.trim() });
+    const rejected = v0.rejected;
+    let accepted: (typeof v0.accepted[number])[] = v0.accepted.map((c) => ({ ...c, ...padBounds(words, c.startWord, c.endWord) }));
+    if (job.params.live) {   // Directo: fuera lo que pertenece al contexto ya cubierto y lo ya entregado en la sesión (reconexiones incluidas)
+      const lv = job.params.live;
+      const { data: wins } = await sb.from("live_windows").select("project_id,abs_start").eq("session_id", lv.session_id);
+      const delivered: Span[] = [];
+      for (const w of wins ?? []) { if (!w.project_id || w.project_id === project.id) continue;
+        const { data: cs } = await sb.from("clip_candidates").select("start_ms,end_ms,generations!inner(project_id)").eq("generations.project_id", w.project_id);
+        for (const c of cs ?? []) delivered.push({ start: Number(w.abs_start) + c.start_ms / 1000, end: Number(w.abs_start) + c.end_ms / 1000 }); }
+      const fr = freshCandidates(accepted.map((c) => ({ c, start: c.startSec, end: c.endSec })), { absStart: lv.abs_start, skipBefore: lv.skip_before, delivered });
+      m.live_dropped = fr.dropped.map((d) => d.why).join(","); accepted = fr.fresh.map((x) => x.c);
+    }
+    if (musicMode) {   // Música / DJ: momentos por subidas de energía con su preparación (estimación a partir del volumen, no de la voz)
+      const inpM = join(dir, "in");
+      if (!existsSync(inpM)) { const dm = await sb.storage.from("originals").download(path); if (dm.error || !dm.data) throw new Error(`descarga: ${dm.error?.message}`); writeFileSync(inpM, Buffer.from(await dm.data.arrayBuffer())); }
+      const off = rs ?? 0;
+      const pcmR = spawnSync("ffmpeg", ["-v", "error", ...(rs != null ? ["-ss", String(rs)] : []), ...(re != null ? ["-t", String(re - (rs ?? 0))] : []), "-i", inpM, "-vn", "-ac", "1", "-ar", "4000", "-f", "f32le", "-"], { maxBuffer: 1 << 30 });
+      if (pcmR.status !== 0) throw new Error("No se pudo analizar el audio para buscar momentos musicales.");
+      const b = pcmR.stdout as Buffer; const pcm = new Float32Array(b.buffer.slice(b.byteOffset, b.byteOffset + b.length - (b.length % 4)));
+      const ms = audioMomentsFromPcm(pcm, 4000, { minSec: Math.max(15, intent.minSec ?? 15), maxSec: Math.min(60, maxSec), count: wantCount, prepSec: 8 });
+      selector = "lexical-audio-energy-v1"; fallbackReason = null;
+      accepted = ms.map((x, i) => ({ startWord: -1, endWord: -1, title: `${x.kind === "drop" ? "Entrada" : "Momento de máxima energía"} a los ${Math.floor((x.start + off) / 60)}:${String(Math.floor((x.start + off) % 60)).padStart(2, "0")}`,
+        reason: `${x.why.join(". ")}. Estimación por volumen del audio.`, briefFit: "Sesión con poca voz: selección por energía", scores: { relevance: 5, hook: 7, standalone: 6, closure: 6 }, startSec: +(x.start + off).toFixed(2), endSec: +(x.end + off).toFixed(2), overall: x.score / 10 - i * 0.001 }));
+      m.music = 1; m.moments = ms.length;
+    }
     m.selection_ms = Date.now() - t2; m.raw = raw.length; m.accepted = accepted.length; m.rejected = rejected.length;
 
     const gen = ok(await sb.from("generations").insert({ workspace_id: project.workspace_id, project_id: project.id, transcript_id: tr.id, brief_snapshot: brief, brief_sha256: briefHash(brief), rubric_version: RUBRIC_VERSION, model: selector, params: { clip_count: project.clip_count, max_seconds: project.max_seconds, rejected, fallbackReason, brief_data: bdata, brief_version: BRIEF_VERSION }, status: "running" }).select("id").single(), "generación");
@@ -187,10 +240,16 @@ async function processJob(job: Job) {
       m[`render_ms_${i}`] = Date.now() - t3;
       if (i === 0) firstClipMs = Date.now() - t0;
         };
-    if (accepted.length) await renderOne(0, accepted[0]);          // primer clip antes que el lote
-    const rest = accepted.slice(1).map((c, k) => [k + 1, c] as const);
+    const byValue = [...accepted].sort((x, y) => y.overall - x.overall);   // el mejor primero: es el que el usuario descargará antes
+    if (byValue.length) await renderOne(0, byValue[0]);          // primer clip antes que el lote
+    const rest = byValue.slice(1).map((c, k) => [k + 1, c] as const);
     for (let k = 0; k < rest.length; k += 2) await Promise.all(rest.slice(k, k + 2).map(([i, c]) => renderOne(i, c)));
     m.first_clip_ms = firstClipMs; m.all_clips_ms = Date.now() - t0;
+    {   // Coste del lote: IA editorial (medido si el proveedor devuelve tokens), render (estimado por tiempo de worker), almacenamiento y descarga (estimados)
+      const renderMs = Object.entries(m).filter(([k]) => k.startsWith("render_ms_")).reduce((a, [, v]) => a + Number(v), 0);
+      const bytes = byValue.length * 20 * 1048576;   // ≈20 MB por clip de 40 s (medido en el benchmark)
+      await recordUsage(sb, { ws: project.workspace_id, projectId: project.id, jobId: job.id, lines: [...llmLines, renderLine(TARIFFS, renderMs), storageLine(TARIFFS, bytes), transferLine(TARIFFS, bytes)] });
+    }
     await sb.from("generations").update({ status: "done" }).eq("id", gen.id);
     await setStatus(job.id, "done", { generation_id: gen.id, metrics: m });
     console.log("job ok", job.id, m);
@@ -388,8 +447,9 @@ async function processLyrics(job: Job) {
       const ogg = join(dir, "a.ogg");
       sh("ffmpeg", ["-y", "-v", "error", "-i", seg, "-ac", "1", "-ar", "16000", "-c:a", "libopus", "-b:a", "32k", ogg]);
       const t1 = Date.now();
-      const tr = await transcribe(readFileSync(ogg), "audio/ogg", DG, song.language as "auto" | "es" | "en");
-      m.asr_ms = Date.now() - t1; m.asr_words = tr.words.length;
+      const tr = await transcribeAuto(ogg, len, { language: song.language as "auto" | "es" | "en", dgKey: DG, tariffs: TARIFFS });
+      m.asr_ms = Date.now() - t1; m.asr_words = tr.words.length; m.asr_provider = tr.provider;
+      await recordUsage(sb, { ws: song.workspace_id, jobId: job.id, lines: tr.lines });
       const lines = song.lyrics_text ? parseLyrics(song.lyrics_text) : [];
       words = lines.length ? alignLyrics(lines, tr.words) : lyricsFromAsr(tr.words);
       if (!words.length) throw Object.assign(new Error("No se detectó voz cantada en el tramo. Aporta la letra o elige otro tramo."), { permanent: true });
@@ -673,6 +733,10 @@ async function processLive(job: Job, deadlineSec: number) {
     await setStatus(job.id, "extracting");
     let idx = Number((await sb.from("live_windows").select("idx").eq("session_id", ses.id).order("idx", { ascending: false }).limit(1)).data?.[0]?.idx ?? -1) + 1;
     let lastCheck = 0, lastProg = 0, active = true;
+    // Contexto entre ventanas y cuota por tramos
+    const prior = (await sb.from("live_windows").select("seconds").eq("session_id", ses.id)).data ?? [];
+    let cum = prior.reduce((a, x) => a + Number(x.seconds), 0), prevFile: string | null = null, prevSec: number | null = null, capturedNow = 0, quotaStop: string | null = null;
+    const [liveLim, liveUse] = await Promise.all([loadLimits(sb, ses.workspace_id), loadUsage(sb, ses.workspace_id)]);
     const remaining = Math.max(0, ses.max_seconds - Number(ses.captured_seconds));
     const stats = await captureHls({
       fetch: safeGet, url: ses.hls_url, dir, windowSeconds: ses.window_seconds, minWindowSeconds: 20, maxSeconds: Math.min(remaining, deadlineSec), resumeFromSeq: ses.last_media_seq,
@@ -680,24 +744,41 @@ async function processLive(job: Job, deadlineSec: number) {
         if (Date.now() - lastCheck < 4000) return !active; lastCheck = Date.now();
         const { data } = await sb.from("live_sessions").select("status").eq("id", ses.id).single();
         active = data?.status === "capturing";
+        // Reserva por tramos de 2 min: si la cuota se agota, se detiene conservando lo ya entregado
+        const rsv = reserveLiveChunk(liveLim, liveUse, 2, (Number(ses.captured_seconds) + capturedNow) / 60);
+        if (active && rsv.grant <= 0) { quotaStop = rsv.reason; active = false; await sb.from("live_sessions").update({ status: "stopped", last_error: rsv.reason }).eq("id", ses.id); }
+        else if (rsv.warn && !ses.last_error) await sb.from("live_sessions").update({ last_error: rsv.warn }).eq("id", ses.id);
         await sb.from("jobs").update({ heartbeat_at: new Date().toISOString() }).eq("id", job.id);
         return !active;
       },
-      onProgress: async (p) => { if (Date.now() - lastProg > 10000) { lastProg = Date.now(); await sb.from("live_sessions").update({ captured_seconds: Number(ses.captured_seconds) + p.capturedSeconds, last_media_seq: p.lastSeq }).eq("id", ses.id); } },
+      onProgress: async (p) => { capturedNow = p.capturedSeconds; if (Date.now() - lastProg > 10000) { lastProg = Date.now(); await sb.from("live_sessions").update({ captured_seconds: Number(ses.captured_seconds) + p.capturedSeconds, last_media_seq: p.lastSeq }).eq("id", ses.id); } },
       onWindow: async (w: WindowOut) => {
         const i = idx++;
         const out = join(dir, `win${i}.mp4`);
-        const c = concatWindow(w.files, out, join(dir, `win${i}.txt`));
+        let c = concatWindow(w.files, out, join(dir, `win${i}.txt`));
         for (const f of w.files) rmSync(f, { force: true });
+        // Contexto compartido: se antepone la cola de la ventana anterior. Si algo falla, se usa la ventana sola (comportamiento anterior).
+        let tail = 0, upFile = out;
+        const T = contextTail(prevSec);
+        if (T > 0 && prevFile) {
+          try {
+            const tf = join(dir, `tail${i}.mp4`), cf = join(dir, `ctx${i}.mp4`);
+            sh("ffmpeg", ["-y", "-v", "error", "-sseof", `-${T}`, "-i", prevFile, "-c", "copy", tf]);
+            c = concatWindow([tf, out], cf, join(dir, `ctx${i}.txt`)); upFile = cf; tail = T; rmSync(tf, { force: true });
+          } catch (e) { console.error("contexto de ventana omitido:", (e as Error).message.slice(0, 160)); tail = 0; upFile = out; }
+        }
+        const absStart = Math.max(0, cum - tail);
+        if (prevFile && prevFile !== out) rmSync(prevFile, { force: true });
+        prevFile = out; prevSec = w.seconds; cum += w.seconds;
         const srcId = crypto.randomUUID();
-        const up = await sb.storage.from("originals").upload(`${ses.workspace_id}/${srcId}/original`, readFileSync(out), { contentType: "video/mp4" });
-        rmSync(out, { force: true });
+        const up = await sb.storage.from("originals").upload(`${ses.workspace_id}/${srcId}/original`, readFileSync(upFile), { contentType: "video/mp4" });
+        if (upFile !== out) rmSync(upFile, { force: true });
         if (up.error) throw new Error(`subida de ventana: ${up.error.message}`);
         ok(await sb.from("sources").insert({ id: srcId, workspace_id: ses.workspace_id, kind: "live", mime: "video/mp4", bytes: c.bytes, created_by: ses.created_by }).select("id").single(), "fuente");
         const label = new Date(w.startedAtMs).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" });
         const prj = ok(await sb.from("projects").insert({ workspace_id: ses.workspace_id, source_id: srcId, name: `En vivo ${label} (ventana ${i + 1})`, created_by: ses.created_by, project_brief: ses.brief, clip_count: 3 }).select("id").single(), "proyecto");
-        await sb.from("jobs").insert({ workspace_id: ses.workspace_id, kind: "detect", idempotency_key: `detect:live:${ses.id}:${i}`, project_id: prj.id, created_by: ses.created_by });
-        await sb.from("live_windows").insert({ workspace_id: ses.workspace_id, session_id: ses.id, idx: i, seconds: w.seconds, reason: w.reason, project_id: prj.id });
+        await sb.from("jobs").insert({ workspace_id: ses.workspace_id, kind: "detect", idempotency_key: `detect:live:${ses.id}:${i}`, project_id: prj.id, created_by: ses.created_by, params: { live: { session_id: ses.id, abs_start: absStart, skip_before: tail, window_end_ms: Date.now() } } });
+        await sb.from("live_windows").insert({ workspace_id: ses.workspace_id, session_id: ses.id, idx: i, seconds: w.seconds, reason: w.reason, project_id: prj.id, abs_start: absStart, context_seconds: tail });
         await sb.from("live_sessions").update({ windows_done: i + 1 }).eq("id", ses.id);
         console.log("live window", i, Math.round(w.seconds), "s", w.reason, c.reencoded ? "(recodificada)" : "");
       },

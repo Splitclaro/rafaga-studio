@@ -20,6 +20,11 @@ export default function EnVivo() {
   const [url, setUrl] = useState(""); const [brief, setBrief] = useState(""); const [ok, setOk] = useState(false);
   const [msg, setMsg] = useState<string | null>(null); const [busy, setBusy] = useState(false);
   const [summary, setSummary] = useState<string | null>(null);
+  const [yt, setYt] = useState<{ id: string; title: string } | null>(null);   // directo elegido en el buscador de YouTube
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search), id = p.get("yt");
+    if (id && /^[\w-]{11}$/.test(id)) { setYt({ id, title: (p.get("title") ?? "Directo de YouTube").slice(0, 200) }); const b = p.get("brief"); if (b) setBrief(b.slice(0, 600)); }
+  }, []);
 
   const load = useCallback(async () => {
     const { data: ss } = await supabase.from("live_sessions").select("id,hls_url,brief,status,captured_seconds,windows_done,gaps,reconnects,last_error,created_at,started_at,ended_at,max_seconds").order("created_at", { ascending: false }).limit(20);
@@ -54,6 +59,7 @@ export default function EnVivo() {
     const { data, error } = await supabase.rpc("start_live_session", { p_url: url.trim(), p_brief: brief.trim() || null });
     setBusy(false);
     if (error) return setMsg(error.message.includes("session_active") ? "Ya hay una sesión activa en tu espacio. Deténla antes de empezar otra." : error.message);
+    if (yt) await supabase.from("youtube_picks").update({ source_kind: "signal", updated_at: new Date().toISOString() }).eq("video_id", yt.id);
     setSel(data as string); setUrl(""); setBrief(""); setOk(false); setMsg("Sesión en cola. En cuanto el worker la recoja empezará a capturar.");
     const { data: s } = await supabase.auth.getSession();
     fetch("/api/wake", { method: "POST", headers: { Authorization: `Bearer ${s.session?.access_token ?? ""}` } }).catch(() => {});
@@ -84,6 +90,7 @@ export default function EnVivo() {
           <section className="card p-4">
             <h2 className="text-base">Nueva sesión</h2>
             <div className="mt-3 space-y-3 text-sm">
+              {yt && <div role="status" className="rounded-xl border hairline bg-white p-3 text-sm"><b>Directo de YouTube elegido:</b> {yt.title}<p className="mt-1 text-xs text-[var(--muted)]">YouTube no entrega la señal del directo. Pega abajo la lista HLS de tu emisión (por ejemplo, la segunda salida de tu codificador) y Ráfaga empezará a cortar. Tu selección y tu brief se conservan.</p></div>}
               <label className="block">Lista HLS (https, .m3u8)<input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://midominio.com/directo/index.m3u8" className="input mono mt-1" disabled={!!active} /></label>
               <label className="block">¿Qué momentos te interesan? (opcional)<textarea value={brief} onChange={(e) => setBrief(e.target.value)} rows={3} maxLength={2000} className="input mt-1" placeholder="Goles y reacciones del comentarista. Evita la publicidad." disabled={!!active} /></label>
               <label className="flex items-start gap-2"><input type="checkbox" checked={ok} onChange={(e) => setOk(e.target.checked)} className="mt-1" disabled={!!active} /><span>Confirmo que tengo autorización para capturar y reutilizar esta emisión.</span></label>

@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase, MAX_UPLOAD_BYTES } from "../../../lib/supabase";
+import AiUsage from "../../../components/AiUsage";
 
 export default function Ajustes() {
   const router = useRouter();
@@ -15,6 +16,7 @@ export default function Ajustes() {
         <p className="mt-1 text-sm text-[var(--muted)]">{email}</p>
         <button className="mt-3 rounded-lg border border-[var(--muted)] px-4 py-2 text-sm" onClick={async () => { await supabase.auth.signOut(); router.replace("/login"); }}>Cerrar sesión</button>
       </section>
+      <AiUsage />
       <section className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 text-sm">
         <h2 className="font-medium">Límites actuales de la beta</h2>
         <ul className="mt-2 list-disc space-y-1 pl-5 text-[var(--muted)]">

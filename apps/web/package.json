@@ -12,6 +12,7 @@
   "dependencies": {
     "@rafaga/composition": "workspace:*",
     "@rafaga/lyrics": "workspace:*",
+    "@rafaga/providers": "workspace:*",
     "@rafaga/selection": "workspace:*",
     "@supabase/supabase-js": "^2.119.0",
     "next": "16.4.5",

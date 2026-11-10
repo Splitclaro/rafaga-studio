@@ -13,9 +13,9 @@ export default function BriefFields({ value, onChange, compact = false }: { valu
   const filled = Object.entries(value).filter(([k, v]) => k !== "objective" && v).length;
   return (
     <div>
-      <label htmlFor={`${id}-o`} className="text-sm font-medium">¿Qué quieres conseguir con estos clips?</label>
+      <label htmlFor={`${id}-o`} className="text-sm font-medium">¿Qué momentos quieres encontrar?</label>
       <textarea id={`${id}-o`} rows={compact ? 2 : 3} maxLength={BRIEF_LIMITS.objective} value={value.objective} onChange={(e) => set("objective", e.target.value)} className="input mt-1.5 resize-y"
-        placeholder="Promocionar el estribillo del nuevo single con una estética nocturna y letras discretas. Crear versiones diferentes para TikTok y Reels." />
+        placeholder="Ej.: cinco cortes para gente que no conoce al artista. Prioriza las historias detrás de sus canciones, evita su vida privada y deja que se escuche el remate." />
       <details className="mt-2 text-sm" open={filled > 0 ? undefined : undefined}>
         <summary className="cursor-pointer text-[var(--muted)]">Más detalles (opcional){filled ? ` · ${filled} rellenados` : ""}</summary>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">

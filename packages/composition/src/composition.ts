@@ -56,10 +56,12 @@ export function ffmpegArgs(c: Composition, io: { input: string; assPath: string;
   const cx = Math.min(1, Math.max(0, c.crop?.x ?? 0.5));
   const cxExpr = c.reframe?.kf?.length ? cropXExpr(c.reframe.kf) : cx.toFixed(3);
   const layout = c.layout === "fill" || c.layout === "fit" ? c.layout : "blur";
+  // Fondo desenfocado: se desenfoca a 1/6 de tamaño y se reescala (el desenfoque fuerte no necesita resolución; ~5× más barato que a 1080×1920)
+  const bw = Math.max(2, Math.round(W / 12) * 2), bh = Math.max(2, Math.round(H / 12) * 2);
   const base =
     layout === "fill" ? `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H}:'(in_w-${W})*(${cxExpr})':'(in_h-${H})/2',setsar=1[base]`
     : layout === "fit" ? `[0:v]scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:black,setsar=1[base]`
-    : `[0:v]split=2[bg][fg];[bg]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},boxblur=30:5[b];[fg]scale=${W}:${H}:force_original_aspect_ratio=decrease[f];[b][f]overlay=(W-w)/2:(H-h)/2,setsar=1[base]`;
+    : `[0:v]split=2[bg][fg];[bg]scale=${bw}:${bh}:force_original_aspect_ratio=increase,crop=${bw}:${bh},boxblur=6:3,scale=${W}:${H}:flags=bilinear[b];[fg]scale=${W}:${H}:force_original_aspect_ratio=decrease[f];[b][f]overlay=(W-w)/2:(H-h)/2,setsar=1[base]`;
   const parts = [base];
   const extra: string[] = [];
   let last = "base";
