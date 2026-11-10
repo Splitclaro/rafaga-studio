@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { parseLyrics, planVariants, DEFAULT_BG, type BgSettings, type FilterName } from "@rafaga/lyrics";
+import { parseLyrics, planVariants, DEFAULT_BG, LOOKS, resolveLook, type BgSettings, type FilterName, type LyricLook, type DeepPartial } from "@rafaga/lyrics";
 import { PRESETS, type SubtitleStyle } from "@rafaga/composition";
 import { supabase, MAX_UPLOAD_BYTES } from "../../../lib/supabase";
 import { STAGE } from "../../../lib/projects";
@@ -9,11 +9,17 @@ import { useTextStyles } from "../../../lib/textStyles";
 import RangePicker from "../../../components/RangePicker";
 import LyricSample from "../../../components/LyricSample";
 import { useSearchParams } from "next/navigation";
+import LookPreview, { sampleWords } from "../../../components/LookPreview";
+import TapSync from "../../../components/TapSync";
 
-type Song = { id: string; title: string; artist: string | null; storage_path: string; lyrics_text: string | null };
+type Overrides = Record<string, DeepPartial<LyricLook>>;
+type StudioSettings = { styles?: string[]; overrides?: Overrides; res?: 1080 | 720; native?: boolean; variation?: number; ratio?: string; settings?: Partial<BgSettings> };
+type Song = { id: string; title: string; artist: string | null; storage_path: string; lyrics_text: string | null; studio_settings?: StudioSettings | null };
 type Batch = { id: string; status: string; error_message: string | null; params: { n: number; ratio: string }; created_at: string };
 type LV = { id: string; variant: number; status: string; storage_path: string | null; params: { style: string; background: string }; url?: string };
 
+const LOOK_IDS = ["archivo", "diario", "panoramico"] as const;
+const styleLabel = (k: string) => (k.startsWith("look:") ? LOOKS[k.slice(5)]?.name ?? k : k.startsWith("custom:") ? "Mi estilo" : k);
 const LYRIC_STYLES = ["Tune", "Palabra", "Tune mayúsculas", "Letra", "Letra suave", "Karaoke", "Impacto", "Limpio"];
 const COLORS = ["#111111", "#1E3A8A", "#7F1D1D", "#14532D", "#4C1D95", "#F5F5F5"];
 const FILTERS: [FilterName, string, string][] = [["none", "Ninguno", "none"], ["midnight", "Midnight", "saturate(.85) hue-rotate(-12deg) brightness(.92)"], ["super8", "Super 8", "sepia(.35) saturate(1.15) contrast(1.05)"], ["noir", "Noir", "grayscale(1) contrast(1.18)"], ["vaporwave", "Vaporwave", "saturate(1.35) hue-rotate(-28deg)"]];
@@ -44,14 +50,14 @@ export default function LyricStudio() {
   const [audioUrl, setAudioUrl] = useState("");
   const [lyrics, setLyrics] = useState("");
   const [start, setStart] = useState(0), [end, setEnd] = useState(0);
-  const [styles, setStyles] = useState<string[]>(["Tune"]);
+  const [styles, setStyles] = useState<string[]>(["look:diario"]);
   const [bgMode, setBgMode] = useState<"collection" | "solid">("solid");
   const [collection, setCollection] = useState<string | null>(null);
   const [colors, setColors] = useState<string[]>(["#111111"]);
   const [settings, setSettings] = useState<BgSettings>(DEFAULT_BG);
   const [textScale, setTextScale] = useState(1);
   const [n, setN] = useState(3);
-  const [ratio, setRatio] = useState<"9:16" | "4:5" | "1:1" | "16:9">("9:16");
+  const [ratio, setRatio] = useState<"9:16" | "4:5" | "1:1" | "16:9" | "4:3">("9:16");
   const [seed, setSeed] = useState(1);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -60,10 +66,24 @@ export default function LyricStudio() {
   const [videos, setVideos] = useState<LV[]>([]);
   const [step, setStep] = useState(0);
   const [newTitle, setNewTitle] = useState(""), [newArtist, setNewArtist] = useState("");
+  const [overrides, setOverrides] = useState<Overrides>({});
+  const [res, setRes] = useState<1080 | 720>(1080);
+  const [native, setNative] = useState(false);
+  const [variation, setVariation] = useState(0.5);
+  const [syncTab, setSyncTab] = useState<"auto" | "manual">("auto");
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+  const activeLookId = styles.find((x) => x.startsWith("look:"))?.slice(5) ?? null;
+  const activeLook = useMemo(() => (activeLookId ? resolveLook(activeLookId, overrides[activeLookId] ?? {}) : null), [activeLookId, overrides]);
+  const setOv = (id: string, part: DeepPartial<LyricLook>) => setOverrides((o) => {
+    const cur = o[id] ?? {};
+    const merged: DeepPartial<LyricLook> = { ...cur };
+    for (const k of Object.keys(part) as (keyof LyricLook)[]) merged[k] = { ...(cur[k] as object ?? {}), ...(part[k] as object) } as never;
+    return { ...o, [id]: merged };
+  });
 
   useEffect(() => { const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches; if (reduce) { setStep(2); return; } const i = setInterval(() => setStep((s) => s + 1), 520); return () => clearInterval(i); }, []);
   const loadSongs = useCallback(async () => {
-    const { data } = await supabase.from("songs").select("id,title,artist,storage_path,lyrics_text").order("created_at", { ascending: false });
+    const { data } = await supabase.from("songs").select("id,title,artist,storage_path,lyrics_text,studio_settings").order("created_at", { ascending: false });
     setSongs((data ?? []) as Song[]);
     return (data ?? []) as Song[];
   }, []);
@@ -92,8 +112,28 @@ export default function LyricStudio() {
   }, []);
   async function choose(s: Song) {
     setSong(s); setLyrics(s.lyrics_text ?? ""); setStart(0); setEnd(0); setOpenBatch(null); setVideos([]);
+    // Ajustes guardados de esta canción (preset, overrides, resolución…): se recuperan al volver
+    const st = s.studio_settings ?? {};
+    if (st.styles?.length) setStyles(st.styles); if (st.overrides) setOverrides(st.overrides); else setOverrides({});
+    if (st.res) setRes(st.res); if (typeof st.native === "boolean") setNative(st.native); if (typeof st.variation === "number") setVariation(st.variation);
+    if (st.ratio && ["9:16", "4:5", "1:1", "16:9", "4:3"].includes(st.ratio)) setRatio(st.ratio as typeof ratio);
+    if (st.settings) setSettings({ ...DEFAULT_BG, ...st.settings });
+    setLoadedFor(s.id);
     setAudioUrl((await supabase.storage.from("originals").createSignedUrl(s.storage_path, 3600)).data?.signedUrl ?? "");
     loadBatches(s);
+  }
+  useEffect(() => {
+    if (!song || loadedFor !== song.id) return;
+    const st: StudioSettings = { styles, overrides, res, native, variation, ratio, settings };
+    const t = setTimeout(() => { supabase.from("songs").update({ studio_settings: st }).eq("id", song.id).then(() => {}); }, 800);
+    return () => clearTimeout(t);
+  }, [song, loadedFor, styles, overrides, res, native, variation, ratio, settings]);
+  async function ensureLyrics() {
+    if (!song) return false;
+    if ((song.lyrics_text ?? "") === lyrics.trim()) return true;
+    const { error } = await supabase.from("songs").update({ lyrics_text: lyrics.trim() || null }).eq("id", song.id);
+    if (error) { setMsg(error.message); return false; }
+    setSong({ ...song, lyrics_text: lyrics.trim() || null }); return true;
   }
   async function upload(f: File | undefined) {
     if (!f) return;
@@ -130,7 +170,7 @@ export default function LyricStudio() {
       if (error) { setBusy(false); return setMsg(error.message); }
       setSong({ ...song, lyrics_text: lyrics.trim() || null });
     }
-    const params = { n, styles, backgrounds: colors, seed, ratio, start: start || 0, end: end || null, collection_id: bgMode === "collection" ? collection : null, settings: { ...settings, textScale } };
+    const params = { n, styles, backgrounds: colors, seed, ratio, start: start || 0, end: end || null, collection_id: bgMode === "collection" ? collection : null, settings: { ...settings, textScale }, look_overrides: overrides, res, native, variation };
     const { data, error } = await supabase.rpc("request_lyrics", { p_song: song.id, p_params: params, p_key: crypto.randomUUID() });
     setBusy(false);
     if (error) return setMsg(error.message);
@@ -204,12 +244,56 @@ export default function LyricStudio() {
             <Step n={1} title={`${song.title}: elige el tramo`}>
               {audioUrl ? <RangePicker songId={song.id} audioUrl={audioUrl} start={start} end={end} onChange={(a, b) => { setStart(a); setEnd(b); }} /> : <div className="skeleton h-28" />}
             </Step>
-            <Step n={2} title="Letra">
+            <Step n={2} title="Letra y sincronización">
+              <div role="tablist" aria-label="Sincronización" className="mb-3 inline-flex rounded-full bg-[var(--hover)] p-1 text-sm">
+                {([["auto", "Automática"], ["manual", "Manual por pulsación"]] as const).map(([k, l]) => <button key={k} role="tab" aria-selected={syncTab === k} onClick={() => setSyncTab(k)} className={`rounded-full px-4 py-1.5 ${syncTab === k ? "bg-[#111] text-white" : "text-[var(--muted)]"}`}>{l}</button>)}
+              </div>
+              {syncTab === "manual" && audioUrl ? <TapSync songId={song.id} audioUrl={audioUrl} lyrics={lyrics} ensureLyrics={ensureLyrics} from={start} /> : <>
               <div className="mb-2 flex justify-end"><label className="cursor-pointer rounded-full border border-[var(--border)] px-3 py-1 text-sm">Importar TXT, LRC, SRT o VTT<input type="file" accept=".txt,.lrc,.srt,.vtt,text/plain" className="sr-only" onChange={(e) => importLyrics(e.target.files?.[0])} /></label></div>
               <textarea rows={7} value={lyrics} onChange={(e) => setLyrics(e.target.value)} placeholder="Pega la letra, un verso por línea. Si la dejas vacía se transcribe el canto, que es menos fiable con música." className="w-full rounded-2xl border border-[var(--border)] px-4 py-3 text-sm" />
-              <p className="mt-1 text-xs text-[var(--muted)]">{lyricLines.length} versos. Se respeta tu texto; solo se calculan los tiempos.</p>
+              <p className="mt-1 text-xs text-[var(--muted)]">{lyricLines.length} versos. Se respeta tu texto y sus repeticiones; la alineación automática calcula los tiempos. Sin letra, el canto se transcribe (menos fiable con instrumental). Si tienes una sincronización manual guardada para esta letra, tiene prioridad.</p></>}
             </Step>
             <Step n={3} title="Estilo de letra">
+              <h3 className="mb-1 text-base font-medium">Resultados de referencia</h3>
+              <p className="mb-3 text-xs text-[var(--muted)]">Tres tratamientos completos: encuadre, tipografía, aparición de la letra y acabado. La vista previa usa el mismo motor que el vídeo final.</p>
+              <ul className="mb-5 grid gap-3 sm:grid-cols-3">
+                {LOOK_IDS.map((id) => { const k = `look:${id}`; const on = styles.includes(k); const lk = resolveLook(id, overrides[id] ?? {}); return (
+                  <li key={id} className={`overflow-hidden rounded-2xl border-2 ${on ? "border-[#111]" : "border-[var(--border)]"}`}>
+                    <div className="bg-black"><LookPreview look={lk} ratio={native ? lk.canvas.ratio : ratio} words={sampleWords()} len={7} label={`Vista previa animada: ${lk.name}`} /></div>
+                    <div className="p-3"><div className="font-medium">{lk.name}</div><p className="mt-0.5 text-xs text-[var(--muted)]">{lk.description}</p>
+                      <button onClick={() => setStyles(on ? styles.filter((x) => x !== k) : [k, ...styles.filter((x) => x !== k)])} aria-pressed={on} className={`btn mt-2 w-full !py-1.5 !text-xs ${on ? "btn-primary" : "btn-ghost"}`}>{on ? "Seleccionado" : "Usar este estilo"}</button></div>
+                  </li>); })}
+              </ul>
+              {activeLook && activeLookId && (
+                <details className="mb-5 rounded-2xl bg-[var(--surface)] p-4 text-sm">
+                  <summary className="cursor-pointer font-medium">Ajustes avanzados de «{activeLook.name}»</summary>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    {([
+                      ["Posición horizontal", activeLook.text.x, 0, 0.5, 0.01, (v: number) => setOv(activeLookId, { text: { x: v } })],
+                      ["Posición vertical", activeLook.text.y, 0.1, 0.9, 0.01, (v: number) => setOv(activeLookId, { text: { y: v } })],
+                      ["Tamaño de letra", activeLook.text.size, 0.05, 0.28, 0.005, (v: number) => setOv(activeLookId, { text: { size: v } })],
+                      ["Espacio entre palabras (em)", activeLook.text.wordGap, 0.3, 3, 0.1, (v: number) => setOv(activeLookId, { text: { wordGap: v } })],
+                      ["Retención al cerrar frase (s)", activeLook.flow.hold, 0, 2, 0.05, (v: number) => setOv(activeLookId, { flow: { hold: v } })],
+                      ["Fundido de entrada (s)", activeLook.flow.fadeIn, 0, 0.4, 0.02, (v: number) => setOv(activeLookId, { flow: { fadeIn: v } })],
+                      ["Centro vertical de la imagen", activeLook.image.cy, 0.2, 0.8, 0.005, (v: number) => setOv(activeLookId, { image: { cy: v } })],
+                      ["Zoom de la imagen", activeLook.image.zoom, 1, 1.6, 0.01, (v: number) => setOv(activeLookId, { image: { zoom: v } })],
+                      ["Grano", activeLook.treatment.grain, 0, 1, 0.05, (v: number) => setOv(activeLookId, { treatment: { grain: v } })],
+                      ["Suavidad", activeLook.treatment.soften, 0, 1, 0.05, (v: number) => setOv(activeLookId, { treatment: { soften: v } })],
+                      ["Desaturación", activeLook.treatment.desaturate, 0, 1, 0.05, (v: number) => setOv(activeLookId, { treatment: { desaturate: v } })],
+                      ["Aberración cromática", activeLook.treatment.aberration, 0, 1, 0.05, (v: number) => setOv(activeLookId, { treatment: { aberration: v } })],
+                      ["Inestabilidad", activeLook.treatment.instability, 0, 1, 0.05, (v: number) => setOv(activeLookId, { treatment: { instability: v } })],
+                      ["Viñeta", activeLook.treatment.vignette, 0, 1, 0.05, (v: number) => setOv(activeLookId, { treatment: { vignette: v } })],
+                    ] as [string, number, number, number, number, (v: number) => void][]).map(([l, v, a, b, st, fn]) => (
+                      <label key={l} className="rounded-xl bg-white px-3 py-2">{l} <span className="tnum float-right">{v.toFixed(2)}</span><input type="range" min={a} max={b} step={st} value={v} onChange={(e) => fn(Number(e.target.value))} className="w-full" /></label>))}
+                    <label className="rounded-xl bg-white px-3 py-2">Revelado<select value={activeLook.flow.reveal} onChange={(e) => setOv(activeLookId, { flow: { reveal: e.target.value as "word" } })} className="mt-1 block w-full rounded-full border border-[var(--border)] px-2 py-1"><option value="word">Palabra a palabra (se acumulan)</option><option value="group">Por grupos</option><option value="phrase">Frase completa</option></select></label>
+                    <label className="rounded-xl bg-white px-3 py-2">Líneas máximas<select value={activeLook.text.maxLines} onChange={(e) => setOv(activeLookId, { text: { maxLines: Number(e.target.value) } })} className="mt-1 block w-full rounded-full border border-[var(--border)] px-2 py-1">{[1, 2, 3].map((x) => <option key={x}>{x}</option>)}</select></label>
+                    <label className="rounded-xl bg-white px-3 py-2">Cambios de plano<select value={activeLook.montage.cut} onChange={(e) => setOv(activeLookId, { montage: { cut: e.target.value as "phrase" } })} className="mt-1 block w-full rounded-full border border-[var(--border)] px-2 py-1"><option value="phrase">En cambios de frase de la letra</option><option value="interval">Intervalo fijo</option></select></label>
+                    <label className="rounded-xl bg-white px-3 py-2">Peso<select value={activeLook.text.weight} onChange={(e) => setOv(activeLookId, { text: { weight: Number(e.target.value) as 400 } })} className="mt-1 block w-full rounded-full border border-[var(--border)] px-2 py-1"><option value={400}>Regular</option><option value={700}>Negrita</option></select></label>
+                  </div>
+                  <div className="mt-3 flex gap-2"><button onClick={() => setOverrides((o) => { const c = { ...o }; delete c[activeLookId]; return c; })} className="btn btn-ghost !px-3 !py-1.5 !text-xs">Restablecer valores del estilo</button></div>
+                  <p className="mt-2 text-xs text-[var(--muted)]">Los cambios de plano «en frases» se alinean con la letra, no con el beat. El grano y la aberración se ven en el vídeo final; la vista previa los aproxima.</p>
+                </details>)}
+              <h3 className="mb-2 text-base font-medium">Otros estilos</h3>
               <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 {[...LYRIC_STYLES.map((k) => ({ key: k, label: k, st: PRESETS[k] })), ...(myStyles ?? []).map((x) => ({ key: `custom:${x.id}`, label: x.name, st: x.style }))].map(({ key: k, label, st }) => {
                   const on = styles.includes(k);
@@ -257,12 +341,15 @@ export default function LyricStudio() {
             <Step n={6} title="Cuántos vídeos">
               <div className="flex flex-wrap items-end gap-4 text-sm">
                 <label>Vídeos<input type="number" min={1} max={200} value={n} onChange={(e) => setN(Math.max(1, Math.min(200, Math.floor(Number(e.target.value) || 1))))} className="font-display mt-1 block w-24 rounded-2xl border border-[var(--border)] px-3 py-2 text-2xl tnum" /></label>
-                <label>Formato<select value={ratio} onChange={(e) => setRatio(e.target.value as typeof ratio)} className="mt-1 block rounded-full border border-[var(--border)] bg-white px-3 py-2"><option value="9:16">Vertical 9:16</option><option value="4:5">Retrato 4:5</option><option value="1:1">Cuadrado 1:1</option><option value="16:9">Horizontal 16:9</option></select></label>
+                <label>Formato<select value={ratio} onChange={(e) => setRatio(e.target.value as typeof ratio)} className="mt-1 block rounded-full border border-[var(--border)] bg-white px-3 py-2"><option value="9:16">Vertical 9:16</option><option value="4:5">Retrato 4:5</option><option value="1:1">Cuadrado 1:1</option><option value="16:9">Horizontal 16:9</option><option value="4:3">Clásico 4:3</option></select></label>
+                <label>Resolución<select value={res} onChange={(e) => setRes(Number(e.target.value) as 1080)} className="mt-1 block rounded-full border border-[var(--border)] bg-white px-3 py-2"><option value={1080}>1080p</option><option value={720}>720p</option></select></label>
+                {activeLook && <label className="flex items-center gap-2 pb-2"><input type="checkbox" checked={native} onChange={(e) => setNative(e.target.checked)} />Formato original del estilo ({activeLook.canvas.ratio})</label>}
+                {activeLook && <label>Variación entre vídeos<input type="range" min={0} max={1} step={0.1} value={variation} onChange={(e) => setVariation(Number(e.target.value))} className="mt-2 block w-32" /></label>}
                 <label>Variación<span className="mt-1 flex gap-1"><input type="number" value={seed} onChange={(e) => setSeed(Math.floor(Number(e.target.value) || 1))} className="tnum w-20 rounded-full border border-[var(--border)] px-3 py-2" /><button onClick={() => setSeed(Math.floor(Math.random() * 99999) + 1)} className="rounded-full border border-[var(--border)] px-3">Otra</button></span></label>
               </div>
               {!("error" in plan) && (
                 <details className="mt-3 text-sm"><summary className="cursor-pointer">Plan: {plan.variants.length} vídeos{plan.repeats ? `, ${plan.repeats} repiten estilo y fondo` : ", todos distintos"}</summary>
-                  <ol className="mt-2 max-h-40 overflow-auto rounded-2xl bg-[var(--surface)] p-3 tnum">{plan.variants.map((v) => <li key={v.index}>{v.index}. {v.style}, {v.background === "coleccion" ? `${selectedCol?.name ?? "colección"} (orden ${v.seed % 1000 + 1})` : v.background}</li>)}</ol>
+                  <ol className="mt-2 max-h-40 overflow-auto rounded-2xl bg-[var(--surface)] p-3 tnum">{plan.variants.map((v) => <li key={v.index}>{v.index}. {styleLabel(v.style)}, {v.background === "coleccion" ? `${selectedCol?.name ?? "colección"} (orden ${v.seed % 1000 + 1})` : v.background}</li>)}</ol>
                 </details>)}
               <button onClick={generate} disabled={busy || !!blockReason} className="font-display mt-4 w-full rounded-full bg-[#111] px-6 py-4 text-xl text-white disabled:opacity-40">Generar {n} vídeo{n === 1 ? "" : "s"}</button>
               <p role="status" aria-live="polite" className="mt-2 text-sm text-[var(--muted)]">{blockReason ?? msg}</p>
@@ -272,6 +359,9 @@ export default function LyricStudio() {
 
         {/* Vista previa y resultados */}
         <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
+          {activeLook ? (
+            <div className="mx-auto w-full max-w-[300px] overflow-hidden rounded-[22px] bg-black"><LookPreview look={activeLook} ratio={native ? activeLook.canvas.ratio : ratio} words={sampleWords(lyricLines.slice(0, 3).map((l) => l.text).join(" ") || undefined)} len={8} media={bgMode === "collection" && selectedCol?.items[0]?.url ? { url: selectedCol.items[0].url!, kind: selectedCol.items[0].kind } : null} label={`Vista previa del vídeo: ${activeLook.name}`} /></div>
+          ) : (
           <div className={`relative mx-auto w-full max-w-[300px] overflow-hidden rounded-[22px] bg-black ${ratio === "16:9" ? "aspect-video" : ratio === "1:1" ? "aspect-square" : ratio === "4:5" ? "aspect-[4/5]" : "aspect-[9/16]"}`} aria-label="Vista previa aproximada">
             <div className={`absolute inset-x-0 overflow-hidden ${banded ? "top-1/2 -translate-y-1/2" : "inset-y-0"}`} style={banded ? { aspectRatio: "16 / 9" } : undefined}>
               {bgMode === "collection" && selectedCol?.items[0] ? <Thumb item={selectedCol.items[0]} className="absolute inset-0 h-full w-full" /> : <div className="absolute inset-0" style={{ background: colors[0] ?? "#111" }} />}
@@ -280,7 +370,7 @@ export default function LyricStudio() {
             </div>
             {settings.bars > 0 && !banded && <><div className="absolute inset-x-0 top-0 bg-black" style={{ height: `${settings.bars * 50}%` }} /><div className="absolute inset-x-0 bottom-0 bg-black" style={{ height: `${settings.bars * 50}%` }} /></>}
             <div className="absolute inset-x-0" style={{ top: `${previewStyle.y * 100}%`, transform: "translateY(-50%)" }}><LyricSample style={{ ...previewStyle, fontSize: previewStyle.fontSize * textScale }} text={sampleLine} scale={0.27} step={step} /></div>
-          </div>
+          </div>)}
           <p className="text-center text-xs text-[var(--muted)]">Vista previa aproximada. El vídeo final usa la misma fuente, letra y tiempos.</p>
 
           {song && (
@@ -296,7 +386,7 @@ export default function LyricStudio() {
                 <ul className="mt-2 grid grid-cols-2 gap-2">{videos.map((v) => (
                   <li key={v.id}>
                     {v.url ? <video src={v.url} controls preload="metadata" className="aspect-[9/16] w-full rounded-xl bg-black object-cover" /> : <div className="grid aspect-[9/16] place-items-center rounded-xl bg-[#111] text-xs text-white">Creando…</div>}
-                    <div className="mt-1 flex justify-between text-xs"><span>{v.variant}. {v.params.style}</span>{v.url && <button onClick={() => download(v)} className="underline">Descargar</button>}</div>
+                    <div className="mt-1 flex justify-between text-xs"><span>{v.variant}. {styleLabel(v.params.style)}</span>{v.url && <button onClick={() => download(v)} className="underline">Descargar</button>}</div>
                   </li>))}</ul>
               </>)}
             </div>

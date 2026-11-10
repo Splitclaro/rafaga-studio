@@ -9,17 +9,20 @@ import { useTextStyles } from "../../../lib/textStyles";
 import { useWorkspaceFonts } from "../../../lib/fonts";
 import { useCollections, Thumb } from "../../../components/Collections";
 import ProjectClips from "../../../components/ProjectClips";
+import CollectionsPicker from "../../../components/Collections";
+import { useSearchParams } from "next/navigation";
 
 type Tab = "videos" | "lyrics" | "songs" | "collections" | "fonts" | "styles";
 type LyricRender = { id: string; variant: number; song: string; path: string; style: string; created_at: string; bytes: number; job_id: string };
 type SongRow = { id: string; title: string; artist: string | null; bytes: number; created_at: string; storage_path: string; lyrics: boolean };
 
-const TABS: [Tab, string, string][] = [["videos", "Proyectos", "film"], ["lyrics", "Vídeos con letra", "music"], ["songs", "Canciones", "music"], ["collections", "Colecciones", "layers"], ["fonts", "Fuentes", "type"], ["styles", "Estilos", "text"]];
+const TABS: [Tab, string, string][] = [["videos", "Proyectos", "film"], ["lyrics", "Vídeos con letra", "music"], ["songs", "Canciones", "music"], ["collections", "Packs de medios", "layers"], ["fonts", "Fuentes", "type"], ["styles", "Estilos", "text"]];
 const mb = (n: number) => `${(n / 1048576).toFixed(1)} MB`;
 const day = (d: string) => new Date(d).toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric" });
 
 export default function Biblioteca() {
-  const [tab, setTab] = useState<Tab>("videos");
+  const sp = useSearchParams();
+  const [tab, setTab] = useState<Tab>(() => (["videos", "lyrics", "songs", "collections", "fonts", "styles"].includes(sp.get("tab") ?? "") ? (sp.get("tab") as Tab) : "videos"));
   const [q, setQ] = useState("");
   const { rows: projects, reload: reloadProjects } = useProjects();
   const { saved: styles, reload: reloadStyles } = useTextStyles();
@@ -62,7 +65,7 @@ export default function Biblioteca() {
   }
   async function delStyle(id: string) { if (!confirm("¿Borrar este estilo?")) return; await supabase.from("text_styles").delete().eq("id", id); reloadStyles(); }
   async function delCol(id: string, name: string, paths: string[]) {
-    if (!confirm(`¿Borrar la colección «${name}» y sus ${paths.length} archivos?`)) return;
+    if (!confirm(`¿Borrar el pack «${name}» y sus ${paths.length} archivos? Los vídeos ya exportados se conservan.`)) return;
     if (paths.length) await supabase.storage.from("originals").remove(paths);
     await supabase.from("media_collections").delete().eq("id", id); reloadCols();
   }
@@ -101,11 +104,14 @@ export default function Biblioteca() {
             <div className="min-w-0 flex-1"><div className="truncate text-sm font-medium">{s.title}</div><div className="mono truncate text-xs text-[var(--muted)]">{s.artist ?? "Sin artista"} · {mb(s.bytes)} · {s.lyrics ? "con letra" : "sin letra"}</div></div>
             <div className="flex shrink-0 gap-1"><Link href={`/app/lyric-studio?song=${s.id}`} className="btn btn-ghost !px-3 !py-1.5 !text-xs">Abrir</Link><button className="btn btn-ghost !px-3 !py-1.5 !text-xs" onClick={() => delSong(s)}>Borrar</button></div></li>))}</ul>))}
 
-      {list === "collections" && (!cols ? <Skel /> : !cols.filter((c) => match(c.name)).length ? <Empty text={q ? "Nada coincide con tu búsqueda." : "Crea una colección con tus vídeos y fotos para usarlos de fondo o como B-roll."} href="/app/lyric-studio" cta="Crear colección" /> : (
-        <ul className="grid gap-4 sm:grid-cols-2">{cols.filter((c) => match(c.name)).map((c) => (
+      {list === "collections" && (<>
+        <p className="mb-3 text-sm text-[var(--muted)]">Un pack de medios agrupa tus vídeos y fotos para usarlos como fondo en Lyric Studio o como B-roll en el editor de clips. No es lo mismo que una colección de clips.</p>
+        <div className="card mb-5 p-4"><CollectionsPicker selected={null} onSelect={() => {}} cols={cols} reload={reloadCols} /></div>
+        {!!cols?.filter((c) => match(c.name)).length && <ul className="grid gap-4 sm:grid-cols-2">{cols.filter((c) => match(c.name)).map((c) => (
           <li key={c.id} className="card p-4"><div className="flex items-center justify-between"><h3 className="text-base">{c.name}</h3><span className="mono text-xs text-[var(--muted)]">{c.items.length} archivos</span></div>
-            <ul className="mt-3 flex gap-2 overflow-x-auto pb-1">{c.items.map((it) => <li key={it.id} className="shrink-0"><Thumb item={it} className="h-24 w-[54px] rounded-lg" /></li>)}{!c.items.length && <li className="text-sm text-[var(--muted)]">Vacía</li>}</ul>
-            <div className="mt-3 flex gap-2"><Link href="/app/lyric-studio" className="btn btn-ghost !px-3 !py-1.5 !text-xs">Añadir archivos</Link><button className="btn btn-ghost !px-3 !py-1.5 !text-xs ml-auto" onClick={() => delCol(c.id, c.name, c.items.map((i) => i.storage_path))}>Borrar</button></div></li>))}</ul>))}
+            <ul className="mt-3 flex gap-2 overflow-x-auto pb-1">{c.items.map((it) => <li key={it.id} className="shrink-0"><Thumb item={it} className="h-24 w-[54px] rounded-lg" /></li>)}{!c.items.length && <li className="text-sm text-[var(--muted)]">Vacío</li>}</ul>
+            <div className="mt-3 flex gap-2"><button className="btn btn-ghost !px-3 !py-1.5 !text-xs ml-auto" onClick={() => delCol(c.id, c.name, c.items.map((i) => i.storage_path))}>Borrar pack</button></div></li>))}</ul>}
+      </>)}
 
       {list === "fonts" && (
         <ul className="grid gap-3 sm:grid-cols-2">

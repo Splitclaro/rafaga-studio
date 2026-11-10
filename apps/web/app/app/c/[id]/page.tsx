@@ -329,7 +329,7 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
           {tab === "broll" && (
             <div className="grid gap-3 p-3 text-sm">
               <p className="text-[var(--muted)]">Superpón imágenes o vídeos de tus <strong>Custom Collections</strong> en momentos concretos. Posición actual: <span className="mono">{t.toFixed(1)} s</span>. La generación de B-roll con IA requiere un proveedor externo que aún no está conectado.</p>
-              {!cols?.some((c) => c.items.length) && <p className="rounded-xl border border-dashed hairline p-3">Aún no tienes medios. Crea una colección y sube vídeos o fotos en <Link href="/app/lyric-studio" className="underline">Lyric Studio → Fondo → Colecciones</Link>.</p>}
+              {!cols?.some((c) => c.items.length) && <p className="rounded-xl border border-dashed hairline p-3">Aún no tienes medios. Crea un pack de medios y sube vídeos o fotos en <Link href="/app/biblioteca?tab=collections" className="underline">Biblioteca → Packs de medios</Link>; aparecerán aquí.</p>}
               {cols?.filter((c) => c.items.length).map((c) => (
                 <div key={c.id}><div className="mb-1 text-xs font-medium text-[var(--muted)]">{c.name}</div>
                   <ul className="flex gap-2 overflow-x-auto pb-1">{c.items.map((it) => (

@@ -7,7 +7,7 @@ import { supabase, BRIEF_MAX } from "../../../../lib/supabase";
 import { STAGE, MODE_LABEL } from "../../../../lib/projects";
 
 type Project = { id: string; name: string; project_brief: string | null; clip_count: number; mode: string; source_id: string };
-type Job = { id: string; status: string; error_message: string | null; created_at: string; updated_at: string; attempts: number; metrics: Record<string, number | string> | null };
+type Job = { id: string; status: string; error_code: string | null; error_message: string | null; created_at: string; updated_at: string; attempts: number; metrics: Record<string, number | string> | null };
 type Scores = { overall?: number; relevance?: number; hook?: number; standalone?: number; closure?: number; label?: string };
 type Clip = { id: string; title: string; generation_id: string; favorite: boolean; created_at: string; candidate: { reason: string | null; brief_fit: string | null; scores: Scores | null; start_ms: number; end_ms: number } | null; url?: string; path?: string; bytes?: number };
 type Gen = { id: string; model: string; created_at: string; params: { rejected?: { reason: string }[]; fallbackReason?: string | null } | null };
@@ -34,9 +34,10 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   const [wake, setWake] = useState<"woken" | "warm" | "cold" | null>(null);
   const [tick, setTick] = useState(0);
   const busyRef = useRef(false);
+  const detectRef = useRef<(() => Promise<void>) | null>(null);
 
   const load = useCallback(async () => {
-    const { data: j } = await supabase.from("jobs").select("id,status,error_message,created_at,updated_at,attempts,metrics").eq("project_id", id).eq("kind", "detect").order("created_at", { ascending: false }).limit(1);
+    const { data: j } = await supabase.from("jobs").select("id,status,error_code,error_message,created_at,updated_at,attempts,metrics").eq("project_id", id).eq("kind", "detect").order("created_at", { ascending: false }).limit(1);
     setJob((j?.[0] as Job) ?? null);
     const [{ data: cs }, { data: gs }] = await Promise.all([
       supabase.from("clips").select("id,title,generation_id,favorite,created_at,candidate:clip_candidates(reason,brief_fit,scores,start_ms,end_ms)").eq("project_id", id).eq("discarded", false).order("created_at", { ascending: false }),
@@ -86,6 +87,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
       fetch("/api/wake", { method: "POST", headers: { Authorization: `Bearer ${s.session?.access_token ?? ""}` } }).then((r) => r.json()).then((j) => setWake(j.woken ? "woken" : j.reason === "already_running" ? "warm" : "cold")).catch(() => setWake("cold"));
     } finally { busyRef.current = false; setBusy(false); }
   }
+  detectRef.current = detect;
   async function patch(c: Clip, v: Partial<{ favorite: boolean; discarded: boolean }>) {
     const { error } = await supabase.from("clips").update(v).eq("id", c.id);
     if (error) return setMsg(error.message);
@@ -97,6 +99,14 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
     if (data?.signedUrl) window.location.href = data.signedUrl;
   }
 
+  const genModel = (c: Clip) => gens.find((g) => g.id === c.generation_id)?.model ?? "desconocido";
+  const isLex = (c: Clip) => genModel(c).startsWith("lexical");
+  async function asReframe() {
+    const { error } = await supabase.from("projects").update({ mode: "reframe" }).eq("id", id);
+    if (error) return setMsg(error.message);
+    setP((x) => (x ? { ...x, mode: "reframe" } : x)); setMsg("Proyecto convertido a Reencuadre: se reutiliza el vídeo subido.");
+    busyRef.current = false; await detectRef.current?.();
+  }
   const sorted = useMemo(() => {
     const l = clips.filter((c) => !onlyFav || c.favorite);
     return [...l].sort((a, b) => sort === "score" ? (b.candidate?.scores?.overall ?? -1) - (a.candidate?.scores?.overall ?? -1) : (a.candidate?.start_ms ?? 0) - (b.candidate?.start_ms ?? 0));
@@ -128,7 +138,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
           <div className="mt-3 flex flex-wrap items-center gap-3">
             <button onClick={saveBrief} className="btn btn-ghost">Guardar enfoque</button>
             <button onClick={detect} disabled={busy || active} className="btn btn-primary"><Icon n="wand" className="h-4 w-4" />{hasRun ? "Volver a detectar" : "Detectar momentos virales"}</button>
-            <span className="text-xs text-[var(--muted)]">Estimación de IA, no garantiza viralidad. Volver a detectar reutiliza la transcripción y conserva tus clips.</span>
+            <span className="text-xs text-[var(--muted)]">{latestGen?.model.startsWith("lexical") ? "Selección sin IA: coincidencia de tu enfoque con la transcripción y reglas de duración y cierre." : "Estimación de IA, no garantiza viralidad."} Volver a detectar reutiliza la transcripción y conserva tus clips.</span>
           </div>
         </>) : (
           <div className="flex flex-wrap items-center gap-3"><Icon n="wand" className="h-5 w-5" /><span className="text-sm">Herramienta <strong>{MODE_LABEL[p.mode]}</strong>: cuando termine el proceso, abre el clip en el editor para ajustarlo.</span>
@@ -148,6 +158,17 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
               <li key={l}><div className={`h-1.5 rounded-full ${i < phaseIdx || job.status === "done" ? "bg-[#111]" : i === phaseIdx ? "skeleton !rounded-full" : "bg-[#E5E5E5]"}`} /><span className={`mt-1 block text-xs ${i <= phaseIdx || job.status === "done" ? "" : "text-[var(--muted)]"}`}>{l}</span></li>))}</ol>)}
           {job.status === "queued" && <p className="mt-3 text-sm text-[var(--muted)]">{wake === "warm" ? "El worker ya está activo: lo recogerá en segundos." : wake === "woken" ? "Arrancando el worker (1–2 min la primera vez)." : "El worker arranca según el programador de GitHub, que puede tardar varios minutos."} Llevas {waiting} min en cola.{waiting >= 15 && " Si sigue así, el worker no está activo."}</p>}
           {job.error_message && <p role="alert" className="mt-3 text-sm">⚠ {job.error_message}</p>}
+          {job.status === "failed" && (job.error_code === "no_speech" || job.error_code === "no_speech_range" || /no se detectó voz|no hay habla/i.test(job.error_message ?? "")) && (
+            <div className="mt-3 rounded-xl bg-[var(--surface)] p-4 text-sm">
+              <p className="font-medium">Cómo seguir sin volver a subir el vídeo</p>
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-[var(--muted)]">
+                <li>Si es música: la detección de momentos busca frases habladas. Para canciones usa Lyric Studio con el audio.</li>
+                <li>Si es un vídeo sin voz: conviértelo en un clip reencuadrado (sin subtítulos). No se repite la subida ni la transcripción.</li>
+                <li>Si sí hay voz pero muy baja o tapada por música, el reconocimiento no la encuentra: prueba con una versión con la voz más alta.</li>
+              </ul>
+              <div className="mt-3 flex flex-wrap gap-2"><button onClick={asReframe} disabled={busy} className="btn btn-primary !py-1.5 !text-xs">Convertir en clip reencuadrado</button><Link href="/app/lyric-studio" className="btn btn-ghost !py-1.5 !text-xs">Abrir Lyric Studio</Link></div>
+            </div>)}
+          {job.status === "failed" && job.error_code === "too_short" && <p className="mt-2 text-sm text-[var(--muted)]">Sube un vídeo de al menos 15 s, o usa Reencuadrar / Subtítulos desde Inicio, que no necesitan buscar momentos.</p>}
           {job.metrics && job.status === "done" && (
             <details className="mt-3 text-sm"><summary className="cursor-pointer text-[var(--muted)]">Ver detalle técnico</summary>
               <dl className="mono mt-2 grid gap-x-6 gap-y-1 text-xs sm:grid-cols-2">{Object.entries(job.metrics).filter(([k]) => /ms$|^raw|accepted|rejected|selector|words|mode/.test(k)).map(([k, v]) => <div key={k} className="flex justify-between border-b hairline py-1"><dt>{k}</dt><dd>{/ms$/.test(k) ? `${(Number(v) / 1000).toFixed(1)} s` : String(v)}</dd></div>)}</dl></details>)}
@@ -176,14 +197,14 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                   </div>
                   <div className="p-4">
                     <h3 className="text-[15px] leading-snug">{c.title}</h3>
-                    {c.candidate?.reason?.includes("sin IA") && <div className="chip mt-1 !py-0.5 text-xs">Selección sin IA</div>}
+                    {isLex(c) && <div className="chip mt-1 !py-0.5 text-xs">Selección sin IA</div>}
                     {c.candidate && <div className="mono mt-1 text-xs text-[var(--muted)]">{dur(c.candidate.start_ms)} → {dur(c.candidate.end_ms)} en el original{c.bytes ? ` · ${(c.bytes / 1048576).toFixed(1)} MB` : ""}</div>}
                     {sc && sc.relevance != null && (
                       <button onClick={() => setOpen(open === c.id ? null : c.id)} aria-expanded={open === c.id} className="mt-3 flex w-full items-center justify-between rounded-lg bg-[var(--surface)] px-3 py-2 text-left text-xs">
-                        <span className="flex gap-3">{([["Gancho", sc.hook], ["Claridad", sc.standalone], ["Cierre", sc.closure], ["Encaje", sc.relevance]] as const).map(([l, v]) => <span key={l}><span className="text-[var(--muted)]">{l}</span> <strong>{letter(v)}</strong></span>)}</span>
+                        <span className="flex gap-3">{(isLex(c) ? ([["Encaje", sc.relevance], ["Gancho", sc.hook]] as const) : ([["Gancho", sc.hook], ["Claridad", sc.standalone], ["Cierre", sc.closure], ["Encaje", sc.relevance]] as const)).map(([l, v]) => <span key={l}><span className="text-[var(--muted)]">{l}</span> <strong>{letter(v)}</strong></span>)}</span>
                         <Icon n={open === c.id ? "chevD" : "chevR"} className="h-3.5 w-3.5" /></button>)}
                     {open === c.id && c.candidate?.brief_fit && <p className="mt-2 text-sm"><span className="text-[var(--muted)]">Por qué encaja con tu objetivo: </span>{c.candidate.brief_fit}</p>}
-                    {total != null && <p className="mt-2 text-[11px] text-[var(--muted)]">Estimación de IA basada en gancho, claridad, cierre y encaje con tu enfoque.</p>}
+                    {total != null && <p className="mt-2 text-[11px] text-[var(--muted)]">{isLex(c) ? `Puntuación heurística sin IA (${genModel(c)}): encaje = palabras de tu enfoque presentes; gancho = señales en la primera frase. Claridad y cierre no se evalúan sin IA (solo se exige que acabe en frase completa).` : `Estimación de IA (${genModel(c)}) según gancho, claridad, cierre y encaje con tu enfoque. No garantiza viralidad.`}</p>}
                     <div className="mt-3 flex flex-wrap items-center gap-2">
                       <Link href={`/app/c/${c.id}`} className="btn btn-primary !px-4 !py-2">Editar</Link>
                       <button onClick={() => download(c)} disabled={!c.path} className="btn btn-ghost !px-3 !py-2" aria-label="Descargar MP4"><Icon n="download" className="h-4 w-4" /></button>

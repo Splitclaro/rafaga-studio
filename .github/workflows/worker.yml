@@ -3,7 +3,7 @@ on:
   schedule: [{ cron: "*/5 * * * *" }]
   workflow_dispatch:
     inputs:
-      mode: { description: "worker | selftest | lyrics-selftest", default: "worker", required: false }
+      mode: { description: "worker | selftest | lyrics-selftest | looks-selftest", default: "worker", required: false }
 concurrency: { group: media-worker, cancel-in-progress: false }
 permissions: { contents: read, actions: read }
 jobs:
@@ -33,4 +33,14 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           WORKER_IDLE_SECONDS: "600"   # caliente 10 min tras el último trabajo: los siguientes arrancan en segundos
           WORKER_MAX_SECONDS: "3000"
-        run: node src/${{ (inputs.mode == 'selftest' || inputs.mode == 'lyrics-selftest') && inputs.mode || 'run' }}.ts
+        run: node src/${{ (inputs.mode == 'selftest' || inputs.mode == 'lyrics-selftest' || inputs.mode == 'looks-selftest') && inputs.mode || 'run' }}.ts
+      - if: steps.gate.outputs.ready == 'true' && inputs.mode == 'looks-selftest' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: looks-selftest
+          path: |
+            workers/media/looks-out/*.mp4
+            workers/media/looks-out/*.png
+            workers/media/looks-out/*.ass
+            workers/media/looks-out/report.json
+          retention-days: 14

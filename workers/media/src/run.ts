@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildAss, buildComposition, ffmpegArgs, styleForRatio, renderFamily, groupsFrom, validateStyle, SYSTEM_FONT, escapeFilterPath, PRESETS, RATIO_SIZE, type Composition, type Ratio, type Word } from "@rafaga/composition";
 import { transcribe, proposeClips, safeGet, parseFeed, captureHls, concatWindow, type WindowOut } from "@rafaga/providers";
-import { alignLyrics, lyricsFromAsr, parseLyrics, planVariants, lyricFfmpegArgs, sequenceFor, DEFAULT_BG, type BgItem, type BgSettings, type TimedWord } from "@rafaga/lyrics";
+import { alignLyrics, lyricsFromAsr, parseLyrics, planVariants, lyricFfmpegArgs, sequenceFor, DEFAULT_BG, LOOKS, resolveLook, varyLook, layoutLyrics, layoutToAss, planShots, lookFfmpegArgs, canvasSize, LOOK_ENGINE_VERSION, type BgItem, type BgSettings, type TimedWord, type ShotItem, type DeepPartial, type LyricLook } from "@rafaga/lyrics";
 import { briefHash, RUBRIC_VERSION, validateCandidates, windows, transcriptText, lexicalCandidates, LEXICAL_VERSION, type TWord, type RawCandidate } from "@rafaga/selection";
 
 const need = (k: string) => { const v = process.env[k]; if (!v) { console.error(`Falta el secreto ${k}`); process.exit(2); } return v; };
@@ -44,7 +44,7 @@ async function fontsFor(ws: string, family: string, dir: string): Promise<string
   return fd;
 }
 
-type Job = { id: string; kind: string; workspace_id: string; project_id: string | null; clip_id: string | null; attempts: number; params: { session_id?: string; rule_id?: string; manual?: boolean; version?: number; ratio?: Ratio; burn?: boolean; song_id?: string; n?: number; styles?: string[]; backgrounds?: string[]; seed?: number; start?: number; end?: number; collection_id?: string | null; settings?: Partial<BgSettings> & { textScale?: number } } };
+type Job = { id: string; kind: string; workspace_id: string; project_id: string | null; clip_id: string | null; attempts: number; params: { session_id?: string; rule_id?: string; manual?: boolean; version?: number; ratio?: Ratio; burn?: boolean; song_id?: string; n?: number; styles?: string[]; backgrounds?: string[]; seed?: number; start?: number; end?: number; collection_id?: string | null; settings?: Partial<BgSettings> & { textScale?: number }; res?: 1080 | 720; native?: boolean; variation?: number; look_overrides?: Record<string, DeepPartial<LyricLook>> } };
 const setStatus = (id: string, status: string, extra: Record<string, unknown> = {}) =>
   sb.from("jobs").update({ status, heartbeat_at: new Date().toISOString(), updated_at: new Date().toISOString(), ...extra }).eq("id", id);
 
@@ -114,20 +114,20 @@ async function processJob(job: Job) {
       const vs = probe.streams.find((s: { codec_type: string }) => s.codec_type === "video");
       await sb.from("sources").update({ status: hasAudio ? "validated" : "failed", duration_ms: durationMs, width: vs?.width, height: vs?.height, has_audio: hasAudio }).eq("id", src.id);
       if (!hasAudio) throw Object.assign(new Error("El vídeo no tiene pista de audio: no se puede seleccionar por voz."), { permanent: true });
-      if (durationMs < 15000) throw Object.assign(new Error(`El vídeo dura ${(durationMs / 1000).toFixed(1)} s. Para buscar momentos hace falta al menos 15 s de contenido hablado.`), { permanent: true });
+      if (durationMs < 15000) throw Object.assign(new Error(`El vídeo dura ${(durationMs / 1000).toFixed(1)} s. Para buscar momentos hace falta al menos 15 s de contenido hablado.`), { permanent: true, code: "too_short" });
       const audio = join(dir, "a.ogg");
       sh("ffmpeg", ["-y", "-v", "error", "-i", inp, "-vn", "-ac", "1", "-ar", "16000", "-c:a", "libopus", "-b:a", "24k", audio]);
       await setStatus(job.id, "transcribing");
       const t1 = Date.now();
       const res = await transcribe(readFileSync(audio), "audio/ogg", DG, project.language);
       m.asr_ms = Date.now() - t1;
-      if (!res.words.length) throw Object.assign(new Error("No se detectó voz en el audio (¿solo música o silencio?). La detección de momentos necesita habla; para canciones usa Lyric Studio."), { permanent: true });
+      if (!res.words.length) throw Object.assign(new Error("No se detectó voz en el audio (¿solo música o silencio?). La detección de momentos necesita habla; para canciones usa Lyric Studio."), { permanent: true, code: "no_speech" });
       tr = ok(await sb.from("transcripts").insert({ workspace_id: project.workspace_id, source_id: src.id, language: res.language, words: res.words, asr_provider: "deepgram", asr_model: "nova-3" }).select("id,words,language").single(), "transcript");
     } else m.asr_ms = 0; // reutilizado
     if (!tr) throw new Error("transcript no disponible");
     const rs = src.range_start_ms != null && src.range_end_ms ? src.range_start_ms / 1000 : null, re = src.range_end_ms ? src.range_end_ms / 1000 : null;
     const words = (tr.words as TWord[]).filter((w) => rs == null || re == null || (w.start >= rs && w.end <= re));
-    if (!words.length) throw Object.assign(new Error("No hay habla en el tramo elegido."), { permanent: true });
+    if (!words.length) throw Object.assign(new Error("No hay habla en el tramo elegido."), { permanent: true, code: "no_speech_range" });
     if (project.mode !== "clips") return await processWhole(job, project, src, dir, path, words, t0, m, tr.id);
 
     // 2) Selección guiada por brief
@@ -190,7 +190,7 @@ async function processJob(job: Job) {
     const err = e as Error & { permanent?: boolean };
     console.error("job fallo", job.id, err.message);
     // Permanente: no se reintenta. Transitorio: vuelve a la cola hasta 3 intentos (claim_job lo limita).
-    await setStatus(job.id, err.permanent || job.attempts >= 3 ? "failed" : "queued", { error_code: err.permanent ? "permanent" : "transient", error_message: err.message.slice(0, 300), metrics: m });
+    await setStatus(job.id, err.permanent || job.attempts >= 3 ? "failed" : "queued", { error_code: (err as { code?: string }).code ?? (err.permanent ? "permanent" : "transient"), error_message: err.message.slice(0, 300), metrics: m });
   } finally { rmSync(dir, { recursive: true, force: true }); }
 }
 
@@ -267,7 +267,12 @@ async function processLyrics(job: Job) {
     const key = briefHash(`v1|${song.lyrics_text ?? ""}|${start.toFixed(2)}|${end.toFixed(2)}`);
     let words: TimedWord[];
     const cached = (await sb.from("song_alignments").select("words").eq("song_id", song.id).eq("lyrics_sha256", key).maybeSingle()).data;
-    if (cached) { words = cached.words as TimedWord[]; m.alignment = "cache"; }
+    // Sincronización manual (pulsación) de esta misma letra: prioridad sobre la automática; tiempos absolutos de la canción
+    const manual = (await sb.from("song_alignments").select("words").eq("song_id", song.id).eq("lyrics_sha256", `manual:${briefHash(song.lyrics_text ?? "")}`).maybeSingle()).data;
+    if (manual) {
+      words = (manual.words as TimedWord[]).filter((w) => w.end > start && w.start < end).map((w) => ({ ...w, start: +Math.max(0, w.start - start).toFixed(3), end: +Math.min(len, w.end - start).toFixed(3) }));
+      m.alignment = "manual";
+    } else if (cached) { words = cached.words as TimedWord[]; m.alignment = "cache"; }
     else {
       await setStatus(job.id, "transcribing");
       const ogg = join(dir, "a.ogg");
@@ -286,6 +291,7 @@ async function processLyrics(job: Job) {
     const settings: BgSettings = { ...DEFAULT_BG, ...(p.settings ?? {}) };
     const textScale = Math.min(1.6, Math.max(0.6, p.settings?.textScale ?? 1));
     let items: BgItem[] = [];
+    const shotItems: ShotItem[] = [];
     if (p.collection_id) {
       const { data: mi } = await sb.from("media_items").select("kind,storage_path").eq("collection_id", p.collection_id).eq("workspace_id", song.workspace_id);
       if (!mi?.length) throw Object.assign(new Error("La colección elegida no tiene vídeos ni fotos."), { permanent: true });
@@ -294,6 +300,9 @@ async function processLyrics(job: Job) {
         if (d2.error || !d2.data) throw new Error(`descarga de fondo: ${d2.error?.message}`);
         const fp = join(dir, `bg${i}${it.kind === "photo" ? ".img" : ".vid"}`); writeFileSync(fp, Buffer.from(await d2.data.arrayBuffer()));
         items.push({ path: fp, kind: it.kind as "video" | "photo" });
+        let duration: number | undefined;
+        if (it.kind === "video") { try { duration = Number(JSON.parse(sh("ffprobe", ["-v", "error", "-print_format", "json", "-show_format", fp])).format.duration) || undefined; } catch { duration = undefined; } }
+        shotItems.push({ path: fp, kind: it.kind as "video" | "photo", duration });
       }
     }
     // Plan exacto de N variantes
@@ -308,6 +317,27 @@ async function processLyrics(job: Job) {
       const { data: cur } = await sb.from("jobs").select("status").eq("id", job.id).single();
       if (cur?.status === "cancelled") break;
       await sb.from("lyric_videos").upsert({ workspace_id: song.workspace_id, song_id: song.id, job_id: job.id, variant: v.index, params: { ...v, settings, textScale, collection_id: p.collection_id ?? null }, status: "rendering" }, { onConflict: "job_id,variant" });
+      if (v.style.startsWith("look:")) {   // Looks de referencia: composición completa (imagen contenida, letra anclada, tratamiento, montaje)
+        const id = v.style.slice(5);
+        if (!LOOKS[id]) throw Object.assign(new Error(`Estilo desconocido: ${id}`), { permanent: true });
+        const look = varyLook(resolveLook(id, p.look_overrides?.[id] ?? {}), v.seed, Math.min(1, Math.max(0, p.variation ?? 0.5)));
+        const { W: LW, H: LH } = canvasSize(p.native ? look.canvas.ratio : ratio, p.res === 720 ? 720 : 1080);
+        const L = layoutLyrics(words, look, LW, LH, len);
+        const ass = join(dir, `v${v.index}.ass`), out = join(dir, `v${v.index}.mp4`);
+        writeFileSync(ass, layoutToAss(L));
+        const shots = planShots(shotItems, L.pages, len, look.montage, v.seed);
+        const t2 = Date.now();
+        sh("ffmpeg", lookFfmpegArgs({ look, W: LW, H: LH, len, shots, color: /^#[0-9a-f]{6}$/i.test(v.background) ? v.background : "#111111", seed: v.seed, audio: seg, ass, out, escape: escapeFilterPath }));
+        const probe = JSON.parse(sh("ffprobe", ["-v", "error", "-print_format", "json", "-show_entries", "stream=codec_name,width,height:format=duration,size", out]));
+        const rpath = `${song.workspace_id}/lyrics/${job.id}/${v.index}.mp4`;
+        const up = await sb.storage.from("renders").upload(rpath, readFileSync(out), { contentType: "video/mp4", upsert: true });
+        if (up.error) throw new Error(`subida: ${up.error.message}`);
+        await sb.from("lyric_videos").update({ storage_path: rpath, status: "ready", probe, params: { ...v, look: { id, version: look.version, engine: LOOK_ENGINE_VERSION, resolved: look }, shots: shots.map((x) => ({ start: x.start, dur: x.dur, entry: x.entry, item: shotItems.indexOf(x.item) })), res: p.res ?? 1080, collection_id: p.collection_id ?? null, alignment: m.alignment } }).eq("job_id", job.id).eq("variant", v.index);
+        if (v.index === 1) m.first_ms = Date.now() - t0;
+        m[`render_ms_${v.index}`] = Date.now() - t2;
+        await sb.from("jobs").update({ heartbeat_at: new Date().toISOString(), metrics: m }).eq("id", job.id);
+        continue;
+      }
       let base = PRESETS[v.style] ?? PRESETS.Letra;
       if (v.style.startsWith("custom:")) {   // estilo propio: solo del mismo workspace y siempre validado
         const { data: ts } = await sb.from("text_styles").select("style").eq("id", v.style.slice(7)).eq("workspace_id", song.workspace_id).maybeSingle();

@@ -4,6 +4,7 @@ import { test, before } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
+import { createHash } from "node:crypto";
 
 const A = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
 const B = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
@@ -48,6 +49,7 @@ before(async () => {
   await db.exec("grant execute on function public.request_automation_check(uuid) to authenticated;");
   await db.exec(readFileSync(new URL("../migrations/20261110000012_live.sql", import.meta.url), "utf8"));
   await db.exec("grant select on public.live_sessions, public.live_windows to authenticated; grant execute on function public.start_live_session(text, text), public.set_live_status(uuid, text) to authenticated;");
+  await db.exec(readFileSync(new URL("../migrations/20261110000013_lyric_looks.sql", import.meta.url), "utf8"));
   await db.exec("grant select, insert, delete on public.songs to authenticated; grant select on public.song_alignments, public.lyric_videos to authenticated; grant execute on function public.request_lyrics(uuid, jsonb, text) to authenticated;");
   await db.exec("grant execute on function public.request_detection(uuid, text) to authenticated; grant execute on function public.request_render(uuid, int, text, boolean) to authenticated;");
   await db.exec(`insert into auth.users values ('${A}','a@test.dev'),('${B}','b@test.dev');`);
@@ -182,7 +184,9 @@ test("Lyric Studio: canciones privadas, ruta en su carpeta, petición de N valid
     const j2 = (await db.query<{ r: string }>(`select request_lyrics('${song}','{"n":10,"ratio":"9:16"}','clave-lyr-1') r`)).rows[0].r;
     assert.equal(j1, j2);
     await rejects(`select request_lyrics('${song}','{"n":0,"ratio":"9:16"}','clave-lyr-2')`);
-    await rejects(`select request_lyrics('${song}','{"n":5,"ratio":"4:3"}','clave-lyr-3')`);
+    await rejects(`select request_lyrics('${song}','{"n":5,"ratio":"3:2"}','clave-lyr-3')`);
+    await rejects(`select request_lyrics('${song}','{"n":5,"ratio":"4:3","res":"4k"}','clave-lyr-5')`);
+    assert.ok((await db.query(`select request_lyrics('${song}','{"n":5,"ratio":"4:3","res":"720"}','clave-lyr-6')`)).rows.length);
   });
   await asUser(B, async () => {
     assert.equal((await db.query(`select * from songs`)).rows.length, 0);
@@ -272,4 +276,25 @@ test("En vivo: una sesión activa por workspace, URL https, parar/reanudar y ais
     await rejects(`select set_live_status('${sid}','resume')`);
     const b = (await db.query<{ r: string }>(`select start_live_session('https://y.com/l.m3u8', null) r`)).rows[0].r; assert.ok(b);   // B puede tener la suya
   });
+});
+
+test("Sincronización manual: misma clave que el worker, validación de tiempos y aislamiento", async () => {
+  const lyr = "  Todavía te busco\n\nen la   ciudad ";
+  const song = (await db.query<{ id: string }>(`insert into songs(workspace_id,title,storage_path,mime,bytes,created_by,lyrics_text) values ('${wsA}','Manual','${wsA}/songs/m.mp3','audio/mpeg',100,'${A}',$1) returning id`, [lyr])).rows[0].id;
+  const expected = "manual:" + createHash("sha256").update(lyr.trim().replace(/\s+/g, " ")).digest("hex");
+  const ok = JSON.stringify([{ text: "Todavía", start: 0.4, end: 0.9 }, { text: "te", start: 1, end: 1.1 }]);
+  await asUser(A, async () => {
+    const k = (await db.query<{ k: string }>(`select public.save_manual_alignment('${song}', $1::jsonb) k`, [ok])).rows[0].k;
+    assert.equal(k, expected);
+    await assert.rejects(() => db.query(`select public.save_manual_alignment('${song}', $1::jsonb)`, [JSON.stringify([{ text: "a", start: 1, end: 0.5 }])]));
+    await assert.rejects(() => db.query(`select public.save_manual_alignment('${song}', $1::jsonb)`, [JSON.stringify([{ text: "a", start: 2, end: 3 }, { text: "b", start: 1, end: 1.5 }])]));
+    await rejects(`update song_alignments set words='[]'::jsonb`);
+    await db.query(`update songs set studio_settings='{"look":"diario"}'::jsonb where id='${song}'`);
+  });
+  await asUser(B, async () => {
+    await assert.rejects(() => db.query(`select public.save_manual_alignment('${song}', $1::jsonb)`, [ok]));
+    assert.equal((await db.query(`select * from song_alignments where song_id='${song}'`)).rows.length, 0);
+  });
+  const r = (await db.query<{ words: { origin: string }[] }>(`select words from song_alignments where lyrics_sha256='${expected}'`)).rows[0];
+  assert.equal(r.words[0].origin, "manual");
 });

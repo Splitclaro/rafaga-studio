@@ -1,8 +1,8 @@
 import { PRESET_IMPACTO, type SubtitleStyle, type Word } from "./subtitles.ts";
 
-export type Ratio = "9:16" | "4:5" | "1:1" | "16:9";
+export type Ratio = "9:16" | "4:5" | "1:1" | "16:9" | "4:3";
 export const RATIO_SIZE: Record<Ratio, { width: number; height: number }> = {
-  "9:16": { width: 1080, height: 1920 }, "4:5": { width: 1080, height: 1350 }, "1:1": { width: 1080, height: 1080 }, "16:9": { width: 1920, height: 1080 },
+  "9:16": { width: 1080, height: 1920 }, "4:5": { width: 1080, height: 1350 }, "1:1": { width: 1080, height: 1080 }, "16:9": { width: 1920, height: 1080 }, "4:3": { width: 1440, height: 1080 },
 };
 
 export interface BrollItem { path: string; kind: "video" | "photo"; start: number; dur: number; name?: string }

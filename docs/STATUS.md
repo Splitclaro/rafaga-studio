@@ -80,3 +80,10 @@ Probar Lyric Studio con una canción real (canto + instrumental). Siguiente: Sty
 ## Sesión 5 — fusión Proyectos/Biblioteca y formato LyricTune
 - `/app/proyectos` redirige a Biblioteca; pestaña **Proyectos**: cada proyecto despliega sus clips (vídeo, duración, peso), descarga individual y «Descargar todos» (descargas secuenciales; sin ZIP).
 - Lyric Studio: nuevo ajuste `frame` (banda 16:9 centrada sobre lienzo negro con la letra encima = formato visto en la landing de LyricTune; por defecto) o pantalla completa; estilos `Tune`, `Palabra`, `Tune mayúsculas`; vista inicial con formatos más usados y vídeos recientes. Cubierto por tests de ffmpeg (`pad` antes de `subtitles`). **No verificado en la nube con una canción real.**
+
+## Sesión 6 — looks de videolyric y primeros hallazgos de auditoría
+- Referencias de LyricTune medidas (ver `docs/LYRIC_LOOKS.md`). Tres looks completos (Archivo analógico, Diario urbano, Cine panorámico) con motor de layout común preview/export, tratamiento VHS configurable, montaje por frases, 1080p/720p, 4:3 nativo.
+- Sincronización manual por pulsación (teclado y botón táctil) con versión reutilizable; ajustes por canción persistentes (`songs.studio_settings`).
+- Migraciones 13 y 14 aplicadas y verificadas en producción (consulta de comprobación).
+- Auditoría: `docs/AUDIT_2026-11-10.md` (H07, H08, H10, H11 corregidos; H01 bloqueado por coste).
+- Encargos de Dashboard/My projects/Asset library completo y del resto de la auditoría: **no iniciados en esta sesión**.
