@@ -3,7 +3,7 @@ import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   activeWordAt, groupWords, editText, splitWord, mergeWithNext, setTiming, offsetAll, styleForRatio, toSRT, toVTT, toTranscript,
-  PRESETS, RATIO_SIZE, caseOf, trimClip, type Composition, type BrollItem, type Ratio, type SubtitleStyle, type Word,
+  PRESETS, RATIO_SIZE, caseOf, trimClip, xAt, type ReframePath, type Composition, type BrollItem, type Ratio, type SubtitleStyle, type Word,
 } from "@rafaga/composition";
 import { supabase } from "../../../../lib/supabase";
 import { useWorkspaceFonts } from "../../../../lib/fonts";
@@ -13,7 +13,8 @@ import Icon from "../../../../components/Icon";
 import Timeline from "../../../../components/Timeline";
 
 type Layout = "blur" | "fill" | "fit";
-type Doc = { startSec: number; endSec: number; words: Word[]; style: SubtitleStyle; ratio: Ratio; burn: boolean; preset: string; layout: Layout; cropX: number; broll: BrollItem[] };
+type Reframe = { kf: { t: number; x: number }[]; mode?: string; coverage?: number };
+type Doc = { reframe?: Reframe; startSec: number; endSec: number; words: Word[]; style: SubtitleStyle; ratio: Ratio; burn: boolean; preset: string; layout: Layout; cropX: number; broll: BrollItem[] };
 type Render = { id: string; clip_version: number; ratio: string; burn_subtitles: boolean; storage_path: string; created_at: string };
 
 export default function ClipEditor({ params }: { params: Promise<{ id: string }> }) {
@@ -24,6 +25,8 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
   const [srcDur, setSrcDur] = useState(0);
   const [trimMsg, setTrimMsg] = useState<string | null>(null);
   const srcWords = useRef<Word[] | null>(null);
+  const [rfMode, setRfMode] = useState<"follow" | "group">("follow");
+  const [rf, setRf] = useState<{ id: string; status: string; path: ReframePath | null; error: string | null } | null>(null);
   const [doc, setDoc] = useState<Doc | null>(null);
   const [past, setPast] = useState<Doc[]>([]);
   const [future, setFuture] = useState<Doc[]>([]);
@@ -78,7 +81,7 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
       const signed = await supabase.storage.from("originals").createSignedUrl(`${c.workspace_id}/${p.source_id}/original`, 3600);
       versionRef.current = c.current_version;
       setMeta({ title: c.title, ws: c.workspace_id, projectId: c.project_id, sourceId: p.source_id, version: c.current_version, base: comp, src: signed.data?.signedUrl ?? "" });
-      setDoc({ startSec: comp.startSec, endSec: comp.endSec, words: comp.words, style: comp.style, ratio: comp.ratio, burn: comp.burnSubtitles, preset: comp.preset ?? "Impacto", layout: comp.layout === "fill" || comp.layout === "fit" ? comp.layout : "blur", cropX: comp.crop?.x ?? 0.5, broll: comp.broll ?? [] });
+      setDoc({ reframe: comp.reframe, startSec: comp.startSec, endSec: comp.endSec, words: comp.words, style: comp.style, ratio: comp.ratio, burn: comp.burnSubtitles, preset: comp.preset ?? "Impacto", layout: comp.layout === "fill" || comp.layout === "fit" ? comp.layout : "blur", cropX: comp.crop?.x ?? 0.5, broll: comp.broll ?? [] });
       await loadRenders();
     })();
   }, [id, loadRenders]);
@@ -125,6 +128,30 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
     ro.observe(el); return () => ro.disconnect();
   }, [doc?.ratio, doc]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ---------- Reencuadre automático: análisis de caras en el worker; la trayectoria solo se aplica si la persona quiere ----------
+  useEffect(() => {
+    if (!rf || !["queued", "analyzing"].includes(rf.status)) return;
+    const i = setInterval(async () => {
+      const { data } = await supabase.from("reframe_tracks").select("status,path,error").eq("id", rf.id).maybeSingle();
+      if (data && data.status !== rf.status) setRf({ id: rf.id, status: data.status, path: (data.path as ReframePath | null) ?? null, error: data.error });
+      else if (data?.error && data.error !== rf.error) setRf({ ...rf, error: data.error });
+    }, 3000);
+    return () => clearInterval(i);
+  }, [rf]);
+  async function analyzeFaces() {
+    if (!doc || !meta) return;
+    setRf({ id: "", status: "queued", path: null, error: null });
+    const { data, error } = await supabase.rpc("request_reframe", { p_clip: id, p_start: doc.startSec, p_end: doc.endSec, p_ratio: doc.ratio, p_mode: rfMode });
+    if (error) return setRf({ id: "", status: "failed", path: null, error: error.message });
+    const { data: s2 } = await supabase.auth.getSession();
+    fetch("/api/wake", { method: "POST", headers: { Authorization: `Bearer ${s2.session?.access_token ?? ""}` } }).catch(() => {});
+    const tid = data as string;
+    const { data: row } = await supabase.from("reframe_tracks").select("status,path,error").eq("id", tid).maybeSingle();
+    setRf({ id: tid, status: row?.status ?? "queued", path: (row?.path as ReframePath | null) ?? null, error: row?.error ?? null });
+  }
+  const applyReframe = () => { if (rf?.path && rf.path.mode !== "static") change((d) => ({ ...d, layout: "fill", reframe: { kf: rf.path!.kf, mode: rf.path!.mode, coverage: rf.path!.coverage } })); };
+  const clearReframe = () => change((d) => ({ ...d, reframe: undefined }));
+
   // ---------- Recorte: cambia inicio/fin conservando la edición; al ampliar rellena solo lo nuevo con la transcripción ----------
   async function applyTrim(ns: number, ne: number) {
     if (!doc || !meta) return;
@@ -136,12 +163,13 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
     if (!r.ok) return setTrimMsg(r.reason);
     setTrimMsg(`Clip de ${(r.endSec - r.startSec).toFixed(1)} s${r.dropped ? ` · ${r.dropped} palabra${r.dropped === 1 ? "" : "s"} fuera` : ""}${r.added ? ` · ${r.added} añadida${r.added === 1 ? "" : "s"} de la transcripción` : ""}.`);
     const keepAbs = clipStart + t;
-    change((d) => ({ ...d, startSec: r.startSec, endSec: r.endSec, words: r.words, broll: r.broll }));
+    change((d) => ({ ...d, startSec: r.startSec, endSec: r.endSec, words: r.words, broll: r.broll, reframe: undefined }));
+    if (doc.reframe) setTrimMsg((m) => `${m ?? ""} Se quitó el seguimiento de caras: vuelve a analizar el tramo nuevo.`);
     setSel(null);
     const rel = Math.min(Math.max(0, keepAbs - r.startSec), r.endSec - r.startSec);
     if (fg.current) fg.current.currentTime = r.startSec + rel; if (bg.current) bg.current.currentTime = r.startSec + rel; setT(rel);
   }
-  const setModeP = (m: "quick" | "advanced") => { setMode(m); try { localStorage.setItem("rafaga.editor.mode", m); } catch {} if (m === "quick" && ["encuadre", "social", "broll"].includes(tab)) setTab("estilo"); };
+  const setModeP = (m: "quick" | "advanced") => { setMode(m); try { localStorage.setItem("rafaga.editor.mode", m); } catch {} if (m === "quick" && ["social", "broll"].includes(tab)) setTab("estilo"); };
 
   // ---------- Edición con historial y autosave ----------
   const change = (fn: (d: Doc) => Doc) => {
@@ -156,7 +184,7 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
     if (!meta) return null;
     setSave("saving");
     const next = versionRef.current + 1;
-    const composition: Composition & { preset: string } = { ...meta.base, startSec: d.startSec, endSec: d.endSec, words: d.words, style: d.style, ratio: d.ratio, burnSubtitles: d.burn, preset: d.preset, layout: d.layout, crop: { x: d.cropX }, broll: d.broll };
+    const composition: Composition & { preset: string } = { ...meta.base, startSec: d.startSec, endSec: d.endSec, words: d.words, style: d.style, ratio: d.ratio, burnSubtitles: d.burn, preset: d.preset, layout: d.layout, crop: { x: d.cropX }, broll: d.broll, ...(d.reframe && d.layout === "fill" ? { reframe: d.reframe } : { reframe: undefined }) };
     const { data: s } = await supabase.auth.getSession();
     const ins = await supabase.from("clip_versions").insert({ clip_id: id, workspace_id: meta.ws, version: next, composition, created_by: s.session?.user.id });
     if (ins.error) { setSave(ins.error.code === "23505" ? "conflict" : "error"); setErr(ins.error.code === "23505" ? "Otra sesión guardó este clip. Recarga para ver la última versión." : ins.error.message); return null; }
@@ -273,9 +301,9 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
       </ol>
     </div>
   );
-  const tabsAll = (quick ? ["texto", "estilo", "exportar"] : ["texto", "estilo", "encuadre", "social", "broll", "exportar"]) as readonly ("texto" | "estilo" | "encuadre" | "social" | "broll" | "exportar")[];
+  const tabsAll = (quick ? ["texto", "estilo", "encuadre", "exportar"] : ["texto", "estilo", "encuadre", "social", "broll", "exportar"]) as readonly ("texto" | "estilo" | "encuadre" | "social" | "broll" | "exportar")[];
   const tabsShown = xl ? tabsAll.filter((x) => x !== "texto") : tabsAll;
-  const tabEff = xl && tab === "texto" ? "estilo" : quick && ["encuadre", "social", "broll"].includes(tab) ? "estilo" : tab;
+  const tabEff = xl && tab === "texto" ? "estilo" : quick && ["social", "broll"].includes(tab) ? "estilo" : tab;
 
   return (
     <main className="px-4 py-6 md:px-6">
@@ -305,7 +333,7 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
         <section aria-label="Vista previa" className="flex flex-col items-center gap-3">
           <div ref={stage} className="relative w-full overflow-hidden rounded-xl bg-black" style={doc.ratio === "16:9" ? { aspectRatio: `${R.width}/${R.height}`, width: "100%", maxWidth: 1000 } : { aspectRatio: `${R.width}/${R.height}`, height: "min(calc(100vh - 330px), 780px)", minHeight: 320, width: "auto", maxWidth: "100%" }}>
             <video ref={bg} src={meta.src} muted playsInline preload="auto" className={`absolute inset-0 h-full w-full scale-110 object-cover blur-2xl ${doc.layout === "blur" ? "" : "hidden"}`} aria-hidden />
-            <video ref={fg} src={meta.src} playsInline preload="auto" className={`absolute inset-0 h-full w-full ${doc.layout === "fill" ? "object-cover" : "object-contain"}`} style={doc.layout === "fill" ? { objectPosition: `${doc.cropX * 100}% 50%` } : undefined} onLoadedMetadata={() => { setSrcDur(fg.current?.duration ?? 0); seek(0); }} />
+            <video ref={fg} src={meta.src} playsInline preload="auto" className={`absolute inset-0 h-full w-full ${doc.layout === "fill" ? "object-cover" : "object-contain"}`} style={doc.layout === "fill" ? { objectPosition: `${(doc.reframe?.kf?.length ? xAt(doc.reframe.kf, t, doc.cropX) : doc.cropX) * 100}% 50%` } : undefined} onLoadedMetadata={() => { setSrcDur(fg.current?.duration ?? 0); seek(0); }} />
             {doc.broll.map((b, i) => t >= b.start && t < b.start + b.dur && brollUrls[b.path] ? (b.kind === "photo"
               ? <img key={i} src={brollUrls[b.path]} alt="" className="absolute inset-0 h-full w-full object-cover" />
               : <video key={i} src={brollUrls[b.path]} muted autoPlay loop playsInline className="absolute inset-0 h-full w-full object-cover" />) : null)}
@@ -382,15 +410,34 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
           {tabEff === "encuadre" && (
             <div className="grid gap-4 p-3 text-sm">
               <p className="text-[var(--muted)]">Cómo se adapta el vídeo original al formato elegido ({doc.ratio}).</p>
-              <div role="radiogroup" aria-label="Encuadre" className="grid gap-2">
+              {!quick && <div role="radiogroup" aria-label="Encuadre" className="grid gap-2">
                 {([["blur", "Desenfocado", "Vídeo completo centrado sobre su propio fondo desenfocado."], ["fill", "Rellenar", "Recorta para ocupar todo el cuadro. Elige qué parte se ve."], ["fit", "Ajustar", "Vídeo completo con barras negras."]] as const).map(([k, l, d]) => (
                   <button key={k} role="radio" aria-checked={doc.layout === k} onClick={() => change((x) => ({ ...x, layout: k }))} className={`rounded-xl border p-3 text-left ${doc.layout === k ? "border-[#111] ring-1 ring-[#111]" : "hairline hover:bg-[var(--hover)]"}`}><span className="font-medium">{l}</span><span className="block text-xs text-[var(--muted)]">{d}</span></button>))}
-              </div>
-              {doc.layout === "fill" && (<label>Posición horizontal del recorte · <span className="mono">{Math.round(doc.cropX * 100)} %</span>
-                <input type="range" min={0} max={1} step={0.01} value={doc.cropX} onChange={(e) => change((x) => ({ ...x, cropX: Number(e.target.value) }))} className="mt-1 w-full" />
-                <span className="text-xs text-[var(--muted)]">Manual: mueve el recorte hacia quien habla. El seguimiento automático de caras aún no está disponible.</span></label>)}
+              </div>}
+              {(() => { const busy = !!rf && ["queued", "analyzing"].includes(rf.status); const ready = rf?.status === "ready" && rf.path; const st = ready && rf.path!.mode === "static";
+                return (
+                <div className="rounded-xl border border-[var(--border)] bg-white p-3" aria-label="Reencuadre automático">
+                  <div className="font-medium">Reencuadre automático</div>
+                  <p className="mt-0.5 text-xs text-[var(--muted)]">Detecta caras en este tramo y mueve el recorte para mantenerlas en cuadro. Es una sugerencia: la ves en la vista previa antes de aplicarla, y es la misma que se exporta.</p>
+                  {doc.reframe ? (
+                    <div className="mt-2 text-xs"><p role="status">Aplicado · {doc.reframe.kf.length} puntos de movimiento{typeof doc.reframe.coverage === "number" ? ` · caras en el ${Math.round(doc.reframe.coverage * 100)} % del clip` : ""}.</p>
+                      <div className="mt-2 flex flex-wrap gap-2"><button onClick={clearReframe} className="btn btn-ghost !px-3 !py-1 !text-xs">Quitar seguimiento</button><button onClick={analyzeFaces} disabled={busy} className="btn btn-ghost !px-3 !py-1 !text-xs">Volver a analizar</button></div></div>
+                  ) : (
+                    <div className="mt-2 flex flex-wrap items-end gap-2">
+                      <label className="text-xs">Seguir a<select value={rfMode} onChange={(e) => setRfMode(e.target.value as "follow" | "group")} className="mt-1 block rounded-full border border-[var(--border)] bg-white px-3 py-1.5 text-sm"><option value="follow">La cara principal</option><option value="group">El grupo (si caben)</option></select></label>
+                      <button onClick={analyzeFaces} disabled={busy} className="btn btn-primary !py-1.5 !text-xs disabled:opacity-50">{busy ? "Analizando…" : "Analizar caras"}</button>
+                    </div>)}
+                  {busy && <p role="status" aria-live="polite" className="mt-2 text-xs text-[var(--muted)]">Analizando el tramo de {(doc.endSec - doc.startSec).toFixed(0)} s en segundo plano. Puedes seguir editando; avisa aquí al terminar.</p>}
+                  {rf?.status === "failed" && <p role="alert" className="mt-2 text-xs">No se pudo analizar: {rf.error ?? "error desconocido"}</p>}
+                  {ready && !doc.reframe && (
+                    <div className="mt-2 text-xs"><p role="status">{st ? rf.path!.note : `Caras en el ${Math.round(rf.path!.coverage * 100)} % del clip · ${rf.path!.kf.length} puntos de movimiento.${rf.path!.coverage < 0.6 ? " Cobertura baja: revisa la vista previa antes de exportar." : ""}`}</p>
+                      {!st && <button onClick={applyReframe} className="btn btn-primary mt-2 !py-1.5 !text-xs">Aplicar</button>}</div>)}
+                </div>); })()}
+              {!quick && doc.layout === "fill" && (<label>Posición horizontal del recorte · <span className="mono">{Math.round(doc.cropX * 100)} %</span>
+                <input type="range" min={0} max={1} step={0.01} value={doc.cropX} disabled={!!doc.reframe} onChange={(e) => change((x) => ({ ...x, cropX: Number(e.target.value) }))} className="mt-1 w-full disabled:opacity-40" />
+                <span className="text-xs text-[var(--muted)]">Manual: mueve el recorte hacia quien habla.{doc.reframe ? " Desactivado mientras el seguimiento automático está aplicado." : ""}</span></label>)}
               <div><div className="mb-1 font-medium">Formato</div>
-                <div className="flex flex-wrap gap-1.5">{(["9:16", "4:5", "1:1", "16:9"] as Ratio[]).map((r) => <button key={r} aria-pressed={doc.ratio === r} className="chip" onClick={() => change((x) => ({ ...x, ratio: r }))}>{r}</button>)}</div></div>
+                <div className="flex flex-wrap gap-1.5">{(["9:16", "4:5", "1:1", "16:9"] as Ratio[]).map((r) => <button key={r} aria-pressed={doc.ratio === r} className="chip" onClick={() => change((x) => ({ ...x, ratio: r, reframe: undefined }))}>{r}</button>)}</div></div>
             </div>
           )}
 

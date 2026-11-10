@@ -6,3 +6,4 @@ export * from "./style.ts";
 export * from "./thumb.ts";
 export * from "./templates.ts";
 export * from "./trim.ts";
+export * from "./reframe.ts";

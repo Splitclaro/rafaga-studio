@@ -60,6 +60,7 @@ before(async () => {
   await db.exec(readFileSync(new URL("../migrations/20261110000022_share_links_packages.sql", import.meta.url), "utf8"));
   await db.exec("alter table storage.objects add column if not exists metadata jsonb;");   // Storage real guarda size/eTag aquí
   await db.exec(readFileSync(new URL("../migrations/20261110000024_library.sql", import.meta.url), "utf8"));
+  await db.exec(readFileSync(new URL("../migrations/20261110000025_reframe.sql", import.meta.url), "utf8"));
   await db.exec("grant execute on function public.share_view(text), public.share_comment(text, uuid, numeric, text, text), public.share_decide(text, uuid, text, text, text), public.share_path_ok(text) to anon;");
   await db.exec("grant select, insert, delete on public.songs to authenticated; grant select on public.song_alignments, public.lyric_videos to authenticated; grant execute on function public.request_lyrics(uuid, jsonb, text) to authenticated;");
   await db.exec("grant execute on function public.request_detection(uuid, text) to authenticated; grant execute on function public.request_render(uuid, int, text, boolean) to authenticated;");
@@ -599,4 +600,33 @@ test("biblioteca única: une tipos, aporta huella de contenido y no cruza worksp
   });
   await asUser(B, async () => { assert.equal((await db.query(`select * from public.library_assets()`)).rows.length, 0, "otro workspace no ve nada"); });
   await asUser(null, async () => { await rejects(`select * from public.library_assets()`); });
+});
+
+test("reencuadre: petición validada, reutilizada, aislada por workspace y servida por la cola", async () => {
+  const clip = (await db.query<{ id: string }>(`select id from clips where workspace_id='${wsA}' limit 1`)).rows[0].id;
+  let tid = "";
+  await asUser(A, async () => {
+    tid = (await db.query<{ t: string }>(`select public.request_reframe('${clip}', 10, 40, '9:16', 'follow') t`)).rows[0].t;
+    const again = (await db.query<{ t: string }>(`select public.request_reframe('${clip}', 10, 40, '9:16', 'follow') t`)).rows[0].t;
+    assert.equal(again, tid, "misma petición: reutiliza");
+    const other = (await db.query<{ t: string }>(`select public.request_reframe('${clip}', 10, 40, '9:16', 'group') t`)).rows[0].t;
+    assert.notEqual(other, tid, "otro modo: otro análisis");
+    await rejects(`select public.request_reframe('${clip}', 10, 11, '9:16', 'follow')`);      // < 3 s
+    await rejects(`select public.request_reframe('${clip}', 0, 200, '9:16', 'follow')`);      // > 90 s
+    await rejects(`select public.request_reframe('${clip}', 10, 40, '2:1', 'follow')`);
+    await rejects(`select public.request_reframe('${clip}', 10, 40, '9:16', 'evil')`);
+    assert.equal((await db.query<{ n: number }>(`select count(*)::int n from jobs where kind='reframe' and params->>'track_id'='${tid}'`)).rows[0].n, 1);
+    await rejects(`update reframe_tracks set status='ready', path='{"kf":[{"t":0,"x":0}]}' where id='${tid}'`);   // solo el worker escribe
+    await rejects(`insert into reframe_tracks(workspace_id,clip_id,source_start,source_end,ratio) values ('${wsA}','${clip}',0,10,'9:16')`);
+    assert.equal((await db.query(`select * from reframe_tracks where id='${tid}'`)).rows.length, 1);
+  });
+  await asUser(B, async () => {
+    await rejects(`select public.request_reframe('${clip}', 10, 40, '9:16', 'follow')`);
+    assert.equal((await db.query(`select * from reframe_tracks`)).rows.length, 0, "otro workspace no ve análisis ajenos");
+  });
+  await asUser(null, async () => { await rejects(`select public.request_reframe('${clip}', 10, 40, '9:16', 'follow')`); });
+  await db.exec(`update jobs set status='done' where kind <> 'reframe'`);   // solo quedan trabajos de reencuadre en cola
+  const claimed = (await db.query<{ kind: string; status: string; params: { track_id: string } }>(`select kind, status, params from public.claim_job()`)).rows;
+  assert.equal(claimed.length, 1); assert.equal(claimed[0].kind, "reframe"); assert.equal(claimed[0].status, "validating");
+  assert.equal((await db.query<{ n: number }>(`select count(*)::int n from pg_constraint where conname='jobs_kind_check' and pg_get_constraintdef(oid) like '%reframe%'`)).rows[0].n, 1);
 });

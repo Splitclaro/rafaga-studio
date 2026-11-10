@@ -3,7 +3,7 @@ on:
   schedule: [{ cron: "*/5 * * * *" }]
   workflow_dispatch:
     inputs:
-      mode: { description: "worker | selftest | lyrics-selftest | looks-selftest", default: "worker", required: false }
+      mode: { description: "worker | selftest | lyrics-selftest | looks-selftest | reframe-selftest", default: "worker", required: false }
 concurrency: { group: media-worker, cancel-in-progress: false }
 permissions: { contents: read, actions: read }
 jobs:
@@ -20,6 +20,8 @@ jobs:
       - if: steps.gate.outputs.ready == 'true'
         run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-liberation fontconfig espeak-ng
       - if: steps.gate.outputs.ready == 'true'
+        run: python3 -m pip install --quiet --break-system-packages "opencv-python-headless==4.10.0.84" "numpy<2.1" && python3 -c "import cv2; print('opencv', cv2.__version__)"   # reencuadre automático (detección de caras)
+      - if: steps.gate.outputs.ready == 'true'
         uses: actions/setup-node@v4
         with: { node-version: 24 }
       - if: steps.gate.outputs.ready == 'true'
@@ -33,7 +35,7 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           WORKER_IDLE_SECONDS: "600"   # caliente 10 min tras el último trabajo: los siguientes arrancan en segundos
           WORKER_MAX_SECONDS: "3000"
-        run: node src/${{ (inputs.mode == 'selftest' || inputs.mode == 'lyrics-selftest' || inputs.mode == 'looks-selftest') && inputs.mode || 'run' }}.ts
+        run: node src/${{ (inputs.mode == 'selftest' || inputs.mode == 'lyrics-selftest' || inputs.mode == 'looks-selftest' || inputs.mode == 'reframe-selftest') && inputs.mode || 'run' }}.ts
       - if: steps.gate.outputs.ready == 'true' && inputs.mode == 'looks-selftest' && always()
         uses: actions/upload-artifact@v4
         with:

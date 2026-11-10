@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildAss, buildComposition, ffmpegArgs, styleForRatio, renderFamily, groupsFrom, toSRT, toVTT, toTranscript, sanitizeLogo, type BrandLogo, validateStyle, SYSTEM_FONT, escapeFilterPath, PRESETS, RATIO_SIZE, type Composition, type Ratio, type Word } from "@rafaga/composition";
 import { transcribe, proposeClips, safeGet, parseFeed, captureHls, concatWindow, type WindowOut } from "@rafaga/providers";
+import { scanFaces, reframePath } from "./reframe.ts";
 import { alignLyrics, lyricsFromAsr, parseLyrics, planVariants, lyricFfmpegArgs, sequenceFor, DEFAULT_BG, LOOKS, resolveLook, varyLook, layoutLyrics, layoutToAss, planShots, planShotsOnBeats, detectBeats, beatsReliable, type BeatResult, lookFfmpegArgs, canvasSize, LOOK_ENGINE_VERSION, type BgItem, type BgSettings, type TimedWord, type ShotItem, type DeepPartial, type LyricLook, planMore, restoreShots, swapShots, type MoreLock, type SavedShot, type VariantSpec } from "@rafaga/lyrics";
 import { extractThumb } from "./thumb.ts";
 import { ZipBuilder } from "./zip.ts";
@@ -314,6 +315,40 @@ async function processRender(job: Job) {
     const err = e as Error & { permanent?: boolean };
     console.error("render fallo", job.id, err.message);
     await setStatus(job.id, err.permanent || job.attempts >= 3 ? "failed" : "queued", { error_code: err.permanent ? "permanent" : "transient", error_message: err.message.slice(0, 300) });
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+}
+
+/** Reencuadre automático: detecta caras en el tramo del clip y guarda la trayectoria sugerida (no modifica el clip). */
+async function processReframe(job: Job) {
+  const t0 = Date.now();
+  const dir = mkdtempSync(join(tmpdir(), "rafaga-f-"));
+  const tid = (job.params as { track_id?: string }).track_id;
+  try {
+    const tr = ok(await sb.from("reframe_tracks").select("id,workspace_id,clip_id,source_start,source_end,ratio,mode,status").eq("id", tid ?? "").single(), "análisis de encuadre");
+    if (tr.status === "cancelled") return void (await setStatus(job.id, "cancelled"));
+    await sb.from("reframe_tracks").update({ status: "analyzing" }).eq("id", tr.id);
+    await setStatus(job.id, "rendering");
+    const clip = ok(await sb.from("clips").select("project_id").eq("id", tr.clip_id).single(), "clip");
+    const project = ok(await sb.from("projects").select("source_id,deleted_at").eq("id", clip.project_id).single(), "proyecto");
+    if (project.deleted_at) return void (await setStatus(job.id, "cancelled"));
+    const dl = await sb.storage.from("originals").download(`${tr.workspace_id}/${project.source_id}/original`);
+    if (dl.error || !dl.data) throw new Error(`descarga: ${dl.error?.message}`);
+    const inp = join(dir, "in"); writeFileSync(inp, Buffer.from(await dl.data.arrayBuffer()));
+    const len = Number(tr.source_end) - Number(tr.source_start);
+    const t1 = Date.now();
+    const scan = scanFaces(inp, Number(tr.source_start), len);
+    const R = RATIO_SIZE[tr.ratio as Ratio];
+    const path = reframePath(scan, R.width / R.height, len, tr.mode as "follow" | "group");
+    const faces = scan.samples.filter((x) => x.faces.length).length;
+    await sb.from("reframe_tracks").update({ status: "ready", path, finished_at: new Date().toISOString(), metrics: { scan_ms: Date.now() - t1, total_ms: Date.now() - t0, samples: scan.samples.length, with_faces: faces, src: `${scan.w}x${scan.h}` } }).eq("id", tr.id);
+    await setStatus(job.id, "done", { metrics: { total_ms: Date.now() - t0, with_faces: faces } });
+    console.log("reframe ok", tr.id, `${faces}/${scan.samples.length} muestras con cara`, path.mode, Date.now() - t0, "ms");
+  } catch (e) {
+    const err = e as Error & { permanent?: boolean };
+    console.error("reframe fallo", job.id, err.message);
+    const final = !!err.permanent || job.attempts >= 3;
+    if (tid) await sb.from("reframe_tracks").update(final ? { status: "failed", error: err.message.slice(0, 400), finished_at: new Date().toISOString() } : { status: "queued", error: `Reintentando: ${err.message.slice(0, 200)}` }).eq("id", tid);
+    await setStatus(job.id, final ? "failed" : "queued", { error_code: err.permanent ? "permanent" : "transient", error_message: err.message.slice(0, 300) });
   } finally { rmSync(dir, { recursive: true, force: true }); }
 }
 
@@ -709,7 +744,7 @@ for (;;) {
   }
   lastWork = Date.now();
   if (job.kind === "live") { liveRuns.push(processLive(job, Math.max(60, Math.floor((maxMs - (Date.now() - started)) / 1000) - 120))); continue; }   // en segundo plano: no bloquea otros trabajos
-  await (job.kind === "render" ? processRender(job) : job.kind === "lyrics" ? processLyrics(job) : job.kind === "automation" ? processAutomation(job) : job.kind === "package" ? processPackage(job) : processJob(job)); processed++; lastWork = Date.now();
+  await (job.kind === "render" ? processRender(job) : job.kind === "lyrics" ? processLyrics(job) : job.kind === "automation" ? processAutomation(job) : job.kind === "package" ? processPackage(job) : job.kind === "reframe" ? processReframe(job) : processJob(job)); processed++; lastWork = Date.now();
 }
 await Promise.allSettled(liveRuns);
 console.log(`terminado: ${processed} job(s) en ${Math.round((Date.now() - started) / 1000)} s`);

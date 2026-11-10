@@ -5,6 +5,7 @@ export const RATIO_SIZE: Record<Ratio, { width: number; height: number }> = {
   "9:16": { width: 1080, height: 1920 }, "4:5": { width: 1080, height: 1350 }, "1:1": { width: 1080, height: 1080 }, "16:9": { width: 1920, height: 1080 }, "4:3": { width: 1440, height: 1080 },
 };
 
+import { cropXExpr } from "./reframe.ts";
 export interface BrollItem { path: string; kind: "video" | "photo"; start: number; dur: number; name?: string }
 
 export interface Composition {
@@ -16,6 +17,8 @@ export interface Composition {
   /** blur: vídeo completo sobre fondo desenfocado · fill: rellena el cuadro recortando (posición manual crop.x) · fit: vídeo completo con barras negras */
   layout: "speaker" | "blur" | "fill" | "fit";
   crop: { x: number }; // 0..1, posición horizontal del recorte en layout fill
+  /** Reencuadre automático: keyframes de crop.x en tiempo relativo al clip (solo layout fill). Si existe, manda sobre crop.x. */
+  reframe?: { kf: { t: number; x: number }[]; mode?: string; coverage?: number };
   broll?: BrollItem[]; // imágenes/vídeos propios superpuestos por tramos (tiempos relativos al clip)
   words: Word[]; // tiempos RELATIVOS al clip
   style: SubtitleStyle;
@@ -51,9 +54,10 @@ export function ffmpegArgs(c: Composition, io: { input: string; assPath: string;
   const { width: W, height: H } = RATIO_SIZE[c.ratio];
   const dur = c.endSec - c.startSec;
   const cx = Math.min(1, Math.max(0, c.crop?.x ?? 0.5));
+  const cxExpr = c.reframe?.kf?.length ? cropXExpr(c.reframe.kf) : cx.toFixed(3);
   const layout = c.layout === "fill" || c.layout === "fit" ? c.layout : "blur";
   const base =
-    layout === "fill" ? `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H}:'(in_w-${W})*${cx.toFixed(3)}':'(in_h-${H})/2',setsar=1[base]`
+    layout === "fill" ? `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H}:'(in_w-${W})*(${cxExpr})':'(in_h-${H})/2',setsar=1[base]`
     : layout === "fit" ? `[0:v]scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:black,setsar=1[base]`
     : `[0:v]split=2[bg][fg];[bg]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},boxblur=30:5[b];[fg]scale=${W}:${H}:force_original_aspect_ratio=decrease[f];[b][f]overlay=(W-w)/2:(H-h)/2,setsar=1[base]`;
   const parts = [base];
