@@ -52,6 +52,7 @@ before(async () => {
   await db.exec(readFileSync(new URL("../migrations/20261110000013_lyric_looks.sql", import.meta.url), "utf8"));
   await db.exec(readFileSync(new URL("../migrations/20261110000015_scheduler.sql", import.meta.url), "utf8"));
   await db.exec(readFileSync(new URL("../migrations/20261110000016_job_timing_fair_queue.sql", import.meta.url), "utf8"));
+  await db.exec(readFileSync(new URL("../migrations/20261110000017_workspaces_roles.sql", import.meta.url), "utf8"));
   await db.exec("grant select, insert, delete on public.songs to authenticated; grant select on public.song_alignments, public.lyric_videos to authenticated; grant execute on function public.request_lyrics(uuid, jsonb, text) to authenticated;");
   await db.exec("grant execute on function public.request_detection(uuid, text) to authenticated; grant execute on function public.request_render(uuid, int, text, boolean) to authenticated;");
   await db.exec(`insert into auth.users values ('${A}','a@test.dev'),('${B}','b@test.dev');`);
@@ -331,4 +332,51 @@ test("Cola justa: un workspace con trabajos en marcha no bloquea al siguiente; t
   assert.ok(c.started_at);
   await db.exec(`update jobs set status='done' where idempotency_key='fair-b1'`);
   assert.ok((await db.query<{ finished_at: string | null }>(`select finished_at from jobs where idempotency_key='fair-b1'`)).rows[0].finished_at);
+});
+
+test("Espacios: crear, invitar con rol, aislamiento por espacio activo, lector sin escritura y auditoría", async () => {
+  let client = "", token = "";
+  await asUser(A, async () => {
+    client = (await db.query<{ id: string }>(`select public.create_workspace('Cliente X') id`)).rows[0].id;
+    assert.equal((await db.query<{ n: number }>(`select count(*)::int n from public.my_workspaces()`)).rows[0].n, 2);
+    // el espacio activo es el nuevo: no se ven los proyectos del personal
+    await db.query(`insert into sources(workspace_id,kind,storage_path,mime,bytes,created_by) values ('${client}','upload','${client}/src/x.mp4','video/mp4',10,'${A}')`);
+    assert.ok((await db.query<{ workspace_id: string }>(`select workspace_id from sources`)).rows.every((r) => r.workspace_id === client));
+    await rejects(`select public.create_invite('no-es-email', 'viewer')`);
+    await rejects(`select public.create_invite('b@test.dev', 'owner')`);
+    token = (await db.query<{ t: string }>(`select public.create_invite('B@test.dev', 'viewer') t`)).rows[0].t;
+    assert.equal(token.length, 64);
+    assert.equal((await db.query(`select id, email, role from workspace_invites where email='b@test.dev'`)).rows.length, 1);
+  });
+  await asUser(B, async () => {
+    await rejects(`select public.accept_invite('${"0".repeat(64)}')`);
+    const ws = (await db.query<{ w: string }>(`select public.accept_invite('${token}') w`)).rows[0].w;
+    assert.equal(ws, client);
+    await rejects(`select public.accept_invite('${token}')`);           // un solo uso
+    assert.equal((await db.query<{ r: string }>(`select public.my_role() r`)).rows[0].r, "viewer");
+    assert.ok((await db.query(`select * from sources where workspace_id='${client}'`)).rows.length >= 1, "el lector ve el espacio del cliente");
+    assert.equal((await db.query(`select * from sources where workspace_id='${wsA}'`)).rows.length, 0, "pero no el espacio personal de A");
+    await rejects(`insert into sources(workspace_id,kind,storage_path,mime,bytes,created_by) values ('${client}','upload','${client}/src/y.mp4','video/mp4',10,'${B}')`);
+    await rejects(`select public.create_invite('c@test.dev', 'editor')`);
+    await db.query(`update workspaces set name='hack' where id='${client}'`);
+    assert.equal((await db.query<{ name: string }>(`select name from workspaces where id='${client}'`)).rows[0].name, "Cliente X");
+    // volver a su espacio personal: deja de ver el del cliente
+    await db.query(`select public.set_active_workspace('${wsB}')`);
+    assert.equal((await db.query(`select * from sources where workspace_id='${client}'`)).rows.length, 0);
+    await rejects(`select public.set_active_workspace('${wsA}')`);
+  });
+  await asUser(A, async () => {
+    await db.query(`select public.set_member_role('${B}', 'editor')`);
+    await rejects(`select public.remove_member('${A}')`);
+    const ev = (await db.query<{ action: string }>(`select action from audit_events where workspace_id='${client}' order by id`)).rows.map((r) => r.action);
+    assert.deepEqual(ev, ["workspace.create", "invite.create", "invite.accept", "member.role"]);
+    await db.query(`select public.set_active_workspace('${wsA}')`);
+  });
+  await asUser(B, async () => {
+    await db.query(`select public.set_active_workspace('${client}')`);
+    assert.equal((await db.query<{ r: string }>(`select public.my_role() r`)).rows[0].r, "editor");
+    await db.query(`insert into sources(workspace_id,kind,storage_path,mime,bytes,created_by) values ('${client}','upload','${client}/src/z.mp4','video/mp4',10,'${B}')`);
+    assert.equal((await db.query(`select * from audit_events`)).rows.length, 0, "auditoría solo para administradores");
+    await db.query(`select public.set_active_workspace('${wsB}')`);
+  });
 });

@@ -20,7 +20,9 @@ export default function Login() {
       : await supabase.auth.signUp({ email, password });
     setBusy(false);
     if (error) return setMsg(error.message);
-    if (data.session) return router.replace("/app");
+    // Volver a la página pedida (p. ej. una invitación) solo si es una ruta interna de la app
+    const next = new URLSearchParams(window.location.search).get("next") ?? "";
+    if (data.session) return router.replace(/^\/app(\/[\w\-/?=&%.]*)?$/.test(next) && !next.startsWith("//") ? next : "/app");
     setMsg("Cuenta creada. Revisa tu correo para confirmarla y vuelve a entrar.");
   }
 

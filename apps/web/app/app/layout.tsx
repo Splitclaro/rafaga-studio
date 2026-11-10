@@ -19,6 +19,8 @@ const NAV: NavItem[] = [
   { href: "/app/en-vivo", label: "En vivo", icon: "live", ready: true, group: "Automatizar" },
 ];
 const GROUPS = ["Crear", "Publicar", "Automatizar"];
+type Ws = { id: string; name: string; role: string; personal: boolean; active: boolean; members: number };
+const ROLE: Record<string, string> = { owner: "Propietario", admin: "Admin", editor: "Editor", reviewer: "Revisor", viewer: "Lector", member: "Editor" };
 type Note = { id: string; status: string; kind: string; updated_at: string; error_message: string | null };
 
 export default function AppShell({ children }: { children: ReactNode }) {
@@ -26,6 +28,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const path = usePathname();
   const [email, setEmail] = useState<string | null>(null);
   const [ws, setWs] = useState("");
+  const [spaces, setSpaces] = useState<Ws[]>([]);
+  const [role, setRole] = useState("");
   const [collapsed, setCollapsed] = useState(false);
   const [menu, setMenu] = useState(false);
   const [palette, setPalette] = useState(false);
@@ -44,10 +48,12 @@ export default function AppShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     try { setCollapsed(localStorage.getItem("rafaga.sidebar") === "1"); setSeen(Number(localStorage.getItem("rafaga.seen") ?? 0)); } catch {}
     supabase.auth.getSession().then(async ({ data }) => {
-      if (!data.session) return router.replace("/login");
+      if (!data.session) return router.replace(`/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`);
       setEmail(data.session.user.email ?? "");
-      const { data: w } = await supabase.from("workspaces").select("name").limit(1).maybeSingle();
-      setWs(w?.name ?? "Mi espacio");
+      const { data: list } = await supabase.rpc("my_workspaces");
+      const l = (list ?? []) as Ws[]; setSpaces(l);
+      const cur = l.find((x) => x.active) ?? l[0];
+      setWs(cur?.name ?? "Mi espacio"); setRole(cur?.role ?? "");
       poll();
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => { if (!s) router.replace("/login"); });
@@ -57,6 +63,17 @@ export default function AppShell({ children }: { children: ReactNode }) {
     return () => { sub.subscription.unsubscribe(); clearInterval(t); window.removeEventListener("keydown", k); };
   }, [router, poll]);
 
+  async function switchTo(id: string) {
+    const { error } = await supabase.rpc("set_active_workspace", { p_ws: id });
+    if (!error) window.location.assign("/app");   // recarga completa: ninguna lista conserva datos del espacio anterior
+  }
+  async function newSpace() {
+    const name = prompt("Nombre del nuevo espacio (cliente, marca, artista o producción):")?.trim();
+    if (!name) return;
+    const { error } = await supabase.rpc("create_workspace", { p_name: name });
+    if (error) return alert(error.message);
+    window.location.assign("/app");
+  }
   const toggle = () => { const v = !collapsed; setCollapsed(v); try { localStorage.setItem("rafaga.sidebar", v ? "1" : "0"); } catch {} };
   const unread = notes.filter((n) => new Date(n.updated_at).getTime() > seen).length;
   const openBell = () => { setBell((b) => !b); const now = Date.now(); setSeen(now); try { localStorage.setItem("rafaga.seen", String(now)); } catch {} };
@@ -79,12 +96,19 @@ export default function AppShell({ children }: { children: ReactNode }) {
           <div className="relative mx-3 mb-2 hidden md:block">
             <button onClick={() => setMenu(!menu)} aria-expanded={menu} className="card flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm hover:bg-[var(--hover)]">
               <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#111] text-xs font-semibold text-white">{(email[0] ?? "?").toUpperCase()}</span>
-              <span className="min-w-0 flex-1"><span className="block truncate font-medium leading-tight">{ws}</span><span className="block truncate text-xs text-[var(--muted)]">{email}</span></span>
+              <span className="min-w-0 flex-1"><span className="block truncate font-medium leading-tight">{ws}</span><span className="block truncate text-xs text-[var(--muted)]">{ROLE[role] ?? ""}{role ? " · " : ""}{email}</span></span>
               <Icon n="chevD" className="h-4 w-4 text-[var(--muted)]" />
             </button>
             {menu && (
               <div role="menu" className="card-raised absolute z-10 mt-1 w-full p-1 text-sm">
-                <div className="px-3 py-2 text-xs text-[var(--muted)]">Workspace activo: {ws}. Hay uno por cuenta.</div>
+                <div className="px-3 pb-1 pt-2 text-xs font-medium text-[var(--muted)]">Espacios</div>
+                <ul className="max-h-56 overflow-auto">{spaces.map((x) => (
+                  <li key={x.id}><button role="menuitemradio" aria-checked={x.active} onClick={() => !x.active && switchTo(x.id)} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left hover:bg-[var(--hover)] ${x.active ? "font-medium" : ""}`}>
+                    <span className="grid h-5 w-5 shrink-0 place-items-center rounded-md bg-[#111] text-[10px] text-white">{x.name[0]?.toUpperCase()}</span>
+                    <span className="min-w-0 flex-1 truncate">{x.name}</span><span className="text-[11px] text-[var(--muted)]">{ROLE[x.role]}</span>{x.active && <Icon n="check" className="h-3.5 w-3.5" />}</button></li>))}</ul>
+                <button role="menuitem" onClick={newSpace} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left hover:bg-[var(--hover)]"><Icon n="plus" className="h-4 w-4" />Nuevo espacio</button>
+                <div className="my-1 border-t hairline" />
+                <Link role="menuitem" href="/app/equipo" onClick={() => setMenu(false)} className="block rounded-lg px-3 py-2 hover:bg-[var(--hover)]">Equipo y permisos</Link>
                 <Link role="menuitem" href="/app/ajustes" onClick={() => setMenu(false)} className="block rounded-lg px-3 py-2 hover:bg-[var(--hover)]">Uso y ajustes</Link>
                 <button role="menuitem" className="block w-full rounded-lg px-3 py-2 text-left hover:bg-[var(--hover)]" onClick={async () => { await supabase.auth.signOut(); router.replace("/login"); }}>Cerrar sesión</button>
               </div>

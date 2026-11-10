@@ -87,3 +87,8 @@ Probar Lyric Studio con una canción real (canto + instrumental). Siguiente: Sty
 - Migraciones 13 y 14 aplicadas y verificadas en producción (consulta de comprobación).
 - Auditoría: `docs/AUDIT_2026-11-10.md` (H07, H08, H10, H11 corregidos; H01 bloqueado por coste).
 - Encargos de Dashboard/My projects/Asset library completo y del resto de la auditoría: **no iniciados en esta sesión**.
+
+## Sesión 7 — auditoría: operación y equipos
+- H06: programador `pg_cron` cada minuto en producción (`scheduler_runs`), latido del worker, huérfanos cerrados, cola justa entre espacios. Falta el token de GitHub en Vault (`gh_dispatch_token`) para arrancar el worker solo.
+- H14: Analítica operativa (periodo, tipo, p50/p95 con n, fallos por causa, reintentos, almacenamiento) con `started_at`/`finished_at`.
+- H02: varios espacios, espacio activo en servidor, roles con RLS restrictiva, invitaciones y auditoría (migración 17 aplicada, prueba de humo en producción con rollback).
