@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./brief": "./src/brief.ts",
+    "./intent": "./src/intent.ts",
     "./title": "./src/title.ts"
   }
 }

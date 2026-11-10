@@ -216,3 +216,9 @@ Probar Lyric Studio con una canción real (canto + instrumental). Siguiente: Sty
 5. `GH_DISPATCH_TOKEN` en Vercel para arrancar el worker al instante.
 
 **Benchmark de render en la nube (run 42808923078, GitHub Actions 4 vCPU, misma fuente 1080p de 30 min):** 1 clip 15,2 s · 10 clips 129 s (paralelo 2, 4,6 clips/min) · 50 clips 641 s (10,7 min, paralelo 2, 4,7 clips/min; en serie 774 s). Es ~3,4× más lento que en local (10 núcleos): con ese runner, un lote de 10 clips tarda ~2 min de render y el primer clip ~15 s después de empezar a renderizar. Sigue sin medirse ASR, IA, descarga ni subida.
+
+## Sesión 21 — Rediseño sobrio (azul eléctrico) llevado a la app
+- Aprobado el prototipo (Artifact «Ráfaga Studio Rediseño», 10 pantallas). En código: tokens (texto #0F172A, apoyo #55607A, borde #E3E8F4, superficie #F7F8FC, acento #1D4FFF), tipografías Space Grotesk (títulos) y DM Sans (interfaz) con `next/font`, botón principal azul sólido, foco azul, sin sombras de color ni perforaciones de película. Bootzy TM sigue siendo solo para resultados.
+- Navegación clara con el apartado activo en azul y nueva entrada **Director IA**.
+- Página `/app/director`: el encargo en tus palabras y «Lo que he entendido» en vivo (cantidad, duración, público, tipo, prioridades, obligatorio frente a preferencia, final) con `interpretBrief` en el navegador (módulo puro `@rafaga/selection/intent`), cuota semanal y «Usar este encargo», que rellena el creador de Inicio (`/app?brief=`).
+- Verificado en navegador contra servidor simulado (Director e Inicio a 1440 px). NO revisadas una a una el resto de pantallas con el nuevo tema (se hereda por tokens); pendiente la pasada visual de Biblioteca, Entregas, En vivo, Lyric Studio, Marca, Ajustes y Editor.

@@ -8,6 +8,7 @@ import CommandPalette, { type NavItem } from "../../components/CommandPalette";
 
 const NAV: NavItem[] = [
   { href: "/app", label: "Inicio", icon: "home", ready: true, group: "Crear" },
+  { href: "/app/director", label: "Director IA", icon: "wand", ready: true, group: "Crear" },
   { href: "/app/lyric-studio", label: "Lyric Studio", icon: "music", ready: true, group: "Crear" },
   { href: "/app/style-studio", label: "Style Studio", icon: "type", ready: true, group: "Crear" },
   { href: "/app/biblioteca", label: "Biblioteca", icon: "folder", ready: true, group: "Crear" },
@@ -80,14 +81,14 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const openBell = () => { setBell((b) => !b); const now = Date.now(); setSeen(now); try { localStorage.setItem("rafaga.seen", String(now)); } catch {} };
   if (email === null) return <div className="grid min-h-screen place-items-center"><span className="pulse" aria-label="Cargando" /></div>;
   const active = (h: string) => (h === "/app" ? path === "/app" : path.startsWith(h));
-  const current = NAV.find((n) => active(n.href))?.label ?? (path.startsWith("/app/c/") ? "Editor de clip" : path.startsWith("/app/r/") ? "Revisión" : path.startsWith("/app/p/") ? "Proyecto" : path.startsWith("/app/ajustes") ? "Uso y ajustes" : "");
+  const current = NAV.find((n) => active(n.href))?.label ?? (path.startsWith("/app/c/") ? "Editor de clip" : path.startsWith("/app/r/") ? "Revisión" : path.startsWith("/app/director") ? "Director IA" : path.startsWith("/app/p/") ? "Proyecto" : path.startsWith("/app/ajustes") ? "Uso y ajustes" : "");
 
   return (
     <div className="min-h-screen md:flex">
       <aside className={`z-20 border-b hairline bg-[var(--surface)] md:sticky md:top-0 md:flex md:h-screen md:shrink-0 md:flex-col md:border-b-0 md:border-r ${collapsed ? "md:w-[68px]" : "md:w-64"}`}>
         <div className="flex items-center justify-between gap-2 px-4 py-3 md:px-3 md:py-4">
           <Link href="/app" className="flex min-w-0 items-center gap-2.5 font-semibold" aria-label="Ráfaga Studio, inicio">
-            <span aria-hidden className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] bg-[#111] text-white shadow-[inset_0_1px_0_rgba(255,255,255,.2)]"><Icon n="bolt" className="h-4 w-4" /></span>
+            <span aria-hidden className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] bg-[#1D4FFF] text-white"><Icon n="bolt" className="h-4 w-4" /></span>
             <span className={`text-[15px] tracking-tight ${collapsed ? "md:sr-only" : ""}`}>Ráfaga Studio</span>
           </Link>
           <button onClick={toggle} aria-label={collapsed ? "Expandir menú" : "Plegar menú"} aria-expanded={!collapsed} className="hidden rounded-lg p-1.5 text-[var(--muted)] hover:bg-[var(--hover)] md:block"><Icon n={collapsed ? "chevR" : "chevL"} className="h-4 w-4" /></button>
@@ -96,7 +97,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
         {!collapsed && (
           <div className="relative mx-3 mb-2 hidden md:block">
             <button onClick={() => setMenu(!menu)} aria-expanded={menu} className="card flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm hover:bg-[var(--hover)]">
-              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#111] text-xs font-semibold text-white">{(email[0] ?? "?").toUpperCase()}</span>
+              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#1D4FFF] text-xs font-semibold text-white">{(email[0] ?? "?").toUpperCase()}</span>
               <span className="min-w-0 flex-1"><span className="block truncate font-medium leading-tight">{ws}</span><span className="block truncate text-xs text-[var(--muted)]">{ROLE[role] ?? ""}{role ? " · " : ""}{email}</span></span>
               <Icon n="chevD" className="h-4 w-4 text-[var(--muted)]" />
             </button>
@@ -124,9 +125,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
               <div className="flex gap-1 md:block md:space-y-0.5">
                 {NAV.filter((n) => n.group === g).map((n) => (
                   <Link key={n.href} href={n.href} title={collapsed ? n.label : undefined} aria-current={active(n.href) ? "page" : undefined}
-                    className={`group relative flex shrink-0 items-center gap-3 rounded-[10px] px-3 py-2 text-sm transition-colors ${active(n.href) ? "bg-white font-medium text-[var(--text)] shadow-[var(--shadow-1)] ring-1 ring-[var(--border)]" : "text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--text)]"}`}>
-                    {active(n.href) && <span aria-hidden className="absolute -left-3 top-2 hidden h-5 w-[3px] rounded-r bg-[#111] md:block" />}
-                    <Icon n={n.icon} className="h-[18px] w-[18px] shrink-0" /><span className={collapsed ? "md:sr-only" : ""}>{n.label}</span>
+                    className={`group relative flex shrink-0 items-center gap-3 rounded-[10px] px-3 py-2 text-sm transition-colors ${active(n.href) ? "bg-white font-semibold text-[var(--accent)] ring-1 ring-[var(--border)]" : "text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--text)]"}`}>
+                                        <Icon n={n.icon} className="h-[18px] w-[18px] shrink-0" /><span className={collapsed ? "md:sr-only" : ""}>{n.label}</span>
                     {!n.ready && !collapsed && <span className="ml-auto hidden rounded-md border hairline px-1.5 text-[10px] text-[var(--muted)] md:inline">Pronto</span>}
                   </Link>
                 ))}
@@ -142,7 +142,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="min-w-0 flex-1">
-        <header className="sticky top-0 z-10 flex items-center gap-3 border-b hairline bg-white/85 px-4 py-2.5 backdrop-blur md:px-8">
+        <header className="sticky top-0 z-10 flex items-center gap-3 border-b hairline bg-white/90 px-4 py-2.5 backdrop-blur md:px-8">
           <span className="hidden text-sm text-[var(--muted)] md:block">{current}</span>
           <button onClick={() => setPalette(true)} className="card ml-auto flex min-w-0 items-center gap-2 px-3 py-1.5 text-sm text-[var(--muted)] hover:bg-[var(--hover)] md:ml-6 md:w-72" aria-label="Buscar o ir a (Cmd+K)">
             <Icon n="search" className="h-4 w-4 shrink-0" /><span className="min-w-0 flex-1 truncate text-left">Buscar o ir a…</span><span className="kbd hidden md:inline">⌘K</span>

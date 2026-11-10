@@ -60,6 +60,8 @@ export default function Dashboard() {
     })();
   }, []);
 
+  // Encargo enviado desde el Director IA
+  useEffect(() => { try { const b = new URLSearchParams(window.location.search).get("brief"); if (b) setBd((x) => ({ ...x, objective: b.slice(0, 1000) })); } catch {} }, []);
   const recipe = RECIPES.find((r) => r.mode === mode)!;
   async function pick(f: File | null) {
     if (!f) return;
