@@ -6,7 +6,7 @@ import { mkdirSync, readFileSync, writeFileSync, appendFileSync } from "node:fs"
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { transcribe } from "@rafaga/providers";
-import { escapeFilterPath } from "@rafaga/composition";
+import { escapeFilterPath, buildAss, groupsFrom, PRESETS } from "@rafaga/composition";
 import { alignLyrics, parseLyrics, planVariants, LOOKS, resolveLook, varyLook, layoutLyrics, layoutToAss, planShots, lookFfmpegArgs, canvasSize, readMetrics, METRIC_CODEPOINTS, SANS_REGULAR, SANS_BOLD, measure, type TimedWord, type ShotItem } from "@rafaga/lyrics";
 
 const sh = (c: string, a: string[]) => { const r = spawnSync(c, a, { encoding: "utf8", maxBuffer: 1 << 28 }); if (r.status) throw new Error(`${c}: ${r.stderr.slice(-400)}`); return r.stdout; };
@@ -102,6 +102,22 @@ report.renders = [
   report.batch = { n: plan.variants.length, distribution: dist, distinctFrames: distinct, total_ms: Date.now() - t, per_video_ms: rs.map((r) => r.render_ms) };
   if (plan.variants.length !== 10) fail.push("el lote no tiene 10 vídeos");
   if (distinct < 10) fail.push(`variantes idénticas: ${10 - distinct}`);
+}
+
+// 6) Compositor de subtítulos (H09): los 21 tratamientos con la libass del worker; debe aparecer texto en cada uno
+{
+  const ws = [{ text: "Hola", start: 1, end: 1.4 }, { text: "mundo", start: 1.5, end: 2 }, { text: "increíble", start: 2.1, end: 2.8 }, { text: "2026", start: 2.9, end: 3.4 }];
+  const res: Record<string, number> = {};
+  for (const [n, st] of Object.entries(PRESETS)) {
+    const ass = join(OUT, `fxs-${n.replace(/\W/g, "_")}.ass`); writeFileSync(ass, buildAss(ws, { ...st, fontName: "Liberation Sans" }, { width: 360, height: 640 }, groupsFrom([ws], 24)));
+    const out = join(OUT, `fxs.mp4`);
+    sh("ffmpeg", ["-y", "-v", "error", "-f", "lavfi", "-i", "color=c=0x303030:s=360x640:r=30:d=4", "-vf", `subtitles=${escapeFilterPath(ass)}`, "-pix_fmt", "yuv420p", out]);
+    const raw = spawnSync("ffmpeg", ["-v", "error", "-i", out, "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], { maxBuffer: 1 << 28 }).stdout;
+    const fs = 360 * 640 * 3, f = raw.subarray(60 * fs, 61 * fs), b = raw.subarray(2 * fs, 3 * fs);
+    let diff = 0; for (let i = 0; i < fs; i += 3) if (Math.abs(f[i] - b[i]) + Math.abs(f[i + 1] - b[i + 1]) > 60) diff++;
+    res[n] = diff; if (diff < 300) fail.push(`tratamiento sin texto visible: ${n} (${diff})`);
+  }
+  report.fxTreatments = { count: Object.keys(res).length, visiblePixels: res };
 }
 
 report.fail = fail;
