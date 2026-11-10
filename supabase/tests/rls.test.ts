@@ -51,6 +51,7 @@ before(async () => {
   await db.exec("grant select on public.live_sessions, public.live_windows to authenticated; grant execute on function public.start_live_session(text, text), public.set_live_status(uuid, text) to authenticated;");
   await db.exec(readFileSync(new URL("../migrations/20261110000013_lyric_looks.sql", import.meta.url), "utf8"));
   await db.exec(readFileSync(new URL("../migrations/20261110000015_scheduler.sql", import.meta.url), "utf8"));
+  await db.exec(readFileSync(new URL("../migrations/20261110000016_job_timing_fair_queue.sql", import.meta.url), "utf8"));
   await db.exec("grant select, insert, delete on public.songs to authenticated; grant select on public.song_alignments, public.lyric_videos to authenticated; grant execute on function public.request_lyrics(uuid, jsonb, text) to authenticated;");
   await db.exec("grant execute on function public.request_detection(uuid, text) to authenticated; grant execute on function public.request_render(uuid, int, text, boolean) to authenticated;");
   await db.exec(`insert into auth.users values ('${A}','a@test.dev'),('${B}','b@test.dev');`);
@@ -318,4 +319,16 @@ test("Programador: encola revisiones vencidas sin duplicar, cierra huérfanos y 
     await rejects(`insert into worker_heartbeats(id) values ('x')`);
     assert.ok((await db.query(`select * from scheduler_runs`)).rows.length >= 3);
   });
+});
+
+test("Cola justa: un workspace con trabajos en marcha no bloquea al siguiente; tiempos de inicio y fin", async () => {
+  await db.exec(`update jobs set status='done' where status not in ('done','failed','cancelled')`);
+  await db.exec(`insert into jobs(workspace_id,kind,idempotency_key,status,created_by,heartbeat_at) values ('${wsA}','detect','fair-run','transcribing','${A}', now())`);
+  await db.exec(`insert into jobs(workspace_id,kind,idempotency_key,created_by,created_at) values ('${wsA}','detect','fair-a1','${A}', now() - interval '5 minutes')`);
+  await db.exec(`insert into jobs(workspace_id,kind,idempotency_key,created_by,created_at) values ('${wsB}','detect','fair-b1','${B}', now() - interval '1 minute')`);
+  const c = (await db.query<{ idempotency_key: string; started_at: string | null }>(`select * from public.claim_job()`)).rows[0];
+  assert.equal(c.idempotency_key, "fair-b1", "B no espera detrás del lote de A");
+  assert.ok(c.started_at);
+  await db.exec(`update jobs set status='done' where idempotency_key='fair-b1'`);
+  assert.ok((await db.query<{ finished_at: string | null }>(`select finished_at from jobs where idempotency_key='fair-b1'`)).rows[0].finished_at);
 });
