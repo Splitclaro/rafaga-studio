@@ -48,7 +48,7 @@ export function ProjectCard({ p }: { p: Row }) {
   return (
     <Link href={`/app/p/${p.id}`} className="card lift group block overflow-hidden">
       <div className="relative aspect-video overflow-hidden bg-[#111]">
-        {p.thumb ? <img src={p.thumb} alt="" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" /> : <div className="dots-dark grid h-full w-full place-items-center text-white/60"><Icon n="film" className="h-8 w-8" /></div>}
+        {p.thumb ? <img src={p.thumb} alt="" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" /> : <div className="grid h-full w-full place-items-center bg-[#1a1a1a] text-xs text-white/60">Sin portada todavía</div>}
         <div className="absolute left-2 top-2"><Chip status={p.status} /></div>
         {p.mode !== "clips" && <span className="chip absolute right-2 top-2 !py-0.5">{MODE_LABEL[p.mode] ?? p.mode}</span>}
         {isActive(p.status) && <div className="absolute inset-x-0 bottom-0 h-1 overflow-hidden bg-black/40"><div className="skeleton h-full w-1/2 !rounded-none opacity-70" /></div>}
@@ -56,6 +56,7 @@ export function ProjectCard({ p }: { p: Row }) {
       <div className="p-3">
         <div className="truncate text-sm font-medium">{p.name}</div>
         <div className="mt-0.5 flex items-center justify-between text-xs text-[var(--muted)]"><span className="tnum">{new Date(p.created_at).toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric" })}</span><span className="tnum">{p.clips} clip{p.clips === 1 ? "" : "s"}</span></div>
+        <div className="mt-2 text-xs font-medium underline underline-offset-4">{p.status === "failed" ? "Resolver incidencia" : isActive(p.status) ? "Ver progreso" : p.clips > 0 ? "Revisar clips" : p.status === "done" ? "Ver resultados" : "Continuar editando"}</div>
       </div>
     </Link>
   );

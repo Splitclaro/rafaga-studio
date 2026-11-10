@@ -12,13 +12,14 @@ const NAV: NavItem[] = [
   { href: "/app/style-studio", label: "Style Studio", icon: "type", ready: true, group: "Crear" },
   { href: "/app/biblioteca", label: "Biblioteca", icon: "folder", ready: true, group: "Crear" },
   { href: "/app/brand-kits", label: "Brand kit", icon: "brand", ready: true, group: "Crear" },
-  { href: "/app/calendario", label: "Calendario", icon: "calendar", ready: true, group: "Publicar" },
-  { href: "/app/analitica", label: "Analítica", icon: "chart", ready: true, group: "Publicar" },
-  { href: "/app/conexiones", label: "Conexiones", icon: "link", ready: true, group: "Publicar" },
+  { href: "/app/entregas", label: "Entregas", icon: "share", ready: true, group: "Revisar y entregar" },
+  { href: "/app/calendario", label: "Calendario", icon: "calendar", ready: true, group: "Revisar y entregar" },
+  { href: "/app/conexiones", label: "Conexiones", icon: "link", ready: true, group: "Revisar y entregar" },
   { href: "/app/automatizaciones", label: "Automatizaciones", icon: "bolt", ready: true, group: "Automatizar" },
   { href: "/app/en-vivo", label: "En vivo", icon: "live", ready: true, group: "Automatizar" },
+  { href: "/app/analitica", label: "Analítica", icon: "chart", ready: true, group: "Automatizar" },
 ];
-const GROUPS = ["Crear", "Publicar", "Automatizar"];
+const GROUPS = ["Crear", "Revisar y entregar", "Automatizar"];
 type Ws = { id: string; name: string; role: string; personal: boolean; active: boolean; members: number };
 const ROLE: Record<string, string> = { owner: "Propietario", admin: "Admin", editor: "Editor", reviewer: "Revisor", viewer: "Lector", member: "Editor" };
 type Note = { id: string; status: string; kind: string; updated_at: string; error_message: string | null };
@@ -79,7 +80,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const openBell = () => { setBell((b) => !b); const now = Date.now(); setSeen(now); try { localStorage.setItem("rafaga.seen", String(now)); } catch {} };
   if (email === null) return <div className="grid min-h-screen place-items-center"><span className="pulse" aria-label="Cargando" /></div>;
   const active = (h: string) => (h === "/app" ? path === "/app" : path.startsWith(h));
-  const current = NAV.find((n) => active(n.href))?.label ?? (path.startsWith("/app/c/") ? "Editor de clip" : path.startsWith("/app/p/") ? "Proyecto" : path.startsWith("/app/ajustes") ? "Uso y ajustes" : "");
+  const current = NAV.find((n) => active(n.href))?.label ?? (path.startsWith("/app/c/") ? "Editor de clip" : path.startsWith("/app/r/") ? "Revisión" : path.startsWith("/app/p/") ? "Proyecto" : path.startsWith("/app/ajustes") ? "Uso y ajustes" : "");
 
   return (
     <div className="min-h-screen md:flex">

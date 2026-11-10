@@ -56,6 +56,7 @@ before(async () => {
   await db.exec(readFileSync(new URL("../migrations/20261110000018_brand_kits.sql", import.meta.url), "utf8"));
   await db.exec(readFileSync(new URL("../migrations/20261110000019_clip_thumbs_titles.sql", import.meta.url), "utf8"));
   await db.exec(readFileSync(new URL("../migrations/20261110000020_privilege_hardening.sql", import.meta.url), "utf8"));
+  await db.exec(readFileSync(new URL("../migrations/20261110000021_review_deliveries.sql", import.meta.url), "utf8"));
   await db.exec("grant select, insert, delete on public.songs to authenticated; grant select on public.song_alignments, public.lyric_videos to authenticated; grant execute on function public.request_lyrics(uuid, jsonb, text) to authenticated;");
   await db.exec("grant execute on function public.request_detection(uuid, text) to authenticated; grant execute on function public.request_render(uuid, int, text, boolean) to authenticated;");
   await db.exec(`insert into auth.users values ('${A}','a@test.dev'),('${B}','b@test.dev');`);
@@ -451,4 +452,48 @@ test("Privilegios: anon sin acceso a ninguna tabla y versiones de clip inmutable
   const cv = (await db.query<{ u: boolean; d: boolean }>(`select has_table_privilege('authenticated','public.clip_versions','UPDATE') u, has_table_privilege('authenticated','public.clip_versions','DELETE') d`)).rows[0];
   assert.deepEqual([cv.u, cv.d], [false, false]);
   assert.equal((await db.query<{ s: boolean }>(`select has_table_privilege('authenticated','public.clip_versions','SELECT') s`)).rows[0].s, true);
+});
+
+test("Revisión: aprobación ligada a la versión, comentarios con permisos y entregas con versión fijada", async () => {
+  const src = (await db.query<{ id: string }>(`insert into sources(workspace_id,kind,storage_path,mime,bytes,created_by) values ('${wsA}','upload','${wsA}/s/rv.mp4','video/mp4',10,'${A}') returning id`)).rows[0].id;
+  const proj = (await db.query<{ id: string }>(`insert into projects(workspace_id,source_id,name,created_by) values ('${wsA}','${src}','P rev','${A}') returning id`)).rows[0].id;
+  const tr = (await db.query<{ id: string }>(`insert into transcripts(workspace_id,source_id,words) values ('${wsA}','${src}','[]') returning id`)).rows[0].id;
+  const gen = (await db.query<{ id: string }>(`insert into generations(workspace_id,project_id,transcript_id,rubric_version,model) values ('${wsA}','${proj}','${tr}','r','m') returning id`)).rows[0].id;
+  const clip = (await db.query<{ id: string }>(`insert into clips(workspace_id,project_id,generation_id,title,current_version) values ('${wsA}','${proj}','${gen}','Clip rev',1) returning id`)).rows[0].id;
+  await db.exec(`insert into clip_versions(clip_id,workspace_id,version,composition) values ('${clip}','${wsA}',1,'{}'),('${clip}','${wsA}',2,'{}')`);
+  await db.exec(`update profiles set active_workspace_id = null where id in ('${A}','${B}')`);
+  await asUser(A, async () => {
+    await rejects(`update clips set review_status='approved' where id='${clip}'`);                      // no directo
+    await rejects(`select public.set_review('${clip}','approved',2,null)`);                            // no es la versión actual
+    await db.query(`select public.set_review('${clip}','approved',1,'Todo bien')`);
+    const r = (await db.query<{ review_status: string; approved_version: number }>(`select review_status, approved_version from clips where id='${clip}'`)).rows[0];
+    assert.deepEqual([r.review_status, r.approved_version], ["approved", 1]);
+    // el clip cambia de versión: la aprobación ya no corresponde a la versión actual
+    await db.exec(`reset role`); await db.exec(`update clips set current_version = 2 where id='${clip}'`); await db.exec(`set role authenticated; select set_config('request.jwt.claim.sub','${A}',false)`);
+    const r2 = (await db.query<{ ok: boolean }>(`select (approved_version = current_version) ok from clips where id='${clip}'`)).rows[0];
+    assert.equal(r2.ok, false, "la aprobación de v1 no vale para v2");
+    await rejects(`select public.set_review('${clip}','approved',1,null)`);
+    await db.query(`select public.set_review('${clip}','changes_requested',2,'Subir el volumen')`);
+    await db.query(`select public.add_clip_comment('${clip}',2,3.5,'Aquí falta una palabra')`);
+    await rejects(`select public.add_clip_comment('${clip}',9,1,'versión inexistente')`);
+    await rejects(`select public.add_clip_comment('${clip}',2,1,'   ')`);
+    assert.equal((await db.query(`select * from clip_comments where clip_id='${clip}'`)).rows.length, 3);
+    const d = (await db.query<{ d: string }>(`select public.create_delivery('${proj}','Entrega 1','Primera entrega','[{"clip_id":"${clip}","version":2}]'::jsonb) d`)).rows[0].d;
+    await rejects(`select public.create_delivery('${proj}','x','','[]'::jsonb)`);
+    await rejects(`select public.create_delivery('${proj}','x','','[{"clip_id":"${clip}","version":9}]'::jsonb)`);
+    assert.equal((await db.query<{ n: number }>(`select count(*)::int n from delivery_items where delivery_id='${d}'`)).rows[0].n, 1);
+    await db.query(`select public.delete_delivery('${d}')`);
+    assert.equal((await db.query(`select * from clips where id='${clip}'`)).rows.length, 1, "borrar la entrega no borra el clip");
+    await db.query(`select public.create_delivery('${proj}','Entrega B','', '[{"clip_id":"${clip}","version":2}]'::jsonb)`);
+    // Invitar a B como lector: puede ver, no revisar
+    const tok = (await db.query<{ t: string }>(`select public.create_invite('b@test.dev','viewer') t`)).rows[0].t;
+    await db.exec(`reset role`); await db.exec(`set role authenticated; select set_config('request.jwt.claim.sub','${B}',false)`);
+    await db.query(`select public.accept_invite('${tok}')`);
+    await rejects(`select public.set_review('${clip}','approved',2,null)`);
+    await rejects(`select public.add_clip_comment('${clip}',2,1,'no puedo')`);
+    assert.ok((await db.query(`select * from deliveries`)).rows.length >= 1, "el lector ve la entrega");
+    await db.query(`select public.set_active_workspace('${wsB}')`);
+    assert.equal((await db.query(`select * from deliveries`)).rows.length, 0, "en su espacio no ve las de A");
+    await db.exec(`reset role`); await db.exec(`set role authenticated; select set_config('request.jwt.claim.sub','${A}',false)`);
+  });
 });

@@ -3,13 +3,15 @@ import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Icon from "../../../../components/Icon";
+import ClipWall from "../../../../components/ui/ClipWall";
+import type { WallClip } from "../../../../components/ui/ClipCard";
 import { supabase, BRIEF_MAX } from "../../../../lib/supabase";
 import { STAGE, MODE_LABEL } from "../../../../lib/projects";
 
 type Project = { id: string; name: string; project_brief: string | null; clip_count: number; mode: string; source_id: string };
 type Job = { id: string; status: string; error_code: string | null; error_message: string | null; created_at: string; updated_at: string; attempts: number; metrics: Record<string, number | string> | null };
 type Scores = { overall?: number; relevance?: number; hook?: number; standalone?: number; closure?: number; label?: string };
-type Clip = { id: string; title: string; thumb_path: string | null; title_source: string; thumb?: string; generation_id: string; favorite: boolean; created_at: string; candidate: { title?: string | null; reason: string | null; brief_fit: string | null; scores: Scores | null; start_ms: number; end_ms: number } | null; url?: string; path?: string; bytes?: number };
+type Clip = { review_status: string; approved_version: number | null; current_version: number; version?: number; ratio?: string; id: string; title: string; thumb_path: string | null; title_source: string; thumb?: string; generation_id: string; favorite: boolean; created_at: string; candidate: { title?: string | null; reason: string | null; brief_fit: string | null; scores: Scores | null; start_ms: number; end_ms: number } | null; url?: string; path?: string; bytes?: number };
 type Gen = { id: string; model: string; created_at: string; params: { rejected?: { reason: string }[]; fallbackReason?: string | null } | null };
 
 const PHASES = ["queued", "extracting", "transcribing", "selecting", "rendering", "done"] as const;
@@ -40,22 +42,25 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
     const { data: j } = await supabase.from("jobs").select("id,status,error_code,error_message,created_at,updated_at,attempts,metrics").eq("project_id", id).eq("kind", "detect").order("created_at", { ascending: false }).limit(1);
     setJob((j?.[0] as Job) ?? null);
     const [{ data: cs }, { data: gs }] = await Promise.all([
-      supabase.from("clips").select("id,title,thumb_path,title_source,generation_id,favorite,created_at,candidate:clip_candidates(title,reason,brief_fit,scores,start_ms,end_ms)").eq("project_id", id).eq("discarded", false).order("created_at", { ascending: false }),
+      supabase.from("clips").select("id,title,thumb_path,title_source,review_status,approved_version,current_version,generation_id,favorite,created_at,candidate:clip_candidates(title,reason,brief_fit,scores,start_ms,end_ms)").eq("project_id", id).eq("discarded", false).order("created_at", { ascending: false }),
       supabase.from("generations").select("id,model,created_at,params").eq("project_id", id).order("created_at", { ascending: false }),
     ]);
     setGens((gs ?? []) as Gen[]);
     const list = (cs ?? []) as unknown as Clip[];
     const ids = list.map((c) => c.id);
-    const { data: rs } = ids.length ? await supabase.from("renders").select("clip_id,storage_path,probe,ratio,created_at").in("clip_id", ids).eq("status", "ready").order("created_at", { ascending: false }) : { data: [] };
-    for (const c of list) {
-      const r = (rs ?? []).find((x: { clip_id: string }) => x.clip_id === c.id) as { storage_path: string; probe: { size?: string | number } | null } | undefined;
-      if (r) { c.path = r.storage_path; c.bytes = Number(r.probe?.size ?? 0); c.url = (await supabase.storage.from("renders").createSignedUrl(r.storage_path, 900)).data?.signedUrl; }
-    }
+    const { data: rs } = ids.length ? await supabase.from("renders").select("clip_id,clip_version,storage_path,probe,ratio,created_at").in("clip_id", ids).eq("status", "ready").order("created_at", { ascending: false }) : { data: [] };
+    const latest = new Map<string, { clip_version: number; storage_path: string; probe: { size?: string | number } | null; ratio: string }>();
+    for (const r of (rs ?? []) as { clip_id: string; clip_version: number; storage_path: string; probe: { size?: string | number } | null; ratio: string }[]) if (!latest.has(r.clip_id)) latest.set(r.clip_id, r);
+    const rp = [...latest.values()].map((r) => r.storage_path);
+    const vsg = rp.length ? (await supabase.storage.from("renders").createSignedUrls(rp, 3600)).data ?? [] : [];
+    const vmap = new Map(vsg.map((x) => [x.path, x.signedUrl]));
+    for (const c of list) { const r = latest.get(c.id); if (r) { c.path = r.storage_path; c.bytes = Number(r.probe?.size ?? 0); c.version = r.clip_version; c.ratio = r.ratio; c.url = vmap.get(r.storage_path) ?? undefined; } }
     const tp = list.map((c) => c.thumb_path).filter((x): x is string => !!x);
     if (tp.length) { const { data: sg } = await supabase.storage.from("renders").createSignedUrls(tp, 3600); const m = new Map((sg ?? []).map((x) => [x.path, x.signedUrl])); for (const c of list) if (c.thumb_path) c.thumb = m.get(c.thumb_path) ?? undefined; }
     setClips(list);
   }, [id]);
 
+  useEffect(() => { const f = () => { load(); }; window.addEventListener("rafaga:reload-clips", f); return () => window.removeEventListener("rafaga:reload-clips", f); }, [load]);
   useEffect(() => {
     (async () => {
       const { data: s } = await supabase.auth.getSession();
@@ -188,60 +193,12 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
       )}
 
       {!!clips.length && (
-        <section className="mt-8" aria-labelledby="res">
-          <div className="mb-4 flex flex-wrap items-center gap-3">
-            <h2 id="res" className="text-lg">Clips <span className="mono text-sm text-[var(--muted)]">{sorted.length}</span></h2>
-            {!tool && (<>
-              <div role="group" aria-label="Ordenar" className="ml-auto inline-flex rounded-xl border hairline bg-[var(--surface)] p-1 text-sm">
-                {([["score", "Puntuación (mayor primero)"], ["time", "Tiempo (antes primero)"]] as const).map(([k, l]) => <button key={k} aria-pressed={sort === k} onClick={() => setSort(k)} className={`rounded-lg px-3 py-1 ${sort === k ? "bg-white shadow-[var(--shadow-1)] ring-1 ring-[var(--border)]" : "text-[var(--muted)]"}`}>{l}</button>)}
-              </div>
-              <button className="chip" aria-pressed={onlyFav} onClick={() => setOnlyFav(!onlyFav)}><Icon n="brand" className="h-3.5 w-3.5" />Favoritos</button></>)}
-          </div>
-          <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {sorted.map((c) => {
-              const sc = c.candidate?.scores; const total = sc?.overall != null ? Math.round(sc.overall * 10) : null;
-              return (
-                <li key={c.id} className="card overflow-hidden">
-                  <div className="relative bg-black">
-                    {c.url ? <video src={c.url} poster={c.thumb} controls preload="none" className="mx-auto aspect-[9/16] max-h-[420px] w-full object-contain" /> : <div className="grid aspect-[9/16] max-h-[420px] place-items-center text-sm text-white/70"><span className="pulse !bg-white" aria-hidden />Renderizando…</div>}
-                    {c.candidate && <span className="mono absolute right-2 top-2 rounded-lg bg-white px-2 py-0.5 text-xs">{dur(c.candidate.end_ms - c.candidate.start_ms)}</span>}
-                    {total != null && <span className="absolute left-2 top-2 rounded-lg bg-white px-2 py-1 text-sm font-semibold leading-none">{total}<span className="text-xs font-normal text-[var(--muted)]">/100</span></span>}
-                  </div>
-                  <div className="p-4">
-                    {renaming === c.id ? (
-                      <form onSubmit={(e) => { e.preventDefault(); rename(c, draftTitle); }} className="flex gap-1.5">
-                        <label className="sr-only" htmlFor={`t-${c.id}`}>Título del clip</label>
-                        <input id={`t-${c.id}`} value={draftTitle} onChange={(e) => setDraftTitle(e.target.value)} maxLength={160} autoFocus className="input min-w-0 flex-1 !py-1 text-sm" onKeyDown={(e) => e.key === "Escape" && setRenaming(null)} />
-                        <button className="btn btn-primary !px-2.5 !py-1 !text-xs">Guardar</button>
-                      </form>
-                    ) : (
-                      <div className="flex items-start gap-2"><h3 className="min-w-0 flex-1 text-[15px] leading-snug">{c.title}</h3>
-                        <button onClick={() => { setRenaming(c.id); setDraftTitle(c.title); }} className="shrink-0 text-xs underline" aria-label={`Renombrar ${c.title}`}>Renombrar</button></div>
-                    )}
-                    {c.title_source !== "user" && c.title_source !== "project" && renaming !== c.id && <div className="mt-1 text-[11px] text-[var(--muted)]">Título sugerido a partir del contenido{c.title_source === "ai" ? " (IA)" : ""}. Revísalo.</div>}
-                    {c.title_source === "user" && c.candidate?.title && c.candidate.title !== c.title && renaming !== c.id && <button onClick={() => rename(c, c.candidate!.title!, "restore")} className="mt-1 text-[11px] underline">Usar el título sugerido</button>}
-                    {isLex(c) && <div className="chip mt-1 !py-0.5 text-xs">Selección sin IA</div>}
-                    {c.candidate && <div className="mono mt-1 text-xs text-[var(--muted)]">{dur(c.candidate.start_ms)} → {dur(c.candidate.end_ms)} en el original{c.bytes ? ` · ${(c.bytes / 1048576).toFixed(1)} MB` : ""}</div>}
-                    {sc && sc.relevance != null && (
-                      <button onClick={() => setOpen(open === c.id ? null : c.id)} aria-expanded={open === c.id} className="mt-3 flex w-full items-center justify-between rounded-lg bg-[var(--surface)] px-3 py-2 text-left text-xs">
-                        <span className="flex gap-3">{(isLex(c) ? ([["Encaje", sc.relevance], ["Gancho", sc.hook]] as const) : ([["Gancho", sc.hook], ["Claridad", sc.standalone], ["Cierre", sc.closure], ["Encaje", sc.relevance]] as const)).map(([l, v]) => <span key={l}><span className="text-[var(--muted)]">{l}</span> <strong>{letter(v)}</strong></span>)}</span>
-                        <Icon n={open === c.id ? "chevD" : "chevR"} className="h-3.5 w-3.5" /></button>)}
-                    {open === c.id && c.candidate?.brief_fit && <p className="mt-2 text-sm"><span className="text-[var(--muted)]">Por qué encaja con tu objetivo: </span>{c.candidate.brief_fit}</p>}
-                    {total != null && <p className="mt-2 text-[11px] text-[var(--muted)]">{isLex(c) ? `Puntuación heurística sin IA (${genModel(c)}): encaje = palabras de tu enfoque presentes; gancho = señales en la primera frase. Claridad y cierre no se evalúan sin IA (solo se exige que acabe en frase completa).` : `Estimación de IA (${genModel(c)}) según gancho, claridad, cierre y encaje con tu enfoque. No garantiza viralidad.`}</p>}
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                      <Link href={`/app/c/${c.id}`} className="btn btn-primary !px-4 !py-2">Editar</Link>
-                      <button onClick={() => download(c)} disabled={!c.path} className="btn btn-ghost !px-3 !py-2" aria-label="Descargar MP4"><Icon n="download" className="h-4 w-4" /></button>
-                      <button onClick={() => patch(c, { favorite: !c.favorite })} aria-pressed={c.favorite} aria-label={c.favorite ? "Quitar de favoritos" : "Guardar en favoritos"} className={`btn btn-ghost !px-3 !py-2 ${c.favorite ? "!bg-[#111] !text-white" : ""}`}><Icon n="brand" className="h-4 w-4" /></button>
-                      <button onClick={() => patch(c, { discarded: true })} aria-label="Descartar este clip" title="Descartar" className="btn btn-ghost !px-3 !py-2 ml-auto"><Icon n="x" className="h-4 w-4" /></button>
-                    </div>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
+        <ClipWall projectId={id} projectName={p.name} showScore={!tool} onFavorite={async (cid, v) => { await supabase.from("clips").update({ favorite: v }).eq("id", cid); setClips((l) => l.map((x) => (x.id === cid ? { ...x, favorite: v } : x))); }}
+          onDiscard={async (cid) => { await supabase.from("clips").update({ discarded: true }).eq("id", cid); setClips((l) => l.filter((x) => x.id !== cid)); }}
+          clips={clips.map<WallClip>((c) => ({ id: c.id, title: c.title, title_source: c.title_source, thumb: c.thumb, url: c.url, path: c.path, bytes: c.bytes, favorite: c.favorite, version: c.version ?? c.current_version, ratio: c.ratio,
+            review_status: c.review_status, approved_version: c.approved_version, current_version: c.current_version, durMs: c.candidate ? c.candidate.end_ms - c.candidate.start_ms : undefined,
+            score: c.candidate?.scores?.overall ?? null, reason: c.candidate?.reason, brief_fit: c.candidate?.brief_fit, created_at: c.created_at, hasRender: !!c.path }))} />
       )}
-      {job?.status === "done" && clips.length === 0 && <p className="card mt-6 p-4 text-sm">No se encontraron momentos que encajen con tu enfoque. Amplíalo o déjalo vacío y vuelve a detectar.</p>}
 
       {!tool && !!rejected.length && (
         <details className="card mt-6 p-4 text-sm"><summary className="cursor-pointer font-medium">Por qué no se eligieron otros momentos <span className="mono text-[var(--muted)]">{rejected.length}</span></summary>

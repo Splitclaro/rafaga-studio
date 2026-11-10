@@ -104,3 +104,11 @@ Probar Lyric Studio con una canción real (canto + instrumental). Siguiente: Sty
 
 ## Sesión 11 — H13 y endurecimiento de privilegios
 - Títulos sugeridos sin IA fieles al contenido y miniaturas reales por clip (worker + relleno de antiguos). Migración 19 (columnas, privilegios) y 20 (anon, clip_versions) aplicadas y verificadas.
+
+## Sesión 12 — Rediseño «estudio editorial»: resultados, revisión, comparación y entregas
+- Componentes compartidos (`components/ui`): `StatusLabel` (texto+icono; «Listo»≠«Aprobado»), `ClipCard`, `ClipWall` (filtros con contadores, búsqueda, orden, galería/lista, selección persistente, barra de acciones, un único preview), `pieceStatus` (la aprobación solo vale para la versión actual).
+- Rutas nuevas: `/app/r/[id]` (sala de revisión: versiones, comentarios con instante, aprobar/solicitar cambios), `/app/p/[id]/comparar` (A/B, sincronización explícita solo si es el mismo fragmento), `/app/entregas` y `/app/entregas/[id]` (cabecera con marca/proyecto, galería, descarga individual/selección con manifiesto JSON).
+- Migración 21 (aplicada y verificada): `review_status`/`approved_version` en clips, `clip_comments`, `deliveries`, `delivery_items`, RPC `set_review`, `add_clip_comment`, `resolve_clip_comment`, `create_delivery`, `delete_delivery`.
+- Navegación reorganizada (Crear / Revisar y entregar / Automatizar); Inicio con título editorial, «Pendientes» reales y «Continúa donde lo dejaste» con acción contextual; sin fondos de puntos.
+- Verificado: PGlite (104 tests), producción (migración), navegador a 1440/1024/768/390 con un servidor Supabase simulado local (sin desbordes de página, selección, preview único, revisión, comparación con aprobación caducada por versión). NO verificado con datos reales de usuario.
+- Pendiente: enlaces de revisión para externos con caducidad/revocación (requiere diseño de acceso por token sin clave de servicio en Vercel), ZIP por job con portadas/SRT/VTT, cambiar portada manualmente, «crear más versiones como esta», estilos reutilizables unificados, montaje al ritmo, brief estructurado, biblioteca única con duplicados.

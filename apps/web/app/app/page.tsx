@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import PendingStrip from "../../components/PendingStrip";
 import Icon from "../../components/Icon";
 import { ProjectCard, isActive, useProjects } from "../../components/ProjectList";
 import { createProject, uploadSong, validateFile, probeDuration, MIN_SOURCE_SECONDS, WHOLE_VIDEO_MAX_SECONDS, STAGE, type ProjectMode } from "../../lib/projects";
@@ -86,6 +87,10 @@ export default function Dashboard() {
 
   return (
     <main className="mx-auto max-w-6xl px-4 pb-20 pt-8 md:px-8">
+      <header className="mx-auto mb-8 max-w-3xl">
+        <h1 className="text-4xl tracking-tight md:text-5xl">Tu próximo gran momento.</h1>
+        <p className="mt-2 text-base text-[var(--muted)]">Continúa un proyecto o transforma una nueva fuente.</p>
+      </header>
       {/* Creación */}
       <section aria-label="Crear" className="mx-auto max-w-3xl">
         <div className="flex items-end justify-between gap-3">
@@ -97,7 +102,7 @@ export default function Dashboard() {
           <Link href="/app/biblioteca" className="mb-1 flex items-center gap-2 text-sm text-[var(--muted)] hover:text-[var(--text)]"><Icon n="grid" className="h-4 w-4" />Todos los proyectos</Link>
         </div>
 
-        <div className="card-raised dots rounded-tl-none p-5 md:p-6">
+        <div className="card-raised rounded-tl-none p-5 md:p-6">
           {tab === "clips" ? (
             <form onSubmit={submit}>
               <input ref={fileInput} id="file" type="file" accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm" className="sr-only" onChange={(e) => pick(e.target.files?.[0] ?? null)} />
@@ -157,6 +162,8 @@ export default function Dashboard() {
       </section>
 
       {/* En curso */}
+      <PendingStrip />
+
       {current.length > 0 && (
         <section aria-labelledby="curso" className="mt-12">
           <h2 id="curso" className="mb-3 flex items-center gap-2 text-lg"><span className="pulse" aria-hidden />En curso</h2>
@@ -167,7 +174,7 @@ export default function Dashboard() {
       {/* Recientes */}
       <section aria-labelledby="recientes" className="mt-12">
         <div className="mb-3 flex items-center gap-4">
-          <h2 id="recientes" className="text-lg">Proyectos recientes</h2>
+          <h2 id="recientes" className="text-lg tracking-tight">Continúa donde lo dejaste</h2>
           <Link href="/app/biblioteca" className="text-sm text-[var(--muted)] underline underline-offset-4 hover:text-[var(--text)]">Ver todos</Link>
         </div>
         {err && <p role="alert">No se pudieron cargar los proyectos: {err}</p>}
