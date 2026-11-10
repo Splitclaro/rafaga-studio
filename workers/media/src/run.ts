@@ -9,7 +9,7 @@ import { buildAss, buildComposition, ffmpegArgs, styleForRatio, renderFamily, gr
 import { transcribe, proposeClips, safeGet, parseFeed, captureHls, concatWindow, type WindowOut } from "@rafaga/providers";
 import { alignLyrics, lyricsFromAsr, parseLyrics, planVariants, lyricFfmpegArgs, sequenceFor, DEFAULT_BG, LOOKS, resolveLook, varyLook, layoutLyrics, layoutToAss, planShots, lookFfmpegArgs, canvasSize, LOOK_ENGINE_VERSION, type BgItem, type BgSettings, type TimedWord, type ShotItem, type DeepPartial, type LyricLook } from "@rafaga/lyrics";
 import { extractThumb } from "./thumb.ts";
-import { briefHash, RUBRIC_VERSION, validateCandidates, windows, transcriptText, lexicalCandidates, LEXICAL_VERSION, type TWord, type RawCandidate } from "@rafaga/selection";
+import { briefHash, RUBRIC_VERSION, validateCandidates, windows, transcriptText, lexicalCandidates, LEXICAL_VERSION, suggestTitle, type TWord, type RawCandidate } from "@rafaga/selection";
 
 const need = (k: string) => { const v = process.env[k]; if (!v) { console.error(`Falta el secreto ${k}`); process.exit(2); } return v; };
 const sb = createClient(need("SUPABASE_URL"), need("SUPABASE_SECRET_KEY"), { auth: { persistSession: false } });
@@ -222,6 +222,26 @@ async function tickThumbs() {
       const vp = join(dir, "v.mp4"); writeFileSync(vp, Buffer.from(await d.data.arrayBuffer()));
       await saveThumb(c.workspace_id, c.id, vp, dir);
     } finally { rmSync(dir, { recursive: true, force: true }); }
+  }
+}
+
+/** Títulos sin IA anteriores a `suggestTitle`: se recalculan una vez por proceso y solo si el usuario no los ha editado. */
+const titled = new Set<string>();
+let lastTitleTick = 0;
+async function tickTitles() {
+  if (Date.now() - lastTitleTick < 60_000) return; lastTitleTick = Date.now();
+  const { data } = await sb.from("clips").select("id,title,project_id,candidate:clip_candidates(start_ms,end_ms)").eq("title_source", "lexical").order("created_at", { ascending: false }).limit(20);
+  let n = 0;
+  for (const c of (data ?? []) as unknown as { id: string; title: string; project_id: string; candidate: { start_ms: number; end_ms: number } | null }[]) {
+    if (n >= 3) break; if (titled.has(c.id) || !c.candidate) continue; titled.add(c.id);
+    const pr = (await sb.from("projects").select("source_id,project_brief").eq("id", c.project_id).maybeSingle()).data;
+    if (!pr) continue;
+    const tr = (await sb.from("transcripts").select("words").eq("source_id", pr.source_id).limit(1).maybeSingle()).data;
+    const ws = ((tr?.words ?? []) as TWord[]).filter((w) => w.end * 1000 > c.candidate!.start_ms && w.start * 1000 < c.candidate!.end_ms);
+    if (!ws.length) continue;
+    const t = suggestTitle(ws.map((w) => w.text).join(" "), pr.project_brief);
+    n++;
+    if (t && t !== c.title) await sb.from("clips").update({ title: t }).eq("id", c.id).eq("title_source", "lexical").eq("title", c.title);
   }
 }
 
@@ -552,6 +572,7 @@ for (;;) {
   if (elapsedMs > maxMs && liveActive === 0) break;
   await tickAutomations().catch((e) => console.error("tick:", (e as Error).message));
   await tickThumbs().catch((e) => console.error("thumbs:", (e as Error).message));
+  await tickTitles().catch((e) => console.error("titles:", (e as Error).message));
   if (elapsedMs > maxMs) { await new Promise((r) => setTimeout(r, 3000)); continue; }       // solo esperar a que termine el directo
   const { data, error } = await sb.rpc("claim_job");
   if (error) { console.error("claim_job:", error.message); process.exit(1); }
