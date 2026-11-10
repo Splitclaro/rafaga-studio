@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { parseLyrics, planVariants, DEFAULT_BG, LOOKS, resolveLook, type BgSettings, type FilterName, type LyricLook, type DeepPartial } from "@rafaga/lyrics";
+import { parseLyrics, planVariants, moreIsCopy, type MoreLock, DEFAULT_BG, LOOKS, resolveLook, type BgSettings, type FilterName, type LyricLook, type DeepPartial } from "@rafaga/lyrics";
 import { PRESETS, type SubtitleStyle } from "@rafaga/composition";
 import { supabase, MAX_UPLOAD_BYTES } from "../../../lib/supabase";
 import { STAGE } from "../../../lib/projects";
@@ -16,8 +16,8 @@ import BeatAnalysis from "../../../components/BeatAnalysis";
 type Overrides = Record<string, DeepPartial<LyricLook>>;
 type StudioSettings = { styles?: string[]; overrides?: Overrides; res?: 1080 | 720; native?: boolean; variation?: number; ratio?: string; settings?: Partial<BgSettings> };
 type Song = { id: string; title: string; artist: string | null; storage_path: string; lyrics_text: string | null; studio_settings?: StudioSettings | null };
-type Batch = { id: string; status: string; error_message: string | null; params: { n: number; ratio: string }; created_at: string };
-type LV = { id: string; variant: number; status: string; storage_path: string | null; params: { style: string; background: string }; url?: string };
+type Batch = { id: string; status: string; error_message: string | null; params: { n: number; ratio: string; styles?: string[]; backgrounds?: string[]; [k: string]: unknown }; created_at: string };
+type LV = { id: string; variant: number; status: string; storage_path: string | null; params: { style: string; background: string; look?: unknown; shots?: { start: number; dur: number; src?: string | null }[]; collection_id?: string | null }; url?: string };
 
 const LOOK_IDS = ["archivo", "diario", "panoramico"] as const;
 const styleLabel = (k: string) => (k.startsWith("look:") ? LOOKS[k.slice(5)]?.name ?? k : k.startsWith("custom:") ? "Mi estilo" : k);
@@ -64,6 +64,10 @@ export default function LyricStudio() {
   const [busy, setBusy] = useState(false);
   const [batches, setBatches] = useState<Batch[]>([]);
   const [openBatch, setOpenBatch] = useState<string | null>(null);
+  const [moreFor, setMoreFor] = useState<LV | null>(null);
+  const [moreLock, setMoreLock] = useState<MoreLock>({ style: true, background: false, shots: false });
+  const [moreN, setMoreN] = useState(3);
+  const [swapShot, setSwapShot] = useState(0);
   const [videos, setVideos] = useState<LV[]>([]);
   const [step, setStep] = useState(0);
   const [newTitle, setNewTitle] = useState(""), [newArtist, setNewArtist] = useState("");
@@ -188,6 +192,21 @@ export default function LyricStudio() {
     const { data: s } = await supabase.auth.getSession();
     fetch("/api/wake", { method: "POST", headers: { Authorization: `Bearer ${s.session?.access_token ?? ""}` } }).catch(() => {});
     setMsg(`Generando ${n} vídeo${n === 1 ? "" : "s"}. Aparecerán abajo según estén listos.`); setOpenBatch(data as string); loadBatches(song);
+  }
+  /** Nuevo trabajo derivado de un vídeo ya hecho: mismos ajustes del lote de origen, con lo bloqueado intacto. */
+  async function submitMore(v: LV, body: { n: number; lock: MoreLock; swap?: number[] }, label: string) {
+    if (!song || busy) return;
+    const src = batches.find((b) => b.id === openBatch);
+    if (!src) return setMsg("No encuentro el lote de origen.");
+    setBusy(true); setMsg(null);
+    const pool = (a: string[] | undefined, b: string[]) => [...new Set([...(a ?? []), ...b])];
+    const params = { ...src.params, n: body.n, seed: Math.floor(Math.random() * 99999) + 1, styles: pool(src.params.styles, [v.params.style]), backgrounds: pool(src.params.backgrounds, colors), more: { from_video: v.id, lock: body.lock, ...(body.swap ? { swap: body.swap } : {}) } };
+    const { data, error } = await supabase.rpc("request_lyrics", { p_song: song.id, p_params: params, p_key: crypto.randomUUID() });
+    setBusy(false);
+    if (error) return setMsg(error.message);
+    const { data: s } = await supabase.auth.getSession();
+    fetch("/api/wake", { method: "POST", headers: { Authorization: `Bearer ${s.session?.access_token ?? ""}` } }).catch(() => {});
+    setMsg(label); setMoreFor(null); setOpenBatch(data as string); loadBatches(song);
   }
   const activeBatch = batches.find((b) => !["done", "failed", "cancelled"].includes(b.status));
   useEffect(() => {
@@ -409,7 +428,26 @@ export default function LyricStudio() {
               <li key={v.id} className="overflow-hidden rounded-2xl border border-[var(--border)]">
                 {v.url ? <video src={v.url} controls playsInline preload="metadata" className="aspect-[9/16] w-full bg-black object-contain" /> : <div className="grid aspect-[9/16] place-items-center bg-[#111] text-sm text-white/80"><span className="pulse !bg-white" aria-hidden />Creando…</div>}
                 <div className="flex items-center justify-between gap-2 px-3 py-2 text-sm"><span className="min-w-0 truncate"><span className="tnum text-[var(--muted)]">#{v.variant}</span> {styleLabel(v.params.style)}</span>{v.url && <button onClick={() => download(v)} className="btn btn-ghost !px-2.5 !py-1 !text-xs">Descargar</button>}</div>
+                {v.url && <div className="flex gap-1.5 border-t border-[var(--border)] px-3 py-2"><button onClick={() => { setMoreFor(moreFor?.id === v.id ? null : v); setSwapShot(0); }} aria-expanded={moreFor?.id === v.id} className="btn btn-ghost !px-2.5 !py-1 !text-xs">Más versiones</button></div>}
               </li>))}</ul>
+            {moreFor && (() => { const v = moreFor, shots = v.params.shots ?? [], canSwap = !!v.params.look && shots.length > 0 && !!shots[0].src, collection = !!v.params.collection_id; const copy = moreIsCopy(moreLock); const t = (x: number) => `${Math.floor(x / 60)}:${String(Math.floor(x % 60)).padStart(2, "0")}`; return (
+              <div role="region" aria-label={`Más versiones del vídeo ${v.variant}`} className="mt-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 text-sm">
+                <div className="flex items-start justify-between gap-3"><h3 className="text-lg">Más versiones como la #{v.variant}</h3><button onClick={() => setMoreFor(null)} className="btn btn-ghost !px-2.5 !py-1 !text-xs">Cerrar</button></div>
+                <p className="mt-1 text-[var(--muted)]">Se mantienen siempre el audio, el tramo y la letra. Marca lo que quieres conservar; lo demás cambia.</p>
+                <fieldset className="mt-3 flex flex-wrap gap-2"><legend className="sr-only">Elementos bloqueados</legend>
+                  {([["style", "Estilo"], ["background", collection ? "Colección de fondo" : "Color de fondo"], ["shots", "Planos y cortes"]] as const).map(([k, l]) => (
+                    <label key={k} className={`flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 ${moreLock[k] ? "border-[#111] bg-[#111] text-white" : "border-[var(--border)] bg-white"}`}><input type="checkbox" className="sr-only" checked={moreLock[k]} onChange={(e) => setMoreLock({ ...moreLock, [k]: e.target.checked })} />{moreLock[k] ? "Fijo" : "Cambia"}: {l}</label>))}
+                </fieldset>
+                {copy && <p role="alert" className="mt-2">Con todo fijo saldría una copia. Deja libre al menos una cosa.</p>}
+                {!v.params.look && moreLock.shots === false && <p className="mt-2 text-[var(--muted)]">Este estilo no usa planos: solo cambian estilo, fondo y variación.</p>}
+                <div className="mt-3 flex flex-wrap items-end gap-3"><label>Cuántas<input type="number" min={1} max={10} value={moreN} onChange={(e) => setMoreN(Math.max(1, Math.min(10, Math.floor(Number(e.target.value) || 1))))} className="tnum mt-1 block w-20 rounded-full border border-[var(--border)] bg-white px-3 py-2" /></label>
+                  <button disabled={copy || busy} onClick={() => submitMore(v, { n: moreN, lock: moreLock }, `Creando ${moreN} versión${moreN === 1 ? "" : "es"} como la #${v.variant}.`)} className="btn btn-primary disabled:opacity-40">Crear {moreN} versión{moreN === 1 ? "" : "es"}</button></div>
+                {canSwap && <div className="mt-4 border-t border-[var(--border)] pt-3"><h4 className="font-medium">Cambiar un plano</h4><p className="text-[var(--muted)]">Rehace este vídeo con otro clip en un solo plano; el resto queda igual.</p>
+                  <div className="mt-2 flex flex-wrap items-end gap-2"><label>Plano<select value={swapShot} onChange={(e) => setSwapShot(Number(e.target.value))} className="mt-1 block rounded-full border border-[var(--border)] bg-white px-3 py-2">{shots.map((x, i) => <option key={i} value={i}>{i + 1} · {t(x.start)} ({x.dur.toFixed(1)} s)</option>)}</select></label>
+                    <button disabled={busy} onClick={() => submitMore(v, { n: 1, lock: { style: true, background: true, shots: true }, swap: [swapShot] }, `Cambiando el plano ${swapShot + 1} de la #${v.variant}.`)} className="btn btn-ghost">Cambiar este plano</button>
+                    <button disabled={busy} onClick={() => submitMore(v, { n: 1, lock: { style: true, background: true, shots: true }, swap: [0] }, `Probando otro inicio para la #${v.variant}.`)} className="btn btn-ghost">Probar otro inicio</button></div></div>}
+                {!canSwap && !!v.params.look && <p className="mt-3 text-[var(--muted)]">Para cambiar planos sueltos hace falta generar de nuevo este vídeo: los hechos antes de esta función no guardan qué clip usa cada plano.</p>}
+              </div>); })()}
           </>); })()}
         </section>
       )}

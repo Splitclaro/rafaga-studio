@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildAss, buildComposition, ffmpegArgs, styleForRatio, renderFamily, groupsFrom, toSRT, toVTT, toTranscript, sanitizeLogo, type BrandLogo, validateStyle, SYSTEM_FONT, escapeFilterPath, PRESETS, RATIO_SIZE, type Composition, type Ratio, type Word } from "@rafaga/composition";
 import { transcribe, proposeClips, safeGet, parseFeed, captureHls, concatWindow, type WindowOut } from "@rafaga/providers";
-import { alignLyrics, lyricsFromAsr, parseLyrics, planVariants, lyricFfmpegArgs, sequenceFor, DEFAULT_BG, LOOKS, resolveLook, varyLook, layoutLyrics, layoutToAss, planShots, planShotsOnBeats, detectBeats, beatsReliable, type BeatResult, lookFfmpegArgs, canvasSize, LOOK_ENGINE_VERSION, type BgItem, type BgSettings, type TimedWord, type ShotItem, type DeepPartial, type LyricLook } from "@rafaga/lyrics";
+import { alignLyrics, lyricsFromAsr, parseLyrics, planVariants, lyricFfmpegArgs, sequenceFor, DEFAULT_BG, LOOKS, resolveLook, varyLook, layoutLyrics, layoutToAss, planShots, planShotsOnBeats, detectBeats, beatsReliable, type BeatResult, lookFfmpegArgs, canvasSize, LOOK_ENGINE_VERSION, type BgItem, type BgSettings, type TimedWord, type ShotItem, type DeepPartial, type LyricLook, planMore, restoreShots, swapShots, type MoreLock, type SavedShot, type VariantSpec } from "@rafaga/lyrics";
 import { extractThumb } from "./thumb.ts";
 import { ZipBuilder } from "./zip.ts";
 import { briefHash, RUBRIC_VERSION, validateCandidates, windows, transcriptText, lexicalCandidates, LEXICAL_VERSION, suggestTitle, normalizeBrief, composeBrief, lexicalBrief, BRIEF_VERSION, type TWord, type RawCandidate } from "@rafaga/selection";
@@ -46,7 +46,7 @@ async function fontsFor(ws: string, family: string, dir: string): Promise<string
   return fd;
 }
 
-type Job = { id: string; kind: string; workspace_id: string; project_id: string | null; clip_id: string | null; attempts: number; params: { session_id?: string; rule_id?: string; manual?: boolean; version?: number; ratio?: Ratio; burn?: boolean; song_id?: string; n?: number; styles?: string[]; backgrounds?: string[]; seed?: number; start?: number; end?: number; collection_id?: string | null; settings?: Partial<BgSettings> & { textScale?: number }; res?: 1080 | 720; native?: boolean; variation?: number; look_overrides?: Record<string, DeepPartial<LyricLook>> } };
+type Job = { id: string; kind: string; workspace_id: string; project_id: string | null; clip_id: string | null; attempts: number; params: { session_id?: string; rule_id?: string; manual?: boolean; version?: number; ratio?: Ratio; burn?: boolean; song_id?: string; n?: number; styles?: string[]; backgrounds?: string[]; seed?: number; start?: number; end?: number; collection_id?: string | null; settings?: Partial<BgSettings> & { textScale?: number }; res?: 1080 | 720; native?: boolean; variation?: number; look_overrides?: Record<string, DeepPartial<LyricLook>>; more?: { from_video: string; lock: MoreLock; swap?: number[] } } };
 const setStatus = (id: string, status: string, extra: Record<string, unknown> = {}) =>
   sb.from("jobs").update({ status, heartbeat_at: new Date().toISOString(), updated_at: new Date().toISOString(), ...extra }).eq("id", id);
 
@@ -367,8 +367,9 @@ async function processLyrics(job: Job) {
     const textScale = Math.min(1.6, Math.max(0.6, p.settings?.textScale ?? 1));
     let items: BgItem[] = [];
     const shotItems: ShotItem[] = [];
+    const shotSrc: (string | null)[] = [];   // identidad estable de cada clip (ruta en storage) para reconstruir planos entre trabajos
     if (p.collection_id) {
-      const { data: mi } = await sb.from("media_items").select("kind,storage_path").eq("collection_id", p.collection_id).eq("workspace_id", song.workspace_id);
+      const { data: mi } = await sb.from("media_items").select("kind,storage_path").eq("collection_id", p.collection_id).eq("workspace_id", song.workspace_id).order("storage_path");
       if (!mi?.length) throw Object.assign(new Error("La colección elegida no tiene vídeos ni fotos."), { permanent: true });
       for (const [i, it] of mi.entries()) {
         const d2 = await sb.storage.from("originals").download(it.storage_path);
@@ -377,7 +378,7 @@ async function processLyrics(job: Job) {
         items.push({ path: fp, kind: it.kind as "video" | "photo" });
         let duration: number | undefined;
         if (it.kind === "video") { try { duration = Number(JSON.parse(sh("ffprobe", ["-v", "error", "-print_format", "json", "-show_format", fp])).format.duration) || undefined; } catch { duration = undefined; } }
-        shotItems.push({ path: fp, kind: it.kind as "video" | "photo", duration });
+        shotItems.push({ path: fp, kind: it.kind as "video" | "photo", duration }); shotSrc.push(it.storage_path);
       }
     }
     // Ritmo del tramo (solo si algún look usa montaje al ritmo): se detecta una vez y se cachea por canción y tramo
@@ -396,7 +397,20 @@ async function processLyrics(job: Job) {
       return beatMemo;
     };
     // Plan exacto de N variantes
-    const plan = planVariants(p.n ?? 1, p.styles?.length ? p.styles : ["Letra"], items.length ? ["coleccion"] : p.backgrounds?.length ? p.backgrounds : ["#111111"], p.seed ?? 1);
+    const pools = { styles: p.styles?.length ? p.styles : ["Letra"], backgrounds: items.length ? ["coleccion"] : p.backgrounds?.length ? p.backgrounds : ["#111111"] };
+    // «Más versiones como esta» / «Cambiar este plano»: parten de un vídeo ya generado de ESTA canción y workspace
+    let baseShots: SavedShot[] | null = null; let swap: number[] = [];
+    let plan: { variants: VariantSpec[]; distinct: number; repeats: number };
+    if (p.more) {
+      const { data: bv } = await sb.from("lyric_videos").select("params").eq("id", p.more.from_video).eq("song_id", song.id).eq("workspace_id", song.workspace_id).maybeSingle();
+      const bp = bv?.params as { style?: string; background?: string; seed?: number; shots?: SavedShot[] } | undefined;
+      if (!bp?.style) throw Object.assign(new Error("El vídeo de origen ya no existe."), { permanent: true });
+      baseShots = bp.shots ?? null; swap = (p.more.swap ?? []).filter((x) => Number.isInteger(x) && x >= 0 && x < 500);
+      const lock = { style: !!p.more.lock?.style, background: !!p.more.lock?.background, shots: !!p.more.lock?.shots };
+      const variants = swap.length ? [{ index: 1, style: bp.style, background: bp.background ?? "coleccion", seed: (p.seed ?? 1) * 1000 + 1 }] : planMore({ style: bp.style, background: bp.background ?? "coleccion", seed: bp.seed ?? 0 }, p.n ?? 1, lock, pools, p.seed ?? 1);
+      plan = { variants, distinct: variants.length, repeats: 0 };
+      m.more_from = p.more.from_video; if (swap.length) m.swap = swap.join(",");
+    } else plan = planVariants(p.n ?? 1, pools.styles, pools.backgrounds, p.seed ?? 1);
     m.n = plan.variants.length; m.distinct = plan.distinct;
     await setStatus(job.id, "rendering");
     const byLine = new Map<number, TimedWord[]>();
@@ -420,13 +434,20 @@ async function processLyrics(job: Job) {
           const b = await getBeats(); const pl = planShotsOnBeats(shotItems, b, len, look.montage, v.seed, !!b && beatsReliable(b));
           shots = pl.shots; montageInfo = { ...pl.info };
         } else shots = planShots(shotItems, L.pages, len, look.montage, v.seed);
+        if (p.more && (swap.length || p.more.lock?.shots)) {   // planos heredados del vídeo base (y, si se pide, un plano concreto sustituido)
+          const kept = restoreShots(baseShots, shotItems, shotSrc, len);
+          if (kept) {
+            if (swap.length) { const sw = swapShots(kept, swap, shotItems, v.seed); shots = sw.shots; montageInfo = { ...montageInfo, swapped: sw.changed }; if (!sw.changed.length) m.swap_note = "sin alternativa para ese plano"; }
+            else { shots = kept; montageInfo = { ...montageInfo, inherited: true }; }
+          } else m.shots_note = "no se pudieron heredar los planos (otro tramo, colección distinta o vídeo antiguo): se generaron nuevos";
+        }
         const t2 = Date.now();
         sh("ffmpeg", lookFfmpegArgs({ look, W: LW, H: LH, len, shots, color: /^#[0-9a-f]{6}$/i.test(v.background) ? v.background : "#111111", seed: v.seed, audio: seg, ass, out, escape: escapeFilterPath }));
         const probe = JSON.parse(sh("ffprobe", ["-v", "error", "-print_format", "json", "-show_entries", "stream=codec_name,width,height:format=duration,size", out]));
         const rpath = `${song.workspace_id}/lyrics/${job.id}/${v.index}.mp4`;
         const up = await sb.storage.from("renders").upload(rpath, readFileSync(out), { contentType: "video/mp4", upsert: true });
         if (up.error) throw new Error(`subida: ${up.error.message}`);
-        await sb.from("lyric_videos").update({ storage_path: rpath, status: "ready", probe, params: { ...v, look: { id, version: look.version, engine: LOOK_ENGINE_VERSION, resolved: look }, shots: shots.map((x) => ({ start: x.start, dur: x.dur, entry: x.entry, item: shotItems.indexOf(x.item) })), montage: montageInfo, res: p.res ?? 1080, collection_id: p.collection_id ?? null, alignment: m.alignment } }).eq("job_id", job.id).eq("variant", v.index);
+        await sb.from("lyric_videos").update({ storage_path: rpath, status: "ready", probe, params: { ...v, look: { id, version: look.version, engine: LOOK_ENGINE_VERSION, resolved: look }, shots: shots.map((x) => ({ start: x.start, dur: x.dur, entry: x.entry, item: shotItems.indexOf(x.item), src: shotSrc[shotItems.indexOf(x.item)] ?? null })), montage: montageInfo, res: p.res ?? 1080, collection_id: p.collection_id ?? null, alignment: m.alignment } }).eq("job_id", job.id).eq("variant", v.index);
         if (v.index === 1) m.first_ms = Date.now() - t0;
         m[`render_ms_${v.index}`] = Date.now() - t2;
         await sb.from("jobs").update({ heartbeat_at: new Date().toISOString(), metrics: m }).eq("id", job.id);
