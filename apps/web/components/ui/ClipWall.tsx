@@ -134,7 +134,7 @@ export default function ClipWall({ projectId, projectName, clips, onFavorite, on
           <div className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-3 py-2"><Icon n="search" className="h-4 w-4 text-[var(--muted)]" /><input id="wall-q" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar título" className="w-36 bg-transparent text-sm outline-none sm:w-48" /></div>
           <label className="sr-only" htmlFor="wall-s">Ordenar</label>
           <select id="wall-s" value={sort} onChange={(e) => setSort(e.target.value as Sort)} className="rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-sm">{showScore && <option value="score">Mayor encaje primero</option>}<option value="recent">Más recientes</option><option value="time">Más antiguos</option><option value="title">Título A–Z</option></select>
-          <div role="group" aria-label="Vista" className="inline-flex rounded-xl border border-[var(--border)] bg-white p-0.5">{([["grid", "Galería"], ["list", "Lista"]] as const).map(([k, l]) => <button key={k} aria-pressed={view === k} onClick={() => setView(k)} className={`rounded-lg px-3 py-1.5 text-sm ${view === k ? "bg-[#111] text-white" : "text-[var(--muted)]"}`}>{l}</button>)}</div>
+          <div role="group" aria-label="Vista" className="inline-flex rounded-xl border border-[var(--border)] bg-white p-0.5">{([["grid", "Galería"], ["list", "Lista"]] as const).map(([k, l]) => <button key={k} aria-pressed={view === k} onClick={() => setView(k)} className={`rounded-lg px-3 py-1.5 text-sm ${view === k ? "bg-[var(--ink)] text-white" : "text-[var(--muted)]"}`}>{l}</button>)}</div>
         </div>
       </div>
 
@@ -155,7 +155,7 @@ export default function ClipWall({ projectId, projectName, clips, onFavorite, on
       )}
 
       {sel.size > 0 && (
-        <div role="region" aria-label="Acciones de selección" className="fixed inset-x-3 bottom-3 z-30 mx-auto max-w-3xl rounded-2xl bg-[#111] p-2.5 text-white shadow-xl md:bottom-6">
+        <div role="region" aria-label="Acciones de selección" className="fixed inset-x-3 bottom-3 z-30 mx-auto max-w-3xl rounded-2xl bg-[var(--ink)] p-2.5 text-white shadow-xl md:bottom-6">
           <div className="flex flex-wrap items-center gap-2">
             <span className="tnum px-2 text-sm font-medium">{sel.size} clip{sel.size === 1 ? "" : "s"} seleccionado{sel.size === 1 ? "" : "s"}</span>
             <div className="ml-auto flex flex-wrap gap-1.5">

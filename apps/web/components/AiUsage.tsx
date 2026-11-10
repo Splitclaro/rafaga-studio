@@ -23,7 +23,7 @@ export default function AiUsage() {
   return (
     <section aria-label="Consumo y límites" className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 text-sm">
       <h2 className="font-medium">Consumo de esta semana</h2>
-      <div className="mt-2 flex items-center gap-3"><span className="tnum">{used.toFixed(0)} de {lim} min de fuente</span><div className="h-1.5 max-w-xs flex-1 rounded-full bg-[var(--hover)]"><div className={`h-full rounded-full ${pct >= s.limits.warn_at * 100 ? "bg-[#111]" : "bg-[#777]"}`} style={{ width: `${pct}%` }} /></div></div>
+      <div className="mt-2 flex items-center gap-3"><span className="tnum">{used.toFixed(0)} de {lim} min de fuente</span><div className="h-1.5 max-w-xs flex-1 rounded-full bg-[var(--hover)]"><div className={`h-full rounded-full ${pct >= s.limits.warn_at * 100 ? "bg-[var(--ink)]" : "bg-[#777]"}`} style={{ width: `${pct}%` }} /></div></div>
       {pct >= s.limits.warn_at * 100 && <p role="status" className="mt-1 text-xs text-[var(--muted)]">Te acercas al límite semanal. Lo ya transcrito se reutiliza y no vuelve a contar.</p>}
       {s.can_edit_limits && typeof s.month_cost_usd === "number" && (
         <div className="mt-4 border-t border-[var(--border)] pt-3"><h3 className="font-medium">Coste del mes</h3>

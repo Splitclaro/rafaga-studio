@@ -78,12 +78,12 @@ export default function Timeline({ src, srcDuration, start, end, t, words, broll
         <div className="pointer-events-none absolute inset-y-0 w-0.5 bg-white shadow" style={{ left: pct(start + t) }} aria-hidden />
         {(["start", "end"] as const).map((edge) => (
           <div key={edge} role="slider" tabIndex={0} aria-label={edge === "start" ? "Inicio del clip" : "Fin del clip"} aria-valuemin={W.a} aria-valuemax={W.b} aria-valuenow={edge === "start" ? s : e} aria-valuetext={clock(edge === "start" ? s : e)}
-            onPointerDown={begin(edge)} onKeyDown={key(edge)} className="absolute inset-y-0 z-10 w-3 cursor-col-resize touch-none rounded-sm bg-white outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#111]" style={{ left: `calc(${pct(edge === "start" ? s : e)} - ${edge === "start" ? 0 : 12}px)` }}><span className="mx-auto mt-5 block h-4 w-0.5 rounded bg-[#111]" /></div>))}
+            onPointerDown={begin(edge)} onKeyDown={key(edge)} className="absolute inset-y-0 z-10 w-3 cursor-col-resize touch-none rounded-sm bg-white outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#111]" style={{ left: `calc(${pct(edge === "start" ? s : e)} - ${edge === "start" ? 0 : 12}px)` }}><span className="mx-auto mt-5 block h-4 w-0.5 rounded bg-[var(--ink)]" /></div>))}
       </div>
       {tracks && (
         <div className="mt-1 space-y-1" aria-label="Pistas">
-          <div className="relative h-5 rounded bg-[var(--hover)]" title="Palabras">{dens.filter((d) => d.b > W.a && d.a < W.b).map((d) => <button key={d.i} onClick={() => { onSeek(Math.max(0, d.a - start)); onSelectWord?.(d.i); }} aria-label={`Palabra ${d.i + 1}`} className="absolute top-0.5 h-4 rounded-sm bg-[#111]/70 hover:bg-[#111]" style={{ left: pct(d.a), width: `max(2px, calc(${pct(d.b)} - ${pct(d.a)}))` }} />)}</div>
-          <div className="relative h-5 rounded bg-[var(--hover)]" title="B-roll">{broll.map((b, i) => <span key={i} className="absolute top-0.5 h-4 rounded-sm border border-[#111] bg-white" style={{ left: pct(start + b.start), width: `max(3px, calc(${pct(start + b.start + b.dur)} - ${pct(start + b.start)}))` }} title={b.name ?? "B-roll"} />)}</div>
+          <div className="relative h-5 rounded bg-[var(--hover)]" title="Palabras">{dens.filter((d) => d.b > W.a && d.a < W.b).map((d) => <button key={d.i} onClick={() => { onSeek(Math.max(0, d.a - start)); onSelectWord?.(d.i); }} aria-label={`Palabra ${d.i + 1}`} className="absolute top-0.5 h-4 rounded-sm bg-[var(--ink)]/70 hover:bg-[var(--ink)]" style={{ left: pct(d.a), width: `max(2px, calc(${pct(d.b)} - ${pct(d.a)}))` }} />)}</div>
+          <div className="relative h-5 rounded bg-[var(--hover)]" title="B-roll">{broll.map((b, i) => <span key={i} className="absolute top-0.5 h-4 rounded-sm border border-[var(--ink)] bg-white" style={{ left: pct(start + b.start), width: `max(3px, calc(${pct(start + b.start + b.dur)} - ${pct(start + b.start)}))` }} title={b.name ?? "B-roll"} />)}</div>
         </div>)}
     </div>
   );

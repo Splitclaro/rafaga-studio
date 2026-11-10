@@ -106,7 +106,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
                 <div className="px-3 pb-1 pt-2 text-xs font-medium text-[var(--muted)]">Espacios</div>
                 <ul className="max-h-56 overflow-auto">{spaces.map((x) => (
                   <li key={x.id}><button role="menuitemradio" aria-checked={x.active} onClick={() => !x.active && switchTo(x.id)} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left hover:bg-[var(--hover)] ${x.active ? "font-medium" : ""}`}>
-                    <span className="grid h-5 w-5 shrink-0 place-items-center rounded-md bg-[#111] text-[10px] text-white">{x.name[0]?.toUpperCase()}</span>
+                    <span className="grid h-5 w-5 shrink-0 place-items-center rounded-md bg-[var(--accent)] text-[10px] text-white">{x.name[0]?.toUpperCase()}</span>
                     <span className="min-w-0 flex-1 truncate">{x.name}</span><span className="text-[11px] text-[var(--muted)]">{ROLE[x.role]}</span>{x.active && <Icon n="check" className="h-3.5 w-3.5" />}</button></li>))}</ul>
                 <button role="menuitem" onClick={newSpace} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left hover:bg-[var(--hover)]"><Icon n="plus" className="h-4 w-4" />Nuevo espacio</button>
                 <div className="my-1 border-t hairline" />
@@ -150,7 +150,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
           {running > 0 && <Link href="/app/biblioteca" className="chip" aria-label={`${running} trabajos en curso`}><span className="pulse" aria-hidden /> <span className="tnum">{running}</span> en curso</Link>}
           <div className="relative">
             <button onClick={openBell} aria-label={`Notificaciones${unread ? `, ${unread} nuevas` : ""}`} aria-expanded={bell} className="card relative grid h-9 w-9 place-items-center hover:bg-[var(--hover)]">
-              <Icon n="bell" className="h-4 w-4" />{unread > 0 && <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-[#111] px-1 text-[10px] font-medium text-white">{unread}</span>}
+              <Icon n="bell" className="h-4 w-4" />{unread > 0 && <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-[var(--ink)] px-1 text-[10px] font-medium text-white">{unread}</span>}
             </button>
             {bell && (
               <div role="region" aria-label="Notificaciones" className="card-raised absolute right-0 z-20 mt-2 w-80 p-2">

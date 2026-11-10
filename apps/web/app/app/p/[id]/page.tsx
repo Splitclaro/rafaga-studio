@@ -147,7 +147,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
     <main className="mx-auto max-w-6xl px-4 pb-20 pt-6 md:px-8">
       <Link href="/app/biblioteca" className="text-sm text-[var(--muted)] hover:text-[var(--text)]">← Biblioteca</Link>
       <header className="mt-3 flex flex-wrap items-center gap-4">
-        <div className="relative h-16 w-28 shrink-0 overflow-hidden rounded-xl bg-[#111]">{thumb ? <img src={thumb} alt="" className="h-full w-full object-cover" /> : <div className="dots-dark grid h-full place-items-center text-white/60"><Icon n="film" /></div>}</div>
+        <div className="relative h-16 w-28 shrink-0 overflow-hidden rounded-xl bg-[var(--ink)]">{thumb ? <img src={thumb} alt="" className="h-full w-full object-cover" /> : <div className="dots-dark grid h-full place-items-center text-white/60"><Icon n="film" /></div>}</div>
         <div className="min-w-0 flex-1"><h1 className="truncate text-2xl">{p.name}</h1><div className="mt-1 flex flex-wrap gap-2 text-xs"><span className="chip !py-0.5">{MODE_LABEL[p.mode] ?? p.mode}</span>{latestGen && <span className="chip !py-0.5">{latestGen.model === "lexical-v1" ? "Selección sin IA" : latestGen.model.startsWith("herramienta") ? "Herramienta" : "Selección con IA"}</span>}</div></div>
       </header>
 
@@ -174,7 +174,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
           </div>
           {job.status !== "failed" && job.status !== "cancelled" && (
             <ol className="mt-4 grid grid-cols-5 gap-1.5" aria-label="Etapas">{(["En cola", "Audio", "Transcripción", "Momentos", "Clips"] as const).map((l, i) => (
-              <li key={l}><div className={`h-1.5 rounded-full ${i < phaseIdx || job.status === "done" ? "bg-[#111]" : i === phaseIdx ? "skeleton !rounded-full" : "bg-[#E5E5E5]"}`} /><span className={`mt-1 block text-xs ${i <= phaseIdx || job.status === "done" ? "" : "text-[var(--muted)]"}`}>{l}</span></li>))}</ol>)}
+              <li key={l}><div className={`h-1.5 rounded-full ${i < phaseIdx || job.status === "done" ? "bg-[var(--accent)]" : i === phaseIdx ? "skeleton !rounded-full" : "bg-[#E5E5E5]"}`} /><span className={`mt-1 block text-xs ${i <= phaseIdx || job.status === "done" ? "" : "text-[var(--muted)]"}`}>{l}</span></li>))}</ol>)}
           {job.status === "queued" && <p className="mt-3 text-sm text-[var(--muted)]">{wake === "warm" ? "El worker ya está activo: lo recogerá en segundos." : wake === "woken" ? "Arrancando el worker (1–2 min la primera vez)." : "El worker arranca según el programador de GitHub, que puede tardar varios minutos."} Llevas {waiting} min en cola.{waiting >= 15 && " Si sigue así, el worker no está activo."}</p>}
           {job.error_message && <p role="alert" className="mt-3 text-sm">⚠ {job.error_message}</p>}
           {job.status === "failed" && (job.error_code === "no_speech" || job.error_code === "no_speech_range" || /no se detectó voz|no hay habla/i.test(job.error_message ?? "")) && (

@@ -77,7 +77,7 @@ export default function CollectionsPicker({ selected, onSelect, cols, reload }: 
     <div>
       <div role="tablist" className="inline-flex rounded-full bg-[var(--hover)] p-1 text-sm">
         {([["rafaga", "Ráfaga Collections"], ["custom", "Custom Collections"]] as const).map(([k, l]) => (
-          <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={`rounded-full px-4 py-1.5 ${tab === k ? "bg-[#111] text-white" : "text-[var(--muted)]"}`}>{l}</button>
+          <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={`rounded-full px-4 py-1.5 ${tab === k ? "bg-[var(--ink)] text-white" : "text-[var(--muted)]"}`}>{l}</button>
         ))}
       </div>
 
@@ -100,14 +100,14 @@ export default function CollectionsPicker({ selected, onSelect, cols, reload }: 
         <div className="mt-3">
           <div className="flex gap-2">
             <input value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && create()} placeholder="Nombre de la nueva colección" className="min-w-0 flex-1 rounded-full border border-[var(--border)] bg-white px-4 py-2 text-sm" />
-            <button onClick={create} disabled={!newName.trim()} className="rounded-full bg-[#111] px-4 py-2 text-sm text-white disabled:opacity-40">Crear colección</button>
+            <button onClick={create} disabled={!newName.trim()} className="rounded-full bg-[var(--accent)] px-4 py-2 text-sm text-white disabled:opacity-40">Crear colección</button>
           </div>
           {msg && <p role="status" className="mt-2 text-sm">{msg}</p>}
           {busy && <p role="status" aria-live="polite" className="mt-2 text-sm text-[var(--muted)]">{busy}</p>}
           {cols?.length === 0 && <p className="mt-3 rounded-2xl border border-dashed border-[var(--border)] p-4 text-sm text-[var(--muted)]">Crea una colección y sube tus vídeos o fotos. Cada vídeo con letra los irá alternando de fondo.</p>}
           <ul className="mt-3 space-y-3">
             {cols?.map((c) => (
-              <li key={c.id} className={`rounded-2xl border p-3 ${selected === c.id ? "border-[#111] ring-1 ring-[#111]" : "border-[var(--border)]"}`}>
+              <li key={c.id} className={`rounded-2xl border p-3 ${selected === c.id ? "border-[var(--ink)] ring-1 ring-[#111]" : "border-[var(--border)]"}`}>
                 <div className="flex flex-wrap items-center gap-2">
                   <button onClick={() => onSelect(selected === c.id ? null : c.id)} aria-pressed={selected === c.id} className="font-display min-w-0 flex-1 truncate text-left text-lg">{selected === c.id ? "✓ " : ""}{c.name}</button>
                   <span className="text-xs text-[var(--muted)] tnum">{c.items.length} archivo{c.items.length === 1 ? "" : "s"}</span>

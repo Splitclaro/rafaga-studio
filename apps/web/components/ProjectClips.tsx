@@ -52,7 +52,7 @@ export default function ProjectClips({ p, onDelete }: { p: Row; onDelete: (id: s
   return (
     <li className="card overflow-hidden">
       <div className="flex items-center gap-3 p-3">
-        <Link href={`/app/p/${p.id}`} className="relative h-16 w-28 shrink-0 overflow-hidden rounded-lg bg-[#111]">
+        <Link href={`/app/p/${p.id}`} className="relative h-16 w-28 shrink-0 overflow-hidden rounded-lg bg-[var(--ink)]">
           {p.thumb ? <img src={p.thumb} alt="" className="h-full w-full object-cover" /> : <span className="dots-dark grid h-full place-items-center text-white/60"><Icon n="film" className="h-6 w-6" /></span>}
         </Link>
         <div className="min-w-0 flex-1">
@@ -73,7 +73,7 @@ export default function ProjectClips({ p, onDelete }: { p: Row; onDelete: (id: s
           {!clips ? <div className="skeleton h-32" /> : !clips.length ? <p className="rounded-xl border border-dashed border-[var(--border)] p-5 text-center text-sm text-[var(--muted)]">{isActive(p.status) ? "Creando clips… aparecerán aquí según estén listos." : "Este proyecto aún no tiene clips. Ábrelo para detectar momentos."}</p> : (
             <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">{clips.map((c) => (
               <li key={c.id} className="overflow-hidden rounded-xl border border-[var(--border)] bg-white">
-                {c.url ? <video src={c.url} poster={c.thumb} controls preload="none" className="aspect-[9/16] w-full bg-black object-cover" /> : <Link href={`/app/c/${c.id}`} className="grid aspect-[9/16] place-items-center bg-[#111] px-2 text-center text-xs text-white/80">Sin exportar<br />Abrir y exportar</Link>}
+                {c.url ? <video src={c.url} poster={c.thumb} controls preload="none" className="aspect-[9/16] w-full bg-black object-cover" /> : <Link href={`/app/c/${c.id}`} className="grid aspect-[9/16] place-items-center bg-[var(--ink)] px-2 text-center text-xs text-white/80">Sin exportar<br />Abrir y exportar</Link>}
                 <div className="p-2"><div className="truncate text-xs font-medium" title={c.title}>{c.title}</div>
                   <div className="mono mt-0.5 text-[11px] text-[var(--muted)]">{c.ms ? dur(c.ms) : ""}{c.bytes ? ` · ${mb(c.bytes)}` : ""}</div>
                   <div className="mt-1.5 flex gap-1"><Link href={`/app/c/${c.id}`} className="btn btn-ghost !px-2 !py-1 !text-[11px]">Editar</Link>{c.path && <button onClick={() => dl(c)} className="btn btn-primary !px-2 !py-1 !text-[11px]" aria-label={`Descargar ${c.title}`}><Icon n="download" className="h-3 w-3" /></button>}</div></div>

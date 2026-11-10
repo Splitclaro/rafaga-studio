@@ -277,12 +277,12 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
       <p className="mb-2 text-xs text-[var(--muted)]">{doc.words.length} palabras · {phrases.length} frases{ql ? ` · ${shown.length} con «${q}»` : ""}. Pulsa una palabra para ir a ese instante y corregirla; el audio y el vídeo no se cortan.</p>
       <ol ref={listRef} className="min-h-0 flex-1 space-y-2 overflow-auto pr-1 xl:max-h-[calc(100vh-260px)] max-xl:max-h-[56vh]">
         {shown.map(({ p, pi }) => (
-          <li key={pi} data-phrase={pi} className={`rounded-lg border px-2 py-1.5 ${pi === activePhrase ? "border-[#111] bg-white" : "border-transparent hover:bg-white/70"}`}>
+          <li key={pi} data-phrase={pi} className={`rounded-lg border px-2 py-1.5 ${pi === activePhrase ? "border-[var(--ink)] bg-white" : "border-transparent hover:bg-white/70"}`}>
             <div className="flex gap-2">
               <button onClick={() => { seek(doc.words[p.from].start); setSel(p.from); }} className="tnum w-10 shrink-0 pt-0.5 text-left text-xs text-[var(--muted)] hover:underline" aria-label={`Ir a ${clock(doc.words[p.from].start)}`}>{clock(doc.words[p.from].start)}</button>
               <p className="min-w-0 flex-1 text-[15px] leading-7">
                 {doc.words.slice(p.from, p.to + 1).map((w, k) => { const i = p.from + k; const hit = !!ql && w.text.toLowerCase().includes(ql);
-                  return <button key={i} onClick={() => { seek(w.start); setSel(i); }} className={`mr-1 rounded px-0.5 text-left ${i === activeIdx ? "bg-[#111] text-white" : sel === i ? "ring-1 ring-[#111]" : hit ? "bg-black/10" : "hover:bg-black/5"}`}>{w.text}</button>; })}
+                  return <button key={i} onClick={() => { seek(w.start); setSel(i); }} className={`mr-1 rounded px-0.5 text-left ${i === activeIdx ? "bg-[var(--ink)] text-white" : sel === i ? "ring-1 ring-[#111]" : hit ? "bg-black/10" : "hover:bg-black/5"}`}>{w.text}</button>; })}
               </p>
             </div>
             {sel !== null && sel >= p.from && sel <= p.to && (
@@ -311,11 +311,11 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
         <Link href={`/app/p/${meta.projectId}`} className="text-sm text-[var(--muted)] underline">← Proyecto</Link>
         <h1 className="min-w-0 flex-1 truncate text-lg font-semibold">{meta.title}</h1>
         <span className="tnum hidden text-xs text-[var(--muted)] sm:inline">{doc.ratio} · {clipLen.toFixed(1)} s · {doc.words.length} palabras</span>
-        <div role="group" aria-label="Modo del editor" className="inline-flex rounded-full bg-[var(--hover)] p-0.5 text-xs">{([["quick", "Rápido"], ["advanced", "Avanzado"]] as const).map(([m, l]) => <button key={m} aria-pressed={mode === m} onClick={() => setModeP(m)} className={`rounded-full px-3 py-1 ${mode === m ? "bg-[#111] text-white" : "text-[var(--muted)]"}`}>{l}</button>)}</div>
+        <div role="group" aria-label="Modo del editor" className="inline-flex rounded-full bg-[var(--hover)] p-0.5 text-xs">{([["quick", "Rápido"], ["advanced", "Avanzado"]] as const).map(([m, l]) => <button key={m} aria-pressed={mode === m} onClick={() => setModeP(m)} className={`rounded-full px-3 py-1 ${mode === m ? "bg-[var(--ink)] text-white" : "text-[var(--muted)]"}`}>{l}</button>)}</div>
         <span role="status" aria-live="polite" className="rounded border border-[var(--border)] px-2 py-0.5 text-xs text-[var(--muted)]">{SAVE}</span>
         <button onClick={undo} disabled={!past.length} className="rounded border border-[var(--border)] px-2 py-1 text-sm disabled:opacity-40" title="Deshacer (Cmd+Z)">Deshacer</button>
         <button onClick={redo} disabled={!future.length} className="rounded border border-[var(--border)] px-2 py-1 text-sm disabled:opacity-40" title="Rehacer (Cmd+Shift+Z)">Rehacer</button>
-        <button onClick={exportMp4} className="rounded-lg bg-[#111] px-4 py-2 text-sm font-medium text-white">Exportar MP4</button>
+        <button onClick={exportMp4} className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white">Exportar MP4</button>
       </header>
       {err && <p role="alert" className="mb-3 rounded border border-[var(--border)] bg-[var(--surface)] p-2 text-sm">⚠ {err}</p>}
 
@@ -348,7 +348,7 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
           </div>
           {unsafe && <p className="text-xs">⚠ El texto puede quedar tapado por la interfaz de la red social (zona discontinua).</p>}
           <div className="flex w-full max-w-[860px] items-center gap-3">
-            <button onClick={togglePlay} className="rounded-lg bg-[#111] px-4 py-2 text-sm font-medium text-white" aria-pressed={playing}>{playing ? "Pausa" : "Reproducir"}</button>
+            <button onClick={togglePlay} className="rounded-lg bg-[var(--ink)] px-4 py-2 text-sm font-medium text-white" aria-pressed={playing}>{playing ? "Pausa" : "Reproducir"}</button>
             <input aria-label="Posición en el clip" type="range" min={0} max={clipLen} step={1 / 30} value={t} onChange={(e) => seek(Number(e.target.value))} className="w-full" />
             <span className="tnum w-28 shrink-0 whitespace-nowrap text-right text-sm">{t.toFixed(2)} / {clipLen.toFixed(1)} s</span>
           </div>
@@ -360,7 +360,7 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
         <section aria-label="Propiedades" className="rounded-xl border border-[var(--border)] bg-[var(--surface)]">
           <div role="tablist" className="flex border-b border-[var(--border)] text-sm">
             {tabsShown.map((x) => (
-              <button key={x} role="tab" aria-selected={tabEff === x} onClick={() => setTab(x)} className={`flex-1 px-2 py-2 text-[13px] ${tabEff === x ? "border-b-2 border-[#111] font-medium" : "text-[var(--muted)]"}`}>{x === "broll" ? "B-roll" : x === "social" ? "Social" : x[0].toUpperCase() + x.slice(1)}</button>
+              <button key={x} role="tab" aria-selected={tabEff === x} onClick={() => setTab(x)} className={`flex-1 px-2 py-2 text-[13px] ${tabEff === x ? "border-b-2 border-[var(--ink)] font-medium" : "text-[var(--muted)]"}`}>{x === "broll" ? "B-roll" : x === "social" ? "Social" : x[0].toUpperCase() + x.slice(1)}</button>
             ))}
           </div>
 
@@ -412,7 +412,7 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
               <p className="text-[var(--muted)]">Cómo se adapta el vídeo original al formato elegido ({doc.ratio}).</p>
               {!quick && <div role="radiogroup" aria-label="Encuadre" className="grid gap-2">
                 {([["blur", "Desenfocado", "Vídeo completo centrado sobre su propio fondo desenfocado."], ["fill", "Rellenar", "Recorta para ocupar todo el cuadro. Elige qué parte se ve."], ["fit", "Ajustar", "Vídeo completo con barras negras."]] as const).map(([k, l, d]) => (
-                  <button key={k} role="radio" aria-checked={doc.layout === k} onClick={() => change((x) => ({ ...x, layout: k }))} className={`rounded-xl border p-3 text-left ${doc.layout === k ? "border-[#111] ring-1 ring-[#111]" : "hairline hover:bg-[var(--hover)]"}`}><span className="font-medium">{l}</span><span className="block text-xs text-[var(--muted)]">{d}</span></button>))}
+                  <button key={k} role="radio" aria-checked={doc.layout === k} onClick={() => change((x) => ({ ...x, layout: k }))} className={`rounded-xl border p-3 text-left ${doc.layout === k ? "border-[var(--ink)] ring-1 ring-[#111]" : "hairline hover:bg-[var(--hover)]"}`}><span className="font-medium">{l}</span><span className="block text-xs text-[var(--muted)]">{d}</span></button>))}
               </div>}
               {(() => { const busy = !!rf && ["queued", "analyzing"].includes(rf.status); const ready = rf?.status === "ready" && rf.path; const st = ready && rf.path!.mode === "static";
                 return (
@@ -459,7 +459,7 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
                 <div key={c.id}><div className="mb-1 text-xs font-medium text-[var(--muted)]">{c.name}</div>
                   <ul className="flex gap-2 overflow-x-auto pb-1">{c.items.map((it) => (
                     <li key={it.id} className="shrink-0"><button onClick={() => change((x) => ({ ...x, broll: [...x.broll, { path: it.storage_path, kind: it.kind, name: it.name, start: Math.min(t, Math.max(0, clipLen - 1)), dur: Math.min(3, Math.max(0.5, clipLen - t)) }].slice(0, 12) }))} className="relative block overflow-hidden rounded-lg border hairline" aria-label={`Añadir ${it.name} en ${t.toFixed(1)} s`}>
-                      {it.url ? (it.kind === "photo" ? <img src={it.url} alt="" className="h-20 w-12 object-cover" /> : <video src={it.url} muted preload="metadata" className="h-20 w-12 object-cover" />) : <div className="h-20 w-12 bg-[#111]" />}
+                      {it.url ? (it.kind === "photo" ? <img src={it.url} alt="" className="h-20 w-12 object-cover" /> : <video src={it.url} muted preload="metadata" className="h-20 w-12 object-cover" />) : <div className="h-20 w-12 bg-[var(--ink)]" />}
                       <span className="absolute inset-x-0 bottom-0 bg-black/60 text-center text-[10px] text-white">+ aquí</span></button></li>))}</ul></div>))}
               <div><div className="mb-1 font-medium">En este clip <span className="mono text-[var(--muted)]">{doc.broll.length}/12</span></div>
                 {!doc.broll.length && <p className="text-[var(--muted)]">Ningún B-roll añadido.</p>}
@@ -480,7 +480,7 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
                   <option value="16:9">16:9 · 1920×1080</option>
                 </select></label>
               <label className="flex items-center gap-2"><input type="checkbox" checked={doc.burn} onChange={(e) => change((d) => ({ ...d, burn: e.target.checked }))} /> Subtítulos incrustados en el vídeo</label>
-              <button onClick={exportMp4} className="rounded-lg bg-[#111] px-4 py-2 font-medium text-white">Exportar MP4 (versión actual)</button>
+              <button onClick={exportMp4} className="rounded-lg bg-[var(--accent)] px-4 py-2 font-medium text-white">Exportar MP4 (versión actual)</button>
               {exporting && <p role="status" aria-live="polite" className="text-[var(--muted)]">{exporting}</p>}
               <div className="flex flex-wrap gap-2">
                 <button onClick={() => saveText(`${meta.title}.srt`, toSRT(doc.words, eff), "application/x-subrip")} className="rounded border border-[var(--border)] bg-white px-3 py-1.5">SRT</button>

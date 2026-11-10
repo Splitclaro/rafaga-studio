@@ -46,7 +46,7 @@ export default function ShareLinks({ deliveryId, canEdit }: { deliveryId: string
           <div className="flex flex-col justify-end gap-2"><label className="text-sm">Caduca en<select value={days} onChange={(e) => setDays(Number(e.target.value))} className="input mt-1">{[[1, "1 día"], [7, "7 días"], [30, "30 días"], [90, "90 días"]].map(([d, l]) => <option key={d} value={d}>{l}</option>)}</select></label><button className="btn btn-primary">Crear enlace</button></div>
         </form>
       ) : <p className="mt-3 text-sm text-[var(--muted)]">Solo propietarios, administradores y editores pueden crear enlaces.</p>}
-      {fresh && <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl bg-[#111] p-3 text-sm text-white"><code className="min-w-0 flex-1 truncate">{fresh}</code><button className="rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-[#111]" onClick={() => navigator.clipboard.writeText(fresh).then(() => setMsg("Enlace copiado. Solo se muestra ahora."))}>Copiar</button></div>}
+      {fresh && <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl bg-[var(--ink)] p-3 text-sm text-white"><code className="min-w-0 flex-1 truncate">{fresh}</code><button className="rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-[#111]" onClick={() => navigator.clipboard.writeText(fresh).then(() => setMsg("Enlace copiado. Solo se muestra ahora."))}>Copiar</button></div>}
       <p role="status" aria-live="polite" className="mt-2 min-h-5 text-sm">{msg}</p>
       {!!links?.length && <ul className="mt-2 divide-y divide-[var(--border)]">{links.map((l) => (
         <li key={l.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 py-3 text-sm">

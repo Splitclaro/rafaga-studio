@@ -13,7 +13,7 @@ export type WallClip = {
 function ClipCardBase({ c, selected, previewing, onSelect, onPreview, aspect = "aspect-[9/16]", view = "grid" }: { c: WallClip; selected: boolean; previewing: boolean; onSelect: (id: string, shift: boolean) => void; onPreview: (id: string | null) => void; aspect?: string; view?: "grid" | "list" }) {
   const st = pieceStatus(c);
   const media = (
-    <div className={`relative overflow-hidden rounded-2xl bg-[#111] ${view === "list" ? "h-24 w-[54px] shrink-0 !rounded-xl" : `${aspect} w-full`}`}>
+    <div className={`relative overflow-hidden rounded-2xl bg-[var(--ink)] ${view === "list" ? "h-24 w-[54px] shrink-0 !rounded-xl" : `${aspect} w-full`}`}>
       {previewing && c.url ? <video src={c.url} poster={c.thumb} autoPlay muted loop playsInline preload="metadata" className="absolute inset-0 h-full w-full object-cover" onClick={() => onPreview(null)} />
         : c.thumb ? <img src={c.thumb} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
         : <div className="absolute inset-0 grid place-items-center bg-[#1a1a1a] text-[11px] text-white/70">{c.hasRender ? "Sin portada" : "Creando…"}</div>}

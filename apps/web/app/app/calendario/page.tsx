@@ -113,7 +113,7 @@ export default function Calendario() {
           <div className="grid grid-cols-7">{days.map((d, i) => {
             const k = ymd(d), items = byDay.get(k) ?? [], other = view === "month" && d.getMonth() !== cursor.getMonth(), today = k === ymd(new Date());
             return (<div key={i} className={`min-h-[${view === "week" ? 260 : 96}px] border-b border-r hairline p-1.5 ${other ? "bg-[var(--surface)] text-[var(--muted)]" : ""}`} style={{ minHeight: view === "week" ? 260 : 96 }}>
-              <button onClick={() => newPost(k)} className={`mb-1 grid h-6 min-w-6 place-items-center rounded-full px-1 text-xs ${today ? "bg-[#111] text-white" : "hover:bg-[var(--hover)]"}`} aria-label={`Añadir el ${d.toLocaleDateString("es", { day: "numeric", month: "long" })}`}>{d.getDate()}</button>
+              <button onClick={() => newPost(k)} className={`mb-1 grid h-6 min-w-6 place-items-center rounded-full px-1 text-xs ${today ? "bg-[var(--accent)] text-white" : "hover:bg-[var(--hover)]"}`} aria-label={`Añadir el ${d.toLocaleDateString("es", { day: "numeric", month: "long" })}`}>{d.getDate()}</button>
               <div className="space-y-1">{items.slice(0, view === "week" ? 12 : 3).map((p) => <Chip key={p.id} p={p} />)}{items.length > 3 && view === "month" && <button onClick={() => setView("list")} className="text-[11px] underline">+{items.length - 3} más</button>}</div></div>);
           })}</div>
         </div>

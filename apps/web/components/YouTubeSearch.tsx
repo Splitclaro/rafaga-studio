@@ -69,7 +69,7 @@ export default function YouTubeSearch({ onPick }: { onPick: (item: YtItem) => vo
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <span className="relative h-14 w-24 shrink-0 overflow-hidden rounded-lg bg-[#151515]"><img src={it.thumb} alt="" className="h-full w-full object-cover" loading="lazy" />{typeof it.durationSec === "number" && <span className="mono absolute bottom-0.5 right-0.5 rounded bg-black/75 px-1 text-[10px] text-white">{mmss(it.durationSec)}</span>}</span>
               <span className="min-w-0 flex-1"><span className="line-clamp-2 text-sm font-medium">{it.title}</span><span className="block truncate text-xs text-[var(--muted)]">{it.channel}{it.status === "upcoming" && it.scheduledAt ? ` · ${when(it.scheduledAt)}` : it.wasLive ? " · grabación de un directo" : ""}</span></span>
-              <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${it.status === "live" ? "bg-[#111] text-white" : "border hairline"}`}>{checking === it.id ? "Comprobando…" : it.status === "live" ? "En directo" : it.status === "upcoming" ? "Próximo" : "Vídeo"}</span>
+              <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${it.status === "live" ? "bg-[var(--ink)] text-white" : "border hairline"}`}>{checking === it.id ? "Comprobando…" : it.status === "live" ? "En directo" : it.status === "upcoming" ? "Próximo" : "Vídeo"}</span>
             </button></li>))}</ul>)}
         {!loading && next && <div className="mt-3 text-center"><button type="button" onClick={() => run(q.trim(), filter, next)} disabled={more} className="btn btn-ghost">{more ? "Cargando…" : "Cargar más"}</button></div>}
       </div>

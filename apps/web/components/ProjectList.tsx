@@ -47,7 +47,7 @@ export function Chip({ status }: { status: string | null }) {
 export function ProjectCard({ p }: { p: Row }) {
   return (
     <Link href={`/app/p/${p.id}`} className="card lift group block overflow-hidden">
-      <div className="relative aspect-video overflow-hidden bg-[#111]">
+      <div className="relative aspect-video overflow-hidden bg-[var(--ink)]">
         {p.thumb ? <img src={p.thumb} alt="" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" /> : <div className="grid h-full w-full place-items-center bg-[#1a1a1a] text-xs text-white/60">Sin portada todavía</div>}
         <div className="absolute left-2 top-2"><Chip status={p.status} /></div>
         {p.mode !== "clips" && <span className="chip absolute right-2 top-2 !py-0.5">{MODE_LABEL[p.mode] ?? p.mode}</span>}

@@ -56,7 +56,7 @@ export default function Equipo() {
         <h2 className="text-lg">Miembros <span className="mono text-sm text-[var(--muted)]">{people.length}</span></h2>
         <ul className="mt-3 divide-y divide-[var(--border)]">{people.map((p) => (
           <li key={p.user_id} className="flex flex-wrap items-center gap-3 py-2.5 text-sm">
-            <span className="grid h-8 w-8 place-items-center rounded-full bg-[#111] text-xs text-white">{p.email[0]?.toUpperCase()}</span>
+            <span className="grid h-8 w-8 place-items-center rounded-full bg-[var(--accent)] text-xs text-white">{p.email[0]?.toUpperCase()}</span>
             <span className="min-w-0 flex-1"><span className="block truncate font-medium">{p.display_name ?? p.email}{p.is_me ? " (tú)" : ""}</span><span className="block truncate text-xs text-[var(--muted)]">{p.email}</span></span>
             {admin && p.role !== "owner" && !p.is_me ? (
               <select aria-label={`Rol de ${p.email}`} value={p.role === "member" ? "editor" : p.role} onChange={(e) => call("set_member_role", { p_user: p.user_id, p_role: e.target.value })} className="rounded-full border border-[var(--border)] bg-white px-3 py-1">

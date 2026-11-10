@@ -79,7 +79,7 @@ export default function StyleStudio() {
           <div className="card p-3">
             <div className="mb-2 px-1 text-sm font-medium">Estilos base</div>
             <ul className="grid grid-cols-2 gap-2">{Object.entries(PRESETS).map(([k, v]) => (
-              <li key={k}><button onClick={() => load(k, v, null)} aria-label={`Usar «${k}» de base`} className="w-full overflow-hidden rounded-lg border hairline text-left hover:border-[#111]"><span className="grid h-14 place-items-center bg-[#151515]"><LyricSample style={{ ...v, fontName: v.fontName }} text="bajo la luna" scale={0.17} step={2} /></span><span className="flex items-center justify-between px-2 py-1 text-xs"><span className="truncate">{k}</span>{v.fx && <span className="text-[10px] text-[var(--muted)]">fx</span>}</span></button></li>))}</ul>
+              <li key={k}><button onClick={() => load(k, v, null)} aria-label={`Usar «${k}» de base`} className="w-full overflow-hidden rounded-lg border hairline text-left hover:border-[var(--ink)]"><span className="grid h-14 place-items-center bg-[#151515]"><LyricSample style={{ ...v, fontName: v.fontName }} text="bajo la luna" scale={0.17} step={2} /></span><span className="flex items-center justify-between px-2 py-1 text-xs"><span className="truncate">{k}</span>{v.fx && <span className="text-[10px] text-[var(--muted)]">fx</span>}</span></button></li>))}</ul>
             <p className="mt-2 px-1 text-[11px] text-[var(--muted)]">{Object.keys(PRESETS).length} tratamientos. «fx» = entrada animada, caja o palabras clave.</p>
           </div>
           <div className="card p-3">
@@ -115,7 +115,7 @@ export default function StyleStudio() {
               <Range label="Contorno" k="outlineWidth" min={0} max={14} /><Range label="Sombra" k="shadow" min={0} max={10} /></fieldset>
             <fieldset className="space-y-3"><legend className="mb-1 text-sm font-medium">Animación de la palabra activa</legend>
               <div role="radiogroup" className="grid gap-1.5">{([["color", "Cambia de color", "La palabra que suena se ilumina."], ["reveal", "Aparece al cantarse", "Las palabras entran según suenan."], ["dim", "Resto atenuado", "Toda la frase visible, lo que falta tenue."]] as const).map(([k, l, d]) => (
-                <button key={k} role="radio" aria-checked={s.highlight === k} onClick={() => set({ highlight: k })} className={`rounded-xl border p-2.5 text-left text-sm ${s.highlight === k ? "border-[#111] ring-1 ring-[#111]" : "hairline hover:bg-[var(--hover)]"}`}><span className="font-medium">{l}</span><span className="block text-xs text-[var(--muted)]">{d}</span></button>))}</div></fieldset>
+                <button key={k} role="radio" aria-checked={s.highlight === k} onClick={() => set({ highlight: k })} className={`rounded-xl border p-2.5 text-left text-sm ${s.highlight === k ? "border-[var(--ink)] ring-1 ring-[#111]" : "hairline hover:bg-[var(--hover)]"}`}><span className="font-medium">{l}</span><span className="block text-xs text-[var(--muted)]">{d}</span></button>))}</div></fieldset>
             <fieldset className="space-y-3 sm:col-span-2"><legend className="mb-1 text-sm font-medium">Compositor (se exporta al MP4)</legend>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-3 text-sm">

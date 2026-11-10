@@ -97,7 +97,7 @@ export default function ReviewRoom({ params }: { params: Promise<{ id: string }>
       <ol className="min-h-0 flex-1 space-y-3 overflow-auto pr-1">
         {!vcomments.length && <li className="text-sm text-[var(--muted)]">Sin comentarios en esta versión.</li>}
         {vcomments.map((c) => (
-          <li key={c.id} className={`rounded-xl p-3 text-sm ${c.kind === "approval" ? "bg-[#111] text-white" : c.kind === "changes" ? "bg-white ring-1 ring-dashed ring-[#111] ring-inset" : "bg-[var(--surface)]"} ${c.resolved_at ? "opacity-60" : ""}`}>
+          <li key={c.id} className={`rounded-xl p-3 text-sm ${c.kind === "approval" ? "bg-[var(--accent)] text-white" : c.kind === "changes" ? "bg-white ring-1 ring-dashed ring-[#111] ring-inset" : "bg-[var(--surface)]"} ${c.resolved_at ? "opacity-60" : ""}`}>
             <div className="flex items-center gap-2 text-xs opacity-80">
               {c.kind === "approval" && <><Icon n="check" className="h-3 w-3" />Aprobación</>}{c.kind === "changes" && <><Icon n="wand" className="h-3 w-3" />Cambios solicitados</>}{c.kind === "comment" && "Comentario"}
               {c.at_sec != null && <button onClick={() => seek(c.at_sec!)} className="tnum underline">en {clock(c.at_sec)}</button>}

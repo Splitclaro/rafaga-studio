@@ -134,7 +134,7 @@ export default function TapSync({ songId, audioUrl, lyrics, ensureLyrics, from =
       <div className="flex flex-wrap items-center gap-2">
         <button onClick={() => start(marks.length ? Math.max(0, marks[marks.length - 1].start - 1) : from)} className="btn btn-primary">{marks.length ? "Continuar" : "Empezar"}</button>
         <fieldset className="inline-flex rounded-full bg-[var(--hover)] p-1"><legend className="sr-only">Modo</legend>
-          {([[false, "Pulsar"], [true, "Mantener"]] as const).map(([v, l]) => <button key={l} aria-pressed={hold === v} onClick={() => setHold(v)} className={`rounded-full px-3 py-1 ${hold === v ? "bg-[#111] text-white" : ""}`}>{l}</button>)}
+          {([[false, "Pulsar"], [true, "Mantener"]] as const).map(([v, l]) => <button key={l} aria-pressed={hold === v} onClick={() => setHold(v)} className={`rounded-full px-3 py-1 ${hold === v ? "bg-[var(--ink)] text-white" : ""}`}>{l}</button>)}
         </fieldset>
         <label className="flex items-center gap-1">Velocidad<select value={rate} onChange={(e) => setRate(Number(e.target.value))} className="rounded-full border border-[var(--border)] bg-white px-2 py-1">{[0.5, 0.75, 1].map((r) => <option key={r} value={r}>{r}×</option>)}</select></label>
         <label className="flex items-center gap-2">Desplazar todo <input type="range" min={-0.5} max={0.5} step={0.01} value={offset} onChange={(e) => setOffset(Number(e.target.value))} /><span className="tnum w-14">{offset >= 0 ? "+" : ""}{offset.toFixed(2)} s</span></label>
@@ -143,14 +143,14 @@ export default function TapSync({ songId, audioUrl, lyrics, ensureLyrics, from =
         <p className="text-xs text-[var(--muted)]">{active ? (hold ? "Mantén la barra espaciadora (o el botón) mientras suena cada palabra. Retroceso deshace." : "Pulsa la barra espaciadora (o el botón) al empezar cada palabra. Retroceso deshace.") : "Empieza y marca al ritmo del canto. La barra espaciadora no desplaza la página mientras sincronizas."}</p>
         <p className="mt-2 font-display text-2xl" aria-live="polite">{next ? <>Siguiente: <span className="underline underline-offset-4">{next.text}</span></> : "Todas las palabras marcadas"}</p>
         <button type="button" disabled={!active || !next} onPointerDown={(e) => { e.preventDefault(); press(); }} onPointerUp={release} onPointerLeave={release} onPointerCancel={release}
-          className="mt-3 w-full select-none rounded-2xl bg-[#111] py-5 text-lg font-medium text-white disabled:opacity-30" style={{ touchAction: "none" }}>Marcar palabra</button>
+          className="mt-3 w-full select-none rounded-2xl bg-[var(--ink)] py-5 text-lg font-medium text-white disabled:opacity-30" style={{ touchAction: "none" }}>Marcar palabra</button>
         <div className="mt-2 flex gap-2"><button onClick={undo} disabled={!marks.length} className="btn btn-ghost !px-3 !py-1.5 !text-xs">Deshacer última</button><button onClick={() => { setMarks([]); setActive(false); audio.current?.pause(); }} disabled={!marks.length} className="btn btn-ghost !px-3 !py-1.5 !text-xs">Borrar marcas</button></div>
       </div>
       <div className="max-h-72 overflow-auto rounded-2xl border border-[var(--border)] p-3">
         {lines.map((l) => (
           <p key={l.li} className="mb-1.5 leading-7">{l.items.map(({ i, text }) => {
             const m = marks[i];
-            return <span key={i} className={`mr-1 inline-flex items-center gap-1 rounded-lg px-1.5 ${m ? "bg-[#111] text-white" : i === marks.length ? "ring-1 ring-[#111]" : "text-[var(--muted)]"}`}>
+            return <span key={i} className={`mr-1 inline-flex items-center gap-1 rounded-lg px-1.5 ${m ? "bg-[var(--ink)] text-white" : i === marks.length ? "ring-1 ring-[#111]" : "text-[var(--muted)]"}`}>
               {text}{m && <span className="tnum text-[10px] opacity-70">{fmt(m.start + offset)}</span>}
               {m && <span className="inline-flex"><button aria-label={`Adelantar ${text}`} onClick={() => nudge(i, "start", -0.05)} className="px-0.5 text-[10px]">◀</button><button aria-label={`Retrasar ${text}`} onClick={() => nudge(i, "start", 0.05)} className="px-0.5 text-[10px]">▶</button><button aria-label={`Repetir desde ${text}`} onClick={() => repeatFrom(i)} className="px-0.5 text-[10px]">↺</button></span>}
             </span>;

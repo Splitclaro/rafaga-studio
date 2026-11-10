@@ -191,7 +191,7 @@ export default function BrandKits() {
     <main className="mx-auto max-w-6xl px-4 pb-20 pt-8 md:px-8">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div><h1 className="text-3xl">Brand kit</h1><p className="mt-1 max-w-2xl text-sm text-[var(--muted)]">Logo, colores, estilo de subtítulos, intro/outro y fuentes, guardados como versiones. Aplica un kit a un proyecto y tus exports salen con tu marca sin tocar clip por clip.</p></div>
-        <div role="tablist" className="inline-flex rounded-full bg-[var(--hover)] p-1 text-sm">{([["kit", "Kits"], ["fonts", "Fuentes"]] as const).map(([k, l]) => <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={`rounded-full px-4 py-1.5 ${tab === k ? "bg-[#111] text-white" : "text-[var(--muted)]"}`}>{l}</button>)}</div>
+        <div role="tablist" className="inline-flex rounded-full bg-[var(--hover)] p-1 text-sm">{([["kit", "Kits"], ["fonts", "Fuentes"]] as const).map(([k, l]) => <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={`rounded-full px-4 py-1.5 ${tab === k ? "bg-[var(--ink)] text-white" : "text-[var(--muted)]"}`}>{l}</button>)}</div>
       </header>
       {msg && <p role="status" className="card mt-4 p-3 text-sm">{msg}</p>}
 
@@ -214,7 +214,7 @@ export default function BrandKits() {
                 <p className="px-3 pb-1 pt-2 text-[11px] font-medium text-[var(--muted)]">Empezar desde una plantilla</p>
                 {TEMPLATES.map((t) => <button key={t.id} onClick={() => createFromTemplate(t)} className="block w-full rounded-xl px-3 py-2 text-left text-sm hover:bg-[var(--hover)]"><strong className="font-medium">{t.name}</strong> <span className="text-[11px] text-[var(--muted)]">· {t.sector}</span><span className="block text-xs text-[var(--muted)]">{t.description}</span></button>)}
               </div></details>
-            <ul className="space-y-1">{kits.map((k) => <li key={k.id}><button onClick={() => setSel(k.id)} aria-current={sel === k.id} className={`w-full rounded-xl px-3 py-2 text-left ${sel === k.id ? "bg-[#111] text-white" : "hover:bg-[var(--hover)]"}`}><span className="block truncate font-medium">{k.name}</span><span className={`block text-xs ${sel === k.id ? "text-white/70" : "text-[var(--muted)]"}`}>v{k.version}</span></button></li>)}</ul>
+            <ul className="space-y-1">{kits.map((k) => <li key={k.id}><button onClick={() => setSel(k.id)} aria-current={sel === k.id} className={`w-full rounded-xl px-3 py-2 text-left ${sel === k.id ? "bg-[var(--ink)] text-white" : "hover:bg-[var(--hover)]"}`}><span className="block truncate font-medium">{k.name}</span><span className={`block text-xs ${sel === k.id ? "text-white/70" : "text-[var(--muted)]"}`}>v{k.version}</span></button></li>)}</ul>
             {!kits.length && <p className="text-sm text-[var(--muted)]">Aún no tienes kits. Crea el primero y aplícalo a un proyecto.</p>}
           </aside>
 
@@ -238,7 +238,7 @@ export default function BrandKits() {
                       {draft.logo_path && <button className="text-xs underline" onClick={() => set({ logo_path: null })}>Quitar</button>}
                     </div>
                     {draft.logo_path && <div className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
-                      <fieldset><legend className="mb-1">Posición</legend><div className="grid grid-cols-2 gap-1">{([["tl", "↖ Arriba izq."], ["tr", "↗ Arriba der."], ["bl", "↙ Abajo izq."], ["br", "↘ Abajo der."]] as const).map(([k, l]) => <button key={k} aria-pressed={logo.position === k} onClick={() => setCfg({ logo: { ...logo, position: k } })} className={`rounded-lg px-2 py-1 text-xs ${logo.position === k ? "bg-[#111] text-white" : "bg-[var(--hover)]"}`}>{l}</button>)}</div></fieldset>
+                      <fieldset><legend className="mb-1">Posición</legend><div className="grid grid-cols-2 gap-1">{([["tl", "↖ Arriba izq."], ["tr", "↗ Arriba der."], ["bl", "↙ Abajo izq."], ["br", "↘ Abajo der."]] as const).map(([k, l]) => <button key={k} aria-pressed={logo.position === k} onClick={() => setCfg({ logo: { ...logo, position: k } })} className={`rounded-lg px-2 py-1 text-xs ${logo.position === k ? "bg-[var(--ink)] text-white" : "bg-[var(--hover)]"}`}>{l}</button>)}</div></fieldset>
                       <label>Tamaño <span className="tnum float-right">{Math.round(logo.scale * 100)} %</span><input type="range" min={0.05} max={0.4} step={0.01} value={logo.scale} onChange={(e) => setCfg({ logo: { ...logo, scale: Number(e.target.value) } })} className="w-full" /></label>
                       <label>Opacidad <span className="tnum float-right">{Math.round(logo.opacity * 100)} %</span><input type="range" min={0.1} max={1} step={0.05} value={logo.opacity} onChange={(e) => setCfg({ logo: { ...logo, opacity: Number(e.target.value) } })} className="w-full" /></label>
                     </div>}
@@ -277,7 +277,7 @@ export default function BrandKits() {
 
                   <section className="card p-5"><h2 className="text-lg">Perfil de exportación</h2>
                     <div className="mt-3 flex flex-wrap gap-6 text-sm">
-                      <fieldset><legend className="mb-1">Formatos habituales</legend><div className="flex gap-2">{["9:16", "4:5", "1:1", "16:9"].map((r) => { const on = (draft.config.export?.ratios ?? ["9:16"]).includes(r); return <button key={r} aria-pressed={on} onClick={() => { const cur = draft.config.export?.ratios ?? ["9:16"]; const next = on ? cur.filter((x) => x !== r) : [...cur, r]; setCfg({ export: { ratios: next.length ? next : ["9:16"], res: draft.config.export?.res ?? 1080 } }); }} className={`chip ${on ? "!bg-[#111] !text-white" : ""}`}>{r}</button>; })}</div></fieldset>
+                      <fieldset><legend className="mb-1">Formatos habituales</legend><div className="flex gap-2">{["9:16", "4:5", "1:1", "16:9"].map((r) => { const on = (draft.config.export?.ratios ?? ["9:16"]).includes(r); return <button key={r} aria-pressed={on} onClick={() => { const cur = draft.config.export?.ratios ?? ["9:16"]; const next = on ? cur.filter((x) => x !== r) : [...cur, r]; setCfg({ export: { ratios: next.length ? next : ["9:16"], res: draft.config.export?.res ?? 1080 } }); }} className={`chip ${on ? "!bg-[var(--ink)] !text-white" : ""}`}>{r}</button>; })}</div></fieldset>
                       <p className="max-w-xs text-xs text-[var(--muted)]">Guardado con el kit como preferencia. El editor exporta un formato cada vez; la resolución de los clips es la del formato (1080 de ancho).</p>
                     </div>
                   </section>

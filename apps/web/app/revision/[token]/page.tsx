@@ -83,7 +83,7 @@ export default function Revision({ params }: { params: Promise<{ token: string }
       <ul className="mt-8 grid grid-cols-2 gap-x-4 gap-y-7 md:grid-cols-3 lg:grid-cols-4">
         {v.items.map((i) => { const s = pieceStatus({ review_status: i.review_status, approved_version: i.approved_version, current_version: i.version, hasRender: !!i.render_path }); return (
           <li key={i.clip_id}><button onClick={() => setOpen(i)} className="block w-full text-left">
-            <div className="relative aspect-[9/16] overflow-hidden rounded-2xl bg-[#111]">
+            <div className="relative aspect-[9/16] overflow-hidden rounded-2xl bg-[var(--ink)]">
               {i.thumb_path && thumbs[i.thumb_path] ? <img src={thumbs[i.thumb_path]} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" /> : <div className="absolute inset-0 grid place-items-center text-xs text-white/60">Sin portada</div>}
               {i.duration && <span className="tnum absolute right-2 top-2 rounded-md bg-black/70 px-1.5 py-0.5 text-xs text-white">{fmtDur(Number(i.duration) * 1000)}</span>}
             </div>
@@ -104,7 +104,7 @@ export default function Revision({ params }: { params: Promise<{ token: string }
               <h3 className="text-lg tracking-tight">Comentarios <span className="tnum text-sm text-[var(--muted)]">{cms.length}</span></h3>
               <ol className="mt-3 max-h-[34vh] space-y-2.5 overflow-auto pr-1">
                 {!cms.length && <li className="text-sm text-[var(--muted)]">Todavía no hay comentarios.</li>}
-                {cms.map((c) => <li key={c.id} className={`rounded-xl p-3 text-sm ${c.kind === "approval" ? "bg-[#111] text-white" : c.kind === "changes" ? "bg-white ring-1 ring-inset ring-[#111]" : "bg-[var(--surface)]"}`}>
+                {cms.map((c) => <li key={c.id} className={`rounded-xl p-3 text-sm ${c.kind === "approval" ? "bg-[var(--ink)] text-white" : c.kind === "changes" ? "bg-white ring-1 ring-inset ring-[#111]" : "bg-[var(--surface)]"}`}>
                   <div className="flex items-center gap-2 text-xs opacity-80"><strong>{c.who}</strong>{c.kind === "approval" && "· aprobó"}{c.kind === "changes" && "· pidió cambios"}{c.at_sec != null && <button onClick={() => { if (video.current) video.current.currentTime = c.at_sec!; }} className="tnum underline">en {clock(c.at_sec)}</button>}</div>
                   <p className="mt-1 whitespace-pre-wrap break-words">{c.body}</p></li>)}
               </ol>

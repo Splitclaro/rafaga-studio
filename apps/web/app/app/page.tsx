@@ -126,7 +126,7 @@ export default function Dashboard() {
           {tab === "clips" ? (
             <form onSubmit={submit}>
               <input ref={fileInput} id="file" type="file" accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm" className="sr-only" onChange={(e) => pick(e.target.files?.[0] ?? null)} />
-              {mode === "clips" && <div role="group" aria-label="Origen del vídeo" className="mb-3 inline-flex rounded-full bg-[var(--hover)] p-0.5 text-sm">{([["file", "Subir archivo"], ["youtube", "Buscar en YouTube"]] as const).map(([k, l]) => <button key={k} type="button" aria-pressed={origin === k} onClick={() => { setOrigin(k); setMsg(null); }} className={`rounded-full px-4 py-1.5 ${origin === k ? "bg-[#111] text-white" : "text-[var(--muted)]"}`}>{l}</button>)}</div>}
+              {mode === "clips" && <div role="group" aria-label="Origen del vídeo" className="mb-3 inline-flex rounded-full bg-[var(--hover)] p-0.5 text-sm">{([["file", "Subir archivo"], ["youtube", "Buscar en YouTube"]] as const).map(([k, l]) => <button key={k} type="button" aria-pressed={origin === k} onClick={() => { setOrigin(k); setMsg(null); }} className={`rounded-full px-4 py-1.5 ${origin === k ? "bg-[var(--ink)] text-white" : "text-[var(--muted)]"}`}>{l}</button>)}</div>}
               {mode === "clips" && origin === "youtube" && (!yt ? <YouTubeSearch onPick={onYtPick} /> : (() => { const st = nextStep(yt, { original: !!ytProject, signal: false });
                 return (<div className="rounded-2xl border hairline bg-white p-3">
                   <div className="flex items-center gap-3">{/* eslint-disable-next-line @next/next/no-img-element */}<img src={yt.thumb} alt="" className="h-14 w-24 shrink-0 rounded-lg object-cover" /><div className="min-w-0 flex-1"><div className="line-clamp-2 text-sm font-medium">{yt.title}</div><div className="truncate text-xs text-[var(--muted)]">{yt.channel} · {yt.status === "live" ? "En directo ahora" : yt.status === "upcoming" ? "Directo programado" : "Vídeo publicado"}</div></div><button type="button" onClick={() => { setYt(null); setYtProject(null); setFile(null); }} className="btn btn-ghost !px-3 !py-1.5 !text-xs">Cambiar</button></div>
@@ -136,8 +136,8 @@ export default function Dashboard() {
                   {st.action === "link_original" && <p className="mt-2 text-xs text-[var(--muted)]">Tu selección y tu brief se conservan. Elige el archivo original abajo y pulsa «Obtener clips».</p>}
                 </div>); })())}
               {(mode !== "clips" || origin === "file" || (yt && !ytProject && yt.status === "video")) && <label htmlFor="file" onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)} onDrop={(e) => { e.preventDefault(); setDrag(false); pick(e.dataTransfer.files?.[0] ?? null); }}
-                className={`flex cursor-pointer items-center gap-4 rounded-2xl border border-dashed bg-white px-5 py-5 transition-colors focus-within:shadow-[var(--ring)] ${drag ? "border-[#111] bg-[var(--hover)]" : "hairline hover:border-[#bdbdbd]"}`}>
-                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#111] text-white"><Icon n="upload" /></span>
+                className={`flex cursor-pointer items-center gap-4 rounded-2xl border border-dashed bg-white px-5 py-5 transition-colors focus-within:shadow-[var(--ring)] ${drag ? "border-[var(--ink)] bg-[var(--hover)]" : "hairline hover:border-[#bdbdbd]"}`}>
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[var(--hover)] text-[var(--accent)]"><Icon n="upload" /></span>
                 {file ? <span className="min-w-0 flex-1"><span className="block truncate font-medium">{file.name}</span><span className="mono text-xs text-[var(--muted)]">{(file.size / 1048576).toFixed(1)} MB{dur ? ` · ${Math.floor(dur / 60)}:${String(Math.round(dur % 60)).padStart(2, "0")}` : ""}</span></span>
                   : <span className="min-w-0 flex-1"><span className="block font-medium">Suelta tu vídeo aquí o elige un archivo</span><span className="text-sm text-[var(--muted)]">MP4, MOV o WebM, hasta {MAX_UPLOAD_BYTES / 1048576} MB</span></span>}
                 <span className="btn btn-ghost hidden sm:inline-flex">{file ? "Cambiar" : "Subir"}</span>
@@ -168,7 +168,7 @@ export default function Dashboard() {
             <div>
               <input ref={audioInput} type="file" accept="audio/*,.mp3,.wav" className="sr-only" id="audio" onChange={(e) => { pickAudio(e.target.files?.[0]); e.target.value = ""; }} />
               <label htmlFor="audio" className="flex cursor-pointer items-center gap-4 rounded-2xl border border-dashed hairline bg-white px-5 py-5 hover:border-[#bdbdbd]">
-                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#111] text-white"><Icon n="music" /></span>
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[var(--hover)] text-[var(--accent)]"><Icon n="music" /></span>
                 <span className="min-w-0 flex-1"><span className="block font-medium">Sube tu canción (MP3 o WAV)</span><span className="text-sm text-[var(--muted)]">Después eliges el tramo, la letra, el estilo y cuántos vídeos quieres.</span></span>
                 <span className="btn btn-ghost hidden sm:inline-flex">{busy ? "Subiendo…" : "Subir canción"}</span>
               </label>
@@ -215,7 +215,7 @@ export default function Dashboard() {
           <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {batches.map((b) => (
               <li key={b.id}><Link href="/app/lyric-studio" className="card lift block overflow-hidden">
-                <div className="dots-dark relative grid aspect-video place-items-center bg-[#111] text-white"><Icon n="music" className="h-8 w-8 text-white/70" /><span className="chip absolute left-2 top-2 !py-0.5">{isActive(b.status) && <span className="pulse" aria-hidden />}{STAGE[b.status] ?? b.status}</span></div>
+                <div className="relative grid aspect-video place-items-center bg-[var(--hover)] text-[var(--muted)]"><Icon n="music" className="h-8 w-8 text-[var(--muted)]/70" /><span className="chip absolute left-2 top-2 !py-0.5">{isActive(b.status) && <span className="pulse" aria-hidden />}{STAGE[b.status] ?? b.status}</span></div>
                 <div className="p-3"><div className="truncate text-sm font-medium">{b.title}</div><div className="mono text-xs text-[var(--muted)]">{b.params.n} vídeo{b.params.n === 1 ? "" : "s"} · {new Date(b.created_at).toLocaleDateString("es", { day: "numeric", month: "short" })}</div></div>
               </Link></li>
             ))}

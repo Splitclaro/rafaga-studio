@@ -33,7 +33,7 @@ export default function Entregas() {
       ) : (
         <ul className="mt-8 grid gap-x-5 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">{rows.map((d) => (
           <li key={d.id}><Link href={`/app/entregas/${d.id}`} className="group block">
-            <div className="aspect-[4/3] overflow-hidden rounded-2xl bg-[#1a1a1a]">{d.cover ? <img src={d.cover} alt="" loading="lazy" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]" /> : <div className="grid h-full place-items-center text-xs text-white/60">Sin portada</div>}</div>
+            <div className="aspect-[4/3] overflow-hidden rounded-2xl bg-[var(--hover)]">{d.cover ? <img src={d.cover} alt="" loading="lazy" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]" /> : <div className="grid h-full place-items-center text-xs text-white/60">Sin portada</div>}</div>
             <h2 className="mt-3 text-base font-medium tracking-tight">{d.name}</h2>
             <p className="text-sm text-[var(--muted)]">{d.project ?? "Proyecto"} · {d.items} pieza{d.items === 1 ? "" : "s"} · {d.approved} aprobada{d.approved === 1 ? "" : "s"}</p>
             <p className="text-xs text-[var(--muted)]">{new Date(d.created_at).toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric" })}</p></Link></li>))}</ul>)}

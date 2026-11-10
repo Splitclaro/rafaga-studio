@@ -136,7 +136,7 @@ export default function LibraryAll({ q, onChanged }: { q: string; onChanged?: ()
         : <>
           <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">{page.map((a) => (
             <li key={a.asset_key} className="card overflow-hidden">
-              <div className="relative grid aspect-square place-items-center bg-[#151515] text-white/80">
+              <div className="relative grid aspect-square place-items-center bg-[var(--hover)] text-[var(--muted)]">
                 {urls[a.asset_key] && a.kind === "video" ? <video src={urls[a.asset_key]} muted playsInline preload="metadata" className="h-full w-full object-cover" />
                   : urls[a.asset_key] && (a.kind === "image" || a.kind === "logo") ? <img src={urls[a.asset_key]} alt="" className={`h-full w-full ${a.kind === "logo" ? "object-contain p-3" : "object-cover"}`} />
                   : <Icon n={KIND_ICON[a.kind]} className="h-6 w-6" />}

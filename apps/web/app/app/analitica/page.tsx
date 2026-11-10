@@ -87,7 +87,7 @@ export default function Analitica() {
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div><h1 className="text-3xl">Analítica</h1><p className="mt-1 text-sm text-[var(--muted)]">Operación real de tu workspace: volumen, fallos por causa, cola y tiempos por fase. Sin métricas sociales hasta tener conexiones autorizadas.</p></div>
         <div className="flex flex-wrap gap-2 text-sm">
-          <div role="radiogroup" aria-label="Periodo" className="inline-flex rounded-full bg-[var(--hover)] p-1">{PERIODS.map(([d, l]) => <button key={d} role="radio" aria-checked={days === d} onClick={() => setDays(d)} className={`rounded-full px-3 py-1 ${days === d ? "bg-[#111] text-white" : ""}`}>{l}</button>)}</div>
+          <div role="radiogroup" aria-label="Periodo" className="inline-flex rounded-full bg-[var(--hover)] p-1">{PERIODS.map(([d, l]) => <button key={d} role="radio" aria-checked={days === d} onClick={() => setDays(d)} className={`rounded-full px-3 py-1 ${days === d ? "bg-[var(--ink)] text-white" : ""}`}>{l}</button>)}</div>
           <label className="sr-only" htmlFor="kind">Tipo de trabajo</label>
           <select id="kind" value={kind} onChange={(e) => setKind(e.target.value)} className="rounded-full border border-[var(--border)] bg-white px-3 py-1.5"><option value="all">Todos los tipos</option>{Object.entries(KIND).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
         </div>
@@ -112,7 +112,7 @@ export default function Analitica() {
             <h2 className="font-medium">Fallos por causa</h2>
             {!Object.keys(s.causes).length ? <p className="mt-3 text-sm text-[var(--muted)]">Ningún fallo en el periodo.</p> : (
               <ul className="mt-3 space-y-2 text-sm">{Object.entries(s.causes).sort((a, b) => b[1] - a[1]).map(([c, n]) => (
-                <li key={c}><div className="flex justify-between"><span>{CAUSE[c] ?? c}</span><span className="tnum">{n}</span></div><div className="mt-1 h-1.5 rounded-full bg-[var(--hover)]"><div className="h-full rounded-full bg-[#111]" style={{ width: `${(n / s.failed) * 100}%` }} /></div></li>))}</ul>)}
+                <li key={c}><div className="flex justify-between"><span>{CAUSE[c] ?? c}</span><span className="tnum">{n}</span></div><div className="mt-1 h-1.5 rounded-full bg-[var(--hover)]"><div className="h-full rounded-full bg-[var(--ink)]" style={{ width: `${(n / s.failed) * 100}%` }} /></div></li>))}</ul>)}
             <h2 className="mt-6 font-medium">Por tipo de trabajo</h2>
             <table className="mt-2 w-full text-sm"><tbody>{Object.entries(s.byKind).map(([k, b]) => <tr key={k} className="border-b border-[var(--border)]"><td className="py-1.5">{KIND[k] ?? k}</td><td className="tnum text-right">{b.n}</td><td className="tnum text-right text-[var(--muted)]">{b.done} listos · {b.failed} fallidos</td></tr>)}</tbody></table>
           </section>

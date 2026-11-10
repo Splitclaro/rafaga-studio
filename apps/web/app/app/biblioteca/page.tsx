@@ -97,13 +97,13 @@ export default function Biblioteca() {
       {list === "lyrics" && !!lyrics?.length && <div className="mb-3 flex justify-end"><button className="btn btn-primary !px-3 !py-1.5 !text-xs" onClick={async () => { const l = lyrics.filter((v) => match(v.song) && v.path); setMsg(`Descargando ${l.length} vídeos… acepta las descargas múltiples si el navegador lo pide.`); for (const v of l) { await dl("renders", v.path, `${v.song}-${v.variant}.mp4`); await new Promise((r) => setTimeout(r, 900)); } }}><Icon n="download" className="h-3.5 w-3.5" />Descargar todos</button></div>}
       {list === "lyrics" && (!lyrics ? <Skel /> : !lyrics.filter((v) => match(v.song)).length ? <Empty text={q ? "Nada coincide con tu búsqueda." : "Aún no has generado vídeos con letra."} href="/app/lyric-studio" cta="Abrir Lyric Studio" /> : (
         <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{lyrics.filter((v) => match(v.song)).map((v) => (
-          <li key={v.id} className="card flex items-center gap-3 p-3"><span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#111] text-white"><Icon n="music" /></span>
+          <li key={v.id} className="card flex items-center gap-3 p-3"><span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[var(--ink)] text-white"><Icon n="music" /></span>
             <div className="min-w-0 flex-1"><div className="truncate text-sm font-medium">{v.song} · #{v.variant}</div><div className="mono text-xs text-[var(--muted)]">{v.style.replace("custom:", "Mi estilo")}{v.bytes ? ` · ${mb(v.bytes)}` : ""} · {day(v.created_at)}</div></div>
             <button className="btn btn-primary !px-3 !py-1.5 !text-xs" onClick={() => dl("renders", v.path, `${v.song}-${v.variant}.mp4`)} aria-label={`Descargar ${v.song} ${v.variant}`}><Icon n="download" className="h-3.5 w-3.5" /></button></li>))}</ul>))}
 
       {list === "songs" && (!songs ? <Skel /> : !songs.filter((s) => match(s.title)).length ? <Empty text={q ? "Nada coincide con tu búsqueda." : "Aún no has subido canciones."} href="/app/lyric-studio" cta="Subir una canción" /> : (
         <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{songs.filter((s) => match(s.title)).map((s) => (
-          <li key={s.id} className="card flex items-center gap-3 p-3"><span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#111] text-white"><Icon n="music" /></span>
+          <li key={s.id} className="card flex items-center gap-3 p-3"><span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[var(--ink)] text-white"><Icon n="music" /></span>
             <div className="min-w-0 flex-1"><div className="truncate text-sm font-medium">{s.title}</div><div className="mono truncate text-xs text-[var(--muted)]">{s.artist ?? "Sin artista"} · {mb(s.bytes)} · {s.lyrics ? "con letra" : "sin letra"}</div></div>
             <div className="flex shrink-0 gap-1"><Link href={`/app/lyric-studio?song=${s.id}`} className="btn btn-ghost !px-3 !py-1.5 !text-xs">Abrir</Link><button className="btn btn-ghost !px-3 !py-1.5 !text-xs" onClick={() => delSong(s)}>Borrar</button></div></li>))}</ul>))}
 

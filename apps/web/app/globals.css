@@ -5,7 +5,7 @@
 /* Identidad monocroma de la interfaz (V2). Los colores elegidos por el usuario para subtítulos/letras NO dependen de estos tokens. */
 :root {
   --bg: #FFFFFF; --surface: #F7F8FC; --text: #0F172A; --muted: #55607A; --border: #E3E8F4;
-  --accent: #1D4FFF; --select: #1D4FFF; --danger: #B3261E; --hover: #F1F3FA;
+  --ink: #0F172A; --accent: #1D4FFF; --select: #1D4FFF; --danger: #B3261E; --hover: #F1F3FA;
   /* Profundidad sobria: una sola capa fina, sin sombras de color */
   --shadow-1: 0 1px 0 rgba(15,23,42,.03);
   --shadow-2: 0 1px 0 rgba(15,23,42,.03), 0 8px 24px -14px rgba(15,23,42,.16);

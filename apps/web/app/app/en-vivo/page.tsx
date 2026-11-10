@@ -109,7 +109,7 @@ export default function EnVivo() {
             {sessions === null && <div className="skeleton h-12" />}
             {sessions?.length === 0 && <p className="text-sm text-[var(--muted)]">Aún no has capturado ninguna emisión.</p>}
             <ul className="space-y-1">{sessions?.map((s) => (
-              <li key={s.id}><button onClick={() => setSel(s.id)} aria-current={sel === s.id} className={`flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-sm ${sel === s.id ? "bg-[#111] text-white" : "hover:bg-[var(--hover)]"}`}>
+              <li key={s.id}><button onClick={() => setSel(s.id)} aria-current={sel === s.id} className={`flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-sm ${sel === s.id ? "bg-[var(--ink)] text-white" : "hover:bg-[var(--hover)]"}`}>
                 <span className="min-w-0"><span className="block truncate">{new Date(s.created_at).toLocaleString("es", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span><span className={`mono block text-xs ${sel === s.id ? "text-white/70" : "text-[var(--muted)]"}`}>{s.windows_done} ventanas · {mmss(Number(s.captured_seconds))}</span></span>
                 <span className="shrink-0 text-xs">{["capturing", "queued"].includes(s.status) && <span className="pulse mr-1" aria-hidden />}{ST[s.status]}</span></button></li>))}</ul>
           </section>

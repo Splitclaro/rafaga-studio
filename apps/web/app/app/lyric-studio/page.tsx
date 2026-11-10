@@ -36,7 +36,7 @@ async function sniffAudio(f: File): Promise<"audio/wav" | "audio/mpeg" | null> {
 function Step({ n: k, title, children }: { n: number; title: string; children: React.ReactNode }) {
   return (
     <section className="rounded-3xl border border-[var(--border)] bg-white p-5">
-      <h2 className="mb-3 flex items-baseline gap-3 text-xl"><span className="font-display grid h-7 w-7 place-items-center rounded-full bg-[#111] text-sm text-white">{k}</span>{title}</h2>
+      <h2 className="mb-3 flex items-baseline gap-3 text-xl"><span className="font-display grid h-7 w-7 place-items-center rounded-full bg-[var(--ink)] text-sm text-white">{k}</span>{title}</h2>
       {children}
     </section>
   );
@@ -238,13 +238,13 @@ export default function LyricStudio() {
             <div className="mt-3 grid gap-2 text-sm">
               <input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Título (opcional)" className="rounded-full border border-[var(--border)] bg-white px-3 py-1.5" />
               <input value={newArtist} onChange={(e) => setNewArtist(e.target.value)} placeholder="Artista (opcional)" className="rounded-full border border-[var(--border)] bg-white px-3 py-1.5" />
-              <label className={`cursor-pointer rounded-full bg-[#111] px-3 py-2 text-center font-medium text-white ${busy ? "opacity-50" : ""}`}>{busy ? "Subiendo…" : "Subir canción (MP3 o WAV)"}
+              <label className={`cursor-pointer rounded-full bg-[var(--accent)] px-3 py-2 text-center font-medium text-white ${busy ? "opacity-50" : ""}`}>{busy ? "Subiendo…" : "Subir canción (MP3 o WAV)"}
                 <input type="file" accept="audio/*,.mp3,.wav" className="sr-only" disabled={busy} onChange={(e) => { upload(e.target.files?.[0]); e.target.value = ""; }} /></label>
             </div>
             {msg && !song && <p role="status" aria-live="polite" className="mt-2 text-sm">{msg}</p>}
             <ul className="mt-3 space-y-1">
               {songs?.map((s) => (
-                <li key={s.id}><button onClick={() => choose(s)} aria-current={song?.id === s.id} className={`w-full rounded-2xl px-3 py-2 text-left ${song?.id === s.id ? "bg-[#111] text-white" : "hover:bg-[var(--hover)]"}`}>
+                <li key={s.id}><button onClick={() => choose(s)} aria-current={song?.id === s.id} className={`w-full rounded-2xl px-3 py-2 text-left ${song?.id === s.id ? "bg-[var(--ink)] text-white" : "hover:bg-[var(--hover)]"}`}>
                   <span className="block truncate font-medium">{s.title}</span><span className={`block truncate text-xs ${song?.id === s.id ? "text-white/70" : "text-[var(--muted)]"}`}>{s.artist ?? "Sin artista"}{s.lyrics_text ? ", con letra" : ""}</span>
                 </button></li>
               ))}
@@ -276,7 +276,7 @@ export default function LyricStudio() {
             </Step>
             <Step n={2} title="Letra y sincronización">
               <div role="tablist" aria-label="Sincronización" className="mb-3 inline-flex rounded-full bg-[var(--hover)] p-1 text-sm">
-                {([["auto", "Automática"], ["manual", "Manual por pulsación"]] as const).map(([k, l]) => <button key={k} role="tab" aria-selected={syncTab === k} onClick={() => setSyncTab(k)} className={`rounded-full px-4 py-1.5 ${syncTab === k ? "bg-[#111] text-white" : "text-[var(--muted)]"}`}>{l}</button>)}
+                {([["auto", "Automática"], ["manual", "Manual por pulsación"]] as const).map(([k, l]) => <button key={k} role="tab" aria-selected={syncTab === k} onClick={() => setSyncTab(k)} className={`rounded-full px-4 py-1.5 ${syncTab === k ? "bg-[var(--ink)] text-white" : "text-[var(--muted)]"}`}>{l}</button>)}
               </div>
               {syncTab === "manual" && audioUrl ? <TapSync songId={song.id} audioUrl={audioUrl} lyrics={lyrics} ensureLyrics={ensureLyrics} from={start} /> : <>
               <div className="mb-2 flex justify-end"><label className="cursor-pointer rounded-full border border-[var(--border)] px-3 py-1 text-sm">Importar TXT, LRC, SRT o VTT<input type="file" accept=".txt,.lrc,.srt,.vtt,text/plain" className="sr-only" onChange={(e) => importLyrics(e.target.files?.[0])} /></label></div>
@@ -289,7 +289,7 @@ export default function LyricStudio() {
               <p className="mb-3 text-xs text-[var(--muted)]">Tres tratamientos completos: encuadre, tipografía, aparición de la letra y acabado. La vista previa usa el mismo motor que el vídeo final.</p>
               <ul className="mb-5 grid gap-3 sm:grid-cols-3">
                 {LOOK_IDS.map((id) => { const k = `look:${id}`; const on = styles.includes(k); const lk = resolveLook(id, overrides[id] ?? {}); return (
-                  <li key={id} className={`overflow-hidden rounded-2xl border-2 ${on ? "border-[#111]" : "border-[var(--border)]"}`}>
+                  <li key={id} className={`overflow-hidden rounded-2xl border-2 ${on ? "border-[var(--ink)]" : "border-[var(--border)]"}`}>
                     <div className="bg-black"><LookPreview look={lk} ratio={native ? lk.canvas.ratio : ratio} words={sampleWords()} len={7} label={`Vista previa animada: ${lk.name}`} /></div>
                     <div className="p-3"><div className="font-medium">{lk.name}</div><p className="mt-0.5 text-xs text-[var(--muted)]">{lk.description}</p>
                       <button onClick={() => setStyles(on ? styles.filter((x) => x !== k) : [k, ...styles.filter((x) => x !== k)])} aria-pressed={on} className={`btn mt-2 w-full !py-1.5 !text-xs ${on ? "btn-primary" : "btn-ghost"}`}>{on ? "Seleccionado" : "Usar este estilo"}</button></div>
@@ -334,7 +334,7 @@ export default function LyricStudio() {
                 {[...LYRIC_STYLES.map((k) => ({ key: k, label: k, st: PRESETS[k] })), ...(myStyles ?? []).map((x) => ({ key: `custom:${x.id}`, label: x.name, st: x.style }))].map(({ key: k, label, st }) => {
                   const on = styles.includes(k);
                   return (
-                    <li key={k}><button onClick={() => setStyles(on ? styles.filter((x) => x !== k) : [...styles, k])} aria-pressed={on} className={`w-full overflow-hidden rounded-2xl border-2 text-left ${on ? "border-[#111]" : "border-transparent"}`}>
+                    <li key={k}><button onClick={() => setStyles(on ? styles.filter((x) => x !== k) : [...styles, k])} aria-pressed={on} className={`w-full overflow-hidden rounded-2xl border-2 text-left ${on ? "border-[var(--ink)]" : "border-transparent"}`}>
                       <span className="grid h-24 place-items-center bg-[#1b1b1b]"><LyricSample style={st} text="bajo la luna" scale={0.26} step={step} /></span>
                       <span className="flex items-center justify-between px-3 py-2 text-sm"><span className="truncate">{label}</span><span aria-hidden>{on ? "✓" : ""}</span></span>
                     </button></li>
@@ -346,11 +346,11 @@ export default function LyricStudio() {
             <Step n={4} title="Fondo">
               <div role="tablist" className="mb-3 inline-flex rounded-full bg-[var(--hover)] p-1 text-sm">
                 {([["solid", "Color sólido"], ["collection", "Colecciones"]] as const).map(([k, l]) => (
-                  <button key={k} role="tab" aria-selected={bgMode === k} onClick={() => setBgMode(k)} className={`rounded-full px-4 py-1.5 ${bgMode === k ? "bg-[#111] text-white" : "text-[var(--muted)]"}`}>{l}</button>))}
+                  <button key={k} role="tab" aria-selected={bgMode === k} onClick={() => setBgMode(k)} className={`rounded-full px-4 py-1.5 ${bgMode === k ? "bg-[var(--ink)] text-white" : "text-[var(--muted)]"}`}>{l}</button>))}
               </div>
               {bgMode === "solid" ? (
                 <div className="flex flex-wrap gap-2">{COLORS.map((c) => (
-                  <button key={c} aria-pressed={colors.includes(c)} aria-label={`Color ${c}`} onClick={() => setColors(colors.includes(c) ? colors.filter((x) => x !== c) : [...colors, c])} className={`h-11 w-11 rounded-full border-2 ${colors.includes(c) ? "border-[#111] ring-2 ring-white ring-inset" : "border-[var(--border)]"}`} style={{ background: c }} />))}
+                  <button key={c} aria-pressed={colors.includes(c)} aria-label={`Color ${c}`} onClick={() => setColors(colors.includes(c) ? colors.filter((x) => x !== c) : [...colors, c])} className={`h-11 w-11 rounded-full border-2 ${colors.includes(c) ? "border-[var(--ink)] ring-2 ring-white ring-inset" : "border-[var(--border)]"}`} style={{ background: c }} />))}
                   <label className="grid h-11 w-11 cursor-pointer place-items-center rounded-full border-2 border-dashed border-[var(--border)] text-lg" title="Otro color">+<input type="color" className="sr-only" onChange={(e) => !colors.includes(e.target.value.toUpperCase()) && setColors([...colors, e.target.value.toUpperCase()])} /></label>
                 </div>
               ) : <CollectionsPicker selected={collection} onSelect={setCollection} cols={cols} reload={reloadCols} />}
@@ -359,7 +359,7 @@ export default function LyricStudio() {
               <div className="grid gap-4 text-sm sm:grid-cols-2">
                 <fieldset className="rounded-2xl bg-[var(--surface)] px-4 py-3 sm:col-span-2"><legend className="sr-only">Encuadre del fondo</legend>Encuadre del fondo
                   <div className="mt-2 grid gap-2 sm:grid-cols-2">{([["band", "Banda centrada", "Vídeo en banda 16:9 sobre lienzo negro, con la letra encima. Es el formato más usado."], ["full", "Pantalla completa", "El fondo ocupa todo el encuadre."]] as const).map(([k, l, d]) => (
-                    <button key={k} onClick={() => set({ frame: k })} aria-pressed={settings.frame === k} className={`rounded-2xl border-2 p-3 text-left ${settings.frame === k ? "border-[#111] bg-white" : "border-transparent bg-white/60"}`}><span className="flex items-center gap-3"><span className="relative grid h-14 w-8 shrink-0 place-items-center overflow-hidden rounded bg-black">{k === "band" ? <span className="h-[34%] w-full bg-[#5b7a99]" /> : <span className="h-full w-full bg-[#5b7a99]" />}</span><span><span className="block font-medium">{l}</span><span className="block text-xs text-[var(--muted)]">{d}</span></span></span></button>))}</div>
+                    <button key={k} onClick={() => set({ frame: k })} aria-pressed={settings.frame === k} className={`rounded-2xl border-2 p-3 text-left ${settings.frame === k ? "border-[var(--ink)] bg-white" : "border-transparent bg-white/60"}`}><span className="flex items-center gap-3"><span className="relative grid h-14 w-8 shrink-0 place-items-center overflow-hidden rounded bg-black">{k === "band" ? <span className="h-[34%] w-full bg-[#5b7a99]" /> : <span className="h-full w-full bg-[#5b7a99]" />}</span><span><span className="block font-medium">{l}</span><span className="block text-xs text-[var(--muted)]">{d}</span></span></span></button>))}</div>
                 </fieldset>
                 <label className="flex items-center justify-between gap-3 rounded-2xl bg-[var(--surface)] px-4 py-3">Alternar clips de fondo <input type="checkbox" checked={settings.sequence} onChange={(e) => set({ sequence: e.target.checked })} /></label>
                 <label className={`rounded-2xl bg-[var(--surface)] px-4 py-3 ${settings.sequence ? "" : "opacity-50"}`}>Cambiar cada <span className="tnum">{settings.interval} s</span>
@@ -369,7 +369,7 @@ export default function LyricStudio() {
                 <label className="rounded-2xl bg-[var(--surface)] px-4 py-3">Tamaño del texto <span className="tnum">{textScale.toFixed(2)}×</span><input type="range" min={0.7} max={1.5} step={0.05} value={textScale} onChange={(e) => setTextScale(Number(e.target.value))} className="w-full" /></label>
                 <fieldset className="rounded-2xl bg-[var(--surface)] px-4 py-3"><legend className="sr-only">Filtro</legend>Filtro
                   <div className="mt-2 flex flex-wrap gap-1">{FILTERS.map(([k, l]) => (
-                    <button key={k} onClick={() => set({ filter: k })} aria-pressed={settings.filter === k} className={`rounded-full px-3 py-1 text-xs ${settings.filter === k ? "bg-[#111] text-white" : "bg-white"}`}>{l}</button>))}</div>
+                    <button key={k} onClick={() => set({ filter: k })} aria-pressed={settings.filter === k} className={`rounded-full px-3 py-1 text-xs ${settings.filter === k ? "bg-[var(--ink)] text-white" : "bg-white"}`}>{l}</button>))}</div>
                 </fieldset>
               </div>
               {settings.dim > 0.6 && <p className="mt-2 text-xs">Con más de 60 % el fondo apenas se verá.</p>}
@@ -387,7 +387,7 @@ export default function LyricStudio() {
                 <details className="mt-3 text-sm"><summary className="cursor-pointer">Plan: {plan.variants.length} vídeos{plan.repeats ? `, ${plan.repeats} repiten estilo y fondo` : ", todos distintos"}</summary>
                   <ol className="mt-2 max-h-40 overflow-auto rounded-2xl bg-[var(--surface)] p-3 tnum">{plan.variants.map((v) => <li key={v.index}>{v.index}. {styleLabel(v.style)}, {v.background === "coleccion" ? `${selectedCol?.name ?? "colección"} (orden ${v.seed % 1000 + 1})` : v.background}</li>)}</ol>
                 </details>)}
-              <button onClick={generate} disabled={busy || !!blockReason} className="font-display mt-4 w-full rounded-full bg-[#111] px-6 py-4 text-xl text-white disabled:opacity-40">Generar {n} vídeo{n === 1 ? "" : "s"}</button>
+              <button onClick={generate} disabled={busy || !!blockReason} className="font-display mt-4 w-full rounded-full bg-[var(--accent)] px-6 py-4 text-xl text-white disabled:opacity-40">Generar {n} vídeo{n === 1 ? "" : "s"}</button>
               <p role="status" aria-live="polite" className="mt-2 text-sm text-[var(--muted)]">{blockReason ?? msg}</p>
             </Step>
           </>)}
@@ -419,14 +419,14 @@ export default function LyricStudio() {
           </div>
           {!batches.length && <p className="mt-3 rounded-2xl border border-dashed border-[var(--border)] p-6 text-center text-sm text-[var(--muted)]">Tus vídeos aparecerán aquí según estén listos. Puedes cerrar la página: el trabajo sigue en segundo plano.</p>}
           {!!batches.length && <div role="tablist" aria-label="Lotes" className="mt-3 flex gap-2 overflow-x-auto pb-1">{batches.map((b) => (
-            <button key={b.id} role="tab" aria-selected={openBatch === b.id} onClick={() => { setOpenBatch(b.id); loadVideos(b.id); }} className={`shrink-0 rounded-full border px-3 py-1.5 text-sm ${openBatch === b.id ? "border-[#111] bg-[#111] text-white" : "border-[var(--border)] hover:bg-[var(--hover)]"}`}>
+            <button key={b.id} role="tab" aria-selected={openBatch === b.id} onClick={() => { setOpenBatch(b.id); loadVideos(b.id); }} className={`shrink-0 rounded-full border px-3 py-1.5 text-sm ${openBatch === b.id ? "border-[var(--ink)] bg-[var(--ink)] text-white" : "border-[var(--border)] hover:bg-[var(--hover)]"}`}>
               <span className="tnum">{new Date(b.created_at).toLocaleString("es", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })} · {b.params.n}</span> <span className="opacity-70">{STAGE[b.status] ?? b.status}</span></button>))}</div>}
           {openBatch && (() => { const b = batches.find((x) => x.id === openBatch); const ready = videos.filter((v) => v.status === "ready").length, total = (b?.params.n ?? videos.length) || 1; return (<>
             {b?.error_message && <p role="alert" className="mt-3 rounded-xl bg-[var(--surface)] p-3 text-sm">{b.error_message}</p>}
-            <div className="mt-3 flex items-center gap-3 text-sm"><span className="tnum">{ready} de {total} listos</span><div className="h-1.5 max-w-xs flex-1 rounded-full bg-[var(--hover)]"><div className="h-full rounded-full bg-[#111] transition-all" style={{ width: `${Math.min(100, (ready / total) * 100)}%` }} /></div></div>
+            <div className="mt-3 flex items-center gap-3 text-sm"><span className="tnum">{ready} de {total} listos</span><div className="h-1.5 max-w-xs flex-1 rounded-full bg-[var(--hover)]"><div className="h-full rounded-full bg-[var(--ink)] transition-all" style={{ width: `${Math.min(100, (ready / total) * 100)}%` }} /></div></div>
             <ul className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">{videos.map((v) => (
               <li key={v.id} className="overflow-hidden rounded-2xl border border-[var(--border)]">
-                {v.url ? <video src={v.url} controls playsInline preload="metadata" className="aspect-[9/16] w-full bg-black object-contain" /> : <div className="grid aspect-[9/16] place-items-center bg-[#111] text-sm text-white/80"><span className="pulse !bg-white" aria-hidden />Creando…</div>}
+                {v.url ? <video src={v.url} controls playsInline preload="metadata" className="aspect-[9/16] w-full bg-black object-contain" /> : <div className="grid aspect-[9/16] place-items-center bg-[var(--ink)] text-sm text-white/80"><span className="pulse !bg-white" aria-hidden />Creando…</div>}
                 <div className="flex items-center justify-between gap-2 px-3 py-2 text-sm"><span className="min-w-0 truncate"><span className="tnum text-[var(--muted)]">#{v.variant}</span> {styleLabel(v.params.style)}</span>{v.url && <button onClick={() => download(v)} className="btn btn-ghost !px-2.5 !py-1 !text-xs">Descargar</button>}</div>
                 {v.url && <div className="flex gap-1.5 border-t border-[var(--border)] px-3 py-2"><button onClick={() => { setMoreFor(moreFor?.id === v.id ? null : v); setSwapShot(0); }} aria-expanded={moreFor?.id === v.id} className="btn btn-ghost !px-2.5 !py-1 !text-xs">Más versiones</button></div>}
               </li>))}</ul>
@@ -436,7 +436,7 @@ export default function LyricStudio() {
                 <p className="mt-1 text-[var(--muted)]">Se mantienen siempre el audio, el tramo y la letra. Marca lo que quieres conservar; lo demás cambia.</p>
                 <fieldset className="mt-3 flex flex-wrap gap-2"><legend className="sr-only">Elementos bloqueados</legend>
                   {([["style", "Estilo"], ["background", collection ? "Colección de fondo" : "Color de fondo"], ["shots", "Planos y cortes"]] as const).map(([k, l]) => (
-                    <label key={k} className={`flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 ${moreLock[k] ? "border-[#111] bg-[#111] text-white" : "border-[var(--border)] bg-white"}`}><input type="checkbox" className="sr-only" checked={moreLock[k]} onChange={(e) => setMoreLock({ ...moreLock, [k]: e.target.checked })} />{moreLock[k] ? "Fijo" : "Cambia"}: {l}</label>))}
+                    <label key={k} className={`flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 ${moreLock[k] ? "border-[var(--ink)] bg-[var(--ink)] text-white" : "border-[var(--border)] bg-white"}`}><input type="checkbox" className="sr-only" checked={moreLock[k]} onChange={(e) => setMoreLock({ ...moreLock, [k]: e.target.checked })} />{moreLock[k] ? "Fijo" : "Cambia"}: {l}</label>))}
                 </fieldset>
                 {copy && <p role="alert" className="mt-2">Con todo fijo saldría una copia. Deja libre al menos una cosa.</p>}
                 {!v.params.look && moreLock.shots === false && <p className="mt-2 text-[var(--muted)]">Este estilo no usa planos: solo cambian estilo, fondo y variación.</p>}

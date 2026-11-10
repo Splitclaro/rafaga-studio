@@ -28,8 +28,8 @@ export default function OpsStatus({ compact = false }: { compact?: boolean }) {
   return (
     <div className={`rounded-xl border border-[var(--border)] ${compact ? "p-3" : "p-4"} text-sm`} role="status">
       <div className="grid gap-2 sm:grid-cols-3">
-        <div><span className={`mr-1.5 inline-block h-2 w-2 rounded-full ${schedOk ? "bg-[#111]" : "bg-[#C9C9C9]"}`} aria-hidden />Programador: <strong>{schedOk ? "activo" : run ? "detenido" : "sin ejecuciones"}</strong> <span className="text-[var(--muted)]">({ago(run?.ran_at)})</span></div>
-        <div><span className={`mr-1.5 inline-block h-2 w-2 rounded-full ${alive ? "bg-[#111]" : "bg-[#C9C9C9]"}`} aria-hidden />Worker: <strong>{alive ? "en marcha" : "en reposo"}</strong> <span className="text-[var(--muted)]">(último latido {ago(beat)})</span></div>
+        <div><span className={`mr-1.5 inline-block h-2 w-2 rounded-full ${schedOk ? "bg-[var(--ink)]" : "bg-[#C9C9C9]"}`} aria-hidden />Programador: <strong>{schedOk ? "activo" : run ? "detenido" : "sin ejecuciones"}</strong> <span className="text-[var(--muted)]">({ago(run?.ran_at)})</span></div>
+        <div><span className={`mr-1.5 inline-block h-2 w-2 rounded-full ${alive ? "bg-[var(--ink)]" : "bg-[#C9C9C9]"}`} aria-hidden />Worker: <strong>{alive ? "en marcha" : "en reposo"}</strong> <span className="text-[var(--muted)]">(último latido {ago(beat)})</span></div>
         <div>Arranque automático del worker: <strong>{auto}</strong>{run ? <span className="text-[var(--muted)]"> · {run.pending} en cola</span> : null}</div>
       </div>
       {!compact && <p className="mt-2 text-xs text-[var(--muted)]">El programador corre en la base de datos cada minuto, aunque cierres el navegador: encola las revisiones de tus reglas cada 15 min y marca como fallidos los procesos que se cortaron 3 veces.{auto === "sin configurar" ? " Para que además arranque el worker solo, falta guardar un token de GitHub en el almacén seguro de Supabase; mientras tanto el worker arranca por el programador de GitHub (cada 5 min, sin garantía de puntualidad) o al lanzar un proceso." : ""}</p>}
