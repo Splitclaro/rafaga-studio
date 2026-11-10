@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Icon from "../../../../components/Icon";
 import BriefFields from "../../../../components/BriefFields";
 import { composeBrief, normalizeBrief, type BriefData } from "@rafaga/selection/brief";
+import { parseDirective } from "@rafaga/selection/intent";
 import ClipWall from "../../../../components/ui/ClipWall";
 import type { WallClip } from "../../../../components/ui/ClipCard";
 import { supabase, BRIEF_MAX } from "../../../../lib/supabase";
@@ -85,6 +86,29 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
     const { error } = await supabase.from("projects").update({ project_brief: brief.trim() || null, brief_data: normalizeBrief(bd) }).eq("id", id);
     setMsg(error ? error.message : "Enfoque guardado."); return !error;
   }
+  // «Dirige al clippero»: instrucciones en una frase. Las que cambian la búsqueda se añaden al encargo y relanzan la detección (los clips aprobados se conservan).
+  const [dir, setDir] = useState(""), [dirMsg, setDirMsg] = useState<string | null>(null);
+  const KIND_NAME: Record<string, string> = { tips: "consejos", stories: "historias", reactions: "reacciones del público", demo: "demostraciones", opinion: "opiniones", qa: "preguntas y respuestas" };
+  async function applyDirective() {
+    const d = parseDirective(dir);
+    if (!d) return setDirMsg("No he entendido la indicación. Prueba con «busca solo reacciones», «menos polémica» o «más como este».");
+    if (d.scope === "clip") return setDirMsg("Eso ajusta un corte concreto: ábrelo en el editor y usa el recorte de la línea de tiempo (en el modo Rápido).");
+    if (d.action === "variants") return setDirMsg("Las variantes con otro estilo se crean desde «Más versiones» en Lyric Studio.");
+    let add = "";
+    if (d.action === "only_kind") add = `Busca solo ${KIND_NAME[d.kind] ?? d.kind}.`;
+    else if (d.action === "less") { const m = dir.match(/menos\s+(.+)/i); add = m ? `Menos ${m[1].trim().replace(/[.]+$/, "")}.` : ""; }
+    else if (d.action === "more_like") {
+      const refs = clips.filter((c) => c.review_status === "approved").map((c) => c.title).slice(0, 3);
+      if (!refs.length) return setDirMsg("Aprueba al menos un clip y pide «más como este»: lo uso como referencia.");
+      add = `Prioriza momentos como: ${refs.join("; ")}.`;
+    }
+    if (!add) return setDirMsg("Indica sobre qué: por ejemplo «menos polémica».");
+    const nb = { ...bd, objective: `${bd.objective ?? ""} ${add}`.trim().slice(0, 1000) };
+    setBd(nb); setDirMsg(null);
+    const { error } = await supabase.from("projects").update({ project_brief: composeBrief(nb).trim() || null, brief_data: normalizeBrief(nb) }).eq("id", id);
+    if (error) return setDirMsg(error.message);
+    setDir(""); await detect(); setDirMsg(`Hecho: «${add}» Se vuelve a buscar y tus clips aprobados se conservan.`);
+  }
   async function detect() {
     if (busyRef.current) return;
     busyRef.current = true; setBusy(true); setMsg(null);
@@ -157,6 +181,9 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
           <div className="mt-3 flex flex-wrap items-center gap-3">
             <button onClick={saveBrief} className="btn btn-ghost">Guardar enfoque</button>
             <button onClick={detect} disabled={busy || active} className="btn btn-primary"><Icon n="wand" className="h-4 w-4" />{hasRun ? "Volver a detectar" : "Detectar momentos virales"}</button>
+            {hasRun && <div className="basis-full"><label htmlFor="dir" className="text-sm font-medium">Dirige al clippero con una frase</label>
+              <div className="mt-1 flex gap-2"><input id="dir" value={dir} onChange={(e) => setDir(e.target.value)} onKeyDown={(e) => e.key === "Enter" && applyDirective()} placeholder="busca solo reacciones · menos polémica · más como este" className="input" /><button onClick={applyDirective} disabled={!dir.trim() || busy || active} className="btn btn-ghost shrink-0">Aplicar</button></div>
+              {dirMsg && <p role="status" className="mt-1 text-xs text-[var(--muted)]">{dirMsg}</p>}</div>}
             <span className="text-xs text-[var(--muted)]">{latestGen?.model.startsWith("lexical") ? "Selección sin IA: coincidencia de tu enfoque con la transcripción y reglas de duración y cierre." : "Estimación de IA, no garantiza viralidad."} Volver a detectar reutiliza la transcripción y conserva tus clips.</span>
           </div>
         </>) : (

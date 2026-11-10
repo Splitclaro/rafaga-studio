@@ -77,3 +77,22 @@ export function interpretBrief(text: string | null | undefined): Intent {
   return it;
 }
 
+// ───────── instrucciones sobre resultados ─────────
+export type Directive =
+  | { scope: "clip"; action: "include_question" | "extend" | "shorten"; note: string }
+  | { scope: "search"; action: "more_like" | "less"; terms: string[]; note: string }
+  | { scope: "search"; action: "only_kind"; kind: Kind; note: string }
+  | { scope: "search"; action: "variants"; count: number; note: string };
+/** Interpreta «más como este», «menos polémica», «incluye la pregunta», «busca solo reacciones», «haz cinco variantes». */
+export function parseDirective(s: string): Directive | null {
+  const t = s.trim();
+  if (/\bincluye la pregunta|con la pregunta\b/i.test(t)) return { scope: "clip", action: "include_question", note: "Ajusta el inicio de este corte para que incluya la pregunta." };
+  if (/\bm[aá]s (largo|extenso)|alarga|ampl[ií]a\b/i.test(t)) return { scope: "clip", action: "extend", note: "Alarga este corte." };
+  if (/\bm[aá]s corto|acorta|recorta\b/i.test(t)) return { scope: "clip", action: "shorten", note: "Acorta este corte." };
+  const v = t.match(/\bhaz\s+(\w+)\s+variantes\b/i); if (v) { const n = /^\d+$/.test(v[1]) ? Number(v[1]) : NUM[v[1].toLowerCase()]; if (n) return { scope: "search", action: "variants", count: n, note: `Genera ${n} variantes manteniendo el intervalo.` }; }
+  const only = t.match(/\bbusca solo\s+(.+)/i); if (only) for (const [k, re] of KIND_WORDS) if (re.test(only[1])) return { scope: "search", action: "only_kind", kind: k, note: `Busca nuevos momentos de tipo «${only[1].trim()}».` };
+  if (/\bm[aá]s como (este|esta|ese|esa)\b/i.test(t)) return { scope: "search", action: "more_like", terms: [], note: "Busca momentos parecidos a este." };
+  const less = t.match(/\bmenos\s+(.+)/i); if (less) return { scope: "search", action: "less", terms: contentTerms(less[1]), note: `Rebaja los momentos con «${less[1].trim()}».` };
+  return null;
+}
+
