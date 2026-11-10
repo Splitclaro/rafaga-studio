@@ -2,6 +2,8 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import BriefFields, { EMPTY_BRIEF, briefText } from "../../components/BriefFields";
+import { normalizeBrief, type BriefData } from "@rafaga/selection/brief";
 import PendingStrip from "../../components/PendingStrip";
 import Icon from "../../components/Icon";
 import { ProjectCard, isActive, useProjects } from "../../components/ProjectList";
@@ -31,7 +33,8 @@ export default function Dashboard() {
   const [mode, setMode] = useState<ProjectMode>("clips");
   const [file, setFile] = useState<File | null>(null);
   const [dur, setDur] = useState<number | null>(null);
-  const [brief, setBrief] = useState("");
+  const [bd, setBd] = useState<BriefData>(EMPTY_BRIEF);
+  const brief = briefText(bd);
   const [count, setCount] = useState(5);
   const [maxLen, setMaxLen] = useState("");
   const [from, setFrom] = useState(""), [to, setTo] = useState("");
@@ -71,7 +74,7 @@ export default function Dashboard() {
     if (b != null && dur !== null && b > dur + 0.5) return setMsg("El tramo termina después del final del vídeo.");
     setBusy(true); setMsg(null);
     try {
-      const id = await createProject({ file, name: "", brief, count, mode, maxSeconds: maxLen ? Number(maxLen) : undefined, rangeStart: a ?? 0, rangeEnd: b ?? undefined, onStep: setMsg });
+      const id = await createProject({ file, name: "", brief, briefData: normalizeBrief(bd), count, mode, maxSeconds: maxLen ? Number(maxLen) : undefined, rangeStart: a ?? 0, rangeEnd: b ?? undefined, onStep: setMsg });
       router.push(`/app/p/${id}`);
     } catch (x) { setMsg(x instanceof Error ? x.message : "Error inesperado"); setBusy(false); }
   }
@@ -115,10 +118,7 @@ export default function Dashboard() {
               </label>
 
               {mode === "clips" ? (
-                <label className="mt-4 block">
-                  <span className="text-sm font-medium">¿De qué trata el proyecto y qué clips necesitas?</span>
-                  <textarea rows={2} maxLength={BRIEF_MAX} value={brief} onChange={(e) => setBrief(e.target.value)} className="input mt-1.5 resize-y" placeholder="Es un podcast sobre emprender. Quiero consejos para principiantes y errores al vender. Evita la parte del patrocinador." />
-                </label>
+                <div className="mt-4"><BriefFields value={bd} onChange={setBd} compact /></div>
               ) : (
                 <div className="mt-4 flex items-start gap-3 rounded-xl border hairline bg-white p-3 text-sm"><Icon n={recipe.icon} className="mt-0.5 h-4 w-4 shrink-0" /><span><span className="font-medium">{recipe.label}.</span> {recipe.what}</span></div>
               )}

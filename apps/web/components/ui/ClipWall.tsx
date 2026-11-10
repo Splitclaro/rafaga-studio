@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Icon from "../Icon";
 import { supabase } from "../../lib/supabase";
+import { validateStyle, type SubtitleStyle } from "@rafaga/composition";
 import { ClipCard, type WallClip } from "./ClipCard";
 import { pieceStatus, STATUS_LABEL, type PieceStatus } from "./status";
 
@@ -29,6 +30,9 @@ export default function ClipWall({ projectId, projectName, clips, onFavorite, on
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [deliver, setDeliver] = useState(false);
+  const [styleDlg, setStyleDlg] = useState(false);
+  const [kits, setKits] = useState<{ id: string; name: string; version: number; subtitle_style: SubtitleStyle }[] | null>(null);
+  const [kitId, setKitId] = useState("");
   const [dName, setDName] = useState(""), [dDesc, setDDesc] = useState("");
   const last = useRef<string | null>(null);
 
@@ -85,6 +89,30 @@ export default function ClipWall({ projectId, projectName, clips, onFavorite, on
     const a = document.createElement("a"); a.href = URL.createObjectURL(manifest); a.download = `${safe(projectName)}_manifiesto.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
     setBusy(null); setMsg(`${ready.length} descarga${ready.length === 1 ? "" : "s"} y manifiesto.`);
   }
+  async function openStyle() {
+    setStyleDlg(true); setKitId("");
+    const { data } = await supabase.from("brand_kits").select("id,name,version,subtitle_style").is("archived_at", null).not("subtitle_style", "is", null).order("created_at");
+    setKits((data ?? []) as typeof kits);
+  }
+  /** Aplica el estilo de subtítulos del kit SOLO a las piezas seleccionadas: versión nueva de cada clip (el resto no cambia) y se puede volver a la anterior desde el editor. */
+  async function applyStyle() {
+    const kit = kits?.find((k) => k.id === kitId); if (!kit) return;
+    setBusy("Aplicando estilo…"); setMsg(null); let ok = 0; const errs: string[] = [];
+    const { data: u } = await supabase.auth.getSession();
+    for (const c of selected) {
+      const { data: cur } = await supabase.from("clips").select("workspace_id,current_version").eq("id", c.id).single();
+      const { data: v } = cur ? await supabase.from("clip_versions").select("composition").eq("clip_id", c.id).eq("version", cur.current_version).single() : { data: null };
+      if (!cur || !v) { errs.push(c.title); continue; }
+      const to = cur.current_version + 1;
+      const ins = await supabase.from("clip_versions").insert({ clip_id: c.id, workspace_id: cur.workspace_id, version: to, composition: { ...(v.composition as object), style: validateStyle(kit.subtitle_style), preset: `kit:${kit.name}` }, created_by: u.session?.user.id });
+      if (ins.error) { errs.push(c.title); continue; }
+      const up = await supabase.from("clips").update({ current_version: to }).eq("id", c.id).eq("current_version", cur.current_version).select("id");
+      if (up.error || !up.data?.length) errs.push(c.title); else ok++;
+    }
+    setBusy(null); setStyleDlg(false);
+    setMsg(`Estilo «${kit.name}» aplicado a ${ok} clip${ok === 1 ? "" : "s"} (versión nueva de cada uno; los demás no cambian).${errs.length ? ` ${errs.length} no se pudieron actualizar (cambiaron mientras tanto).` : ""} Las aprobaciones anteriores ya no valen para la versión nueva.`);
+    window.dispatchEvent(new Event("rafaga:reload-clips"));
+  }
   async function createDelivery(e: React.FormEvent) {
     e.preventDefault();
     const items = selected.map((c) => ({ clip_id: c.id, version: c.current_version }));
@@ -132,6 +160,7 @@ export default function ClipWall({ projectId, projectName, clips, onFavorite, on
             <span className="tnum px-2 text-sm font-medium">{sel.size} clip{sel.size === 1 ? "" : "s"} seleccionado{sel.size === 1 ? "" : "s"}</span>
             <div className="ml-auto flex flex-wrap gap-1.5">
               <button disabled={!canCompare} title={canCompare ? "" : "Selecciona exactamente 2 para comparar"} onClick={() => router.push(`/app/p/${projectId}/comparar?a=${selected[0].id}&b=${selected[1].id}`)} className="rounded-xl bg-white/10 px-3 py-2 text-sm hover:bg-white/20 disabled:opacity-40">Comparar</button>
+              <button onClick={openStyle} className="rounded-xl bg-white/10 px-3 py-2 text-sm hover:bg-white/20">Aplicar estilo</button>
               <button onClick={approve} disabled={!!busy} className="rounded-xl bg-white/10 px-3 py-2 text-sm hover:bg-white/20 disabled:opacity-40">Aprobar</button>
               <button onClick={() => { setDName(projectName); setDeliver(true); }} className="rounded-xl bg-white/10 px-3 py-2 text-sm hover:bg-white/20">Añadir a entrega</button>
               <button onClick={download} disabled={!!busy} className="rounded-xl bg-white px-3 py-2 text-sm font-medium text-[#111] disabled:opacity-40">Descargar</button>
@@ -142,6 +171,18 @@ export default function ClipWall({ projectId, projectName, clips, onFavorite, on
                 </div></details>
               <button onClick={() => setSel(new Set())} aria-label="Limpiar selección" className="rounded-xl px-2 py-2 hover:bg-white/10"><Icon n="x" className="h-4 w-4" /></button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {styleDlg && (
+        <div role="dialog" aria-modal="true" aria-labelledby="st-h" className="fixed inset-0 z-40 grid place-items-center bg-black/40 p-4" onKeyDown={(e) => e.key === "Escape" && setStyleDlg(false)}>
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <h2 id="st-h" className="text-xl tracking-tight">Aplicar estilo a {selected.length} clip{selected.length === 1 ? "" : "s"}</h2>
+            <p className="mt-1 text-sm text-[var(--muted)]">Cambia solo los subtítulos de la selección. Cada clip recibe una versión nueva; el resto de piezas no se toca.</p>
+            {!kits ? <div className="skeleton mt-4 h-10" /> : !kits.length ? <p className="mt-4 text-sm">Aún no tienes kits con estilo de subtítulos. Crea uno en Brand kit (puedes empezar desde una plantilla).</p> : (
+              <label className="mt-4 block text-sm">Estilo<select value={kitId} onChange={(e) => setKitId(e.target.value)} autoFocus className="input mt-1"><option value="">Elige un kit…</option>{kits.map((k) => <option key={k.id} value={k.id}>{k.name} · v{k.version} · {k.subtitle_style.fontName}</option>)}</select></label>)}
+            <div className="mt-5 flex justify-end gap-2"><button onClick={() => setStyleDlg(false)} className="btn btn-ghost">Cancelar</button><button onClick={applyStyle} disabled={!kitId || !!busy} className="btn btn-primary">Aplicar</button></div>
           </div>
         </div>
       )}

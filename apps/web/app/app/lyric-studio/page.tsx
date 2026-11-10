@@ -67,6 +67,15 @@ export default function LyricStudio() {
   const [step, setStep] = useState(0);
   const [newTitle, setNewTitle] = useState(""), [newArtist, setNewArtist] = useState("");
   const [overrides, setOverrides] = useState<Overrides>({});
+  const [kits, setKits] = useState<{ id: string; name: string; config: { lyric?: { look: string | null; style: string | null }; export?: { ratios?: string[] } } }[]>([]);
+  useEffect(() => { supabase.from("brand_kits").select("id,name,config").is("archived_at", null).order("created_at").then(({ data }) => setKits(((data ?? []) as typeof kits).filter((k) => k.config?.lyric))); }, []);
+  const loadKit = (id: string) => {
+    const k = kits.find((x) => x.id === id); if (!k?.config.lyric) return;
+    const { look, style } = k.config.lyric;
+    setStyles(look && LOOKS[look] ? [`look:${look}`] : style ? [style] : ["look:diario"]); setOverrides({});
+    const r = k.config.export?.ratios?.[0]; if (r && ["9:16", "4:5", "1:1", "16:9", "4:3"].includes(r)) setRatio(r as typeof ratio);
+    setNative(!!look && look === "archivo");
+  };
   const [res, setRes] = useState<1080 | 720>(1080);
   const [native, setNative] = useState(false);
   const [variation, setVariation] = useState(0.5);
@@ -254,6 +263,7 @@ export default function LyricStudio() {
               <p className="mt-1 text-xs text-[var(--muted)]">{lyricLines.length} versos. Se respeta tu texto y sus repeticiones; la alineación automática calcula los tiempos. Sin letra, el canto se transcribe (menos fiable con instrumental). Si tienes una sincronización manual guardada para esta letra, tiene prioridad.</p></>}
             </Step>
             <Step n={3} title="Estilo de letra">
+              {!!kits.length && <label className="mb-4 block text-sm">Cargar un estilo guardado<select defaultValue="" onChange={(e) => e.target.value && loadKit(e.target.value)} className="mt-1 block w-full rounded-full border border-[var(--border)] bg-white px-3 py-2 sm:w-80"><option value="">Elige un kit con estilo de letra…</option>{kits.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}</select><span className="mt-1 block text-xs text-[var(--muted)]">Carga el look o el preset de letra y el formato del kit. Puedes ajustarlo después sin cambiar el kit.</span></label>}
               <h3 className="mb-1 text-base font-medium">Resultados de referencia</h3>
               <p className="mb-3 text-xs text-[var(--muted)]">Tres tratamientos completos: encuadre, tipografía, aparición de la letra y acabado. La vista previa usa el mismo motor que el vídeo final.</p>
               <ul className="mb-5 grid gap-3 sm:grid-cols-3">

@@ -3,12 +3,14 @@ import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Icon from "../../../../components/Icon";
+import BriefFields from "../../../../components/BriefFields";
+import { composeBrief, normalizeBrief, type BriefData } from "@rafaga/selection/brief";
 import ClipWall from "../../../../components/ui/ClipWall";
 import type { WallClip } from "../../../../components/ui/ClipCard";
 import { supabase, BRIEF_MAX } from "../../../../lib/supabase";
 import { STAGE, MODE_LABEL } from "../../../../lib/projects";
 
-type Project = { id: string; name: string; project_brief: string | null; clip_count: number; mode: string; source_id: string };
+type Project = { brief_data: unknown; id: string; name: string; project_brief: string | null; clip_count: number; mode: string; source_id: string };
 type Job = { id: string; status: string; error_code: string | null; error_message: string | null; created_at: string; updated_at: string; attempts: number; metrics: Record<string, number | string> | null };
 type Scores = { overall?: number; relevance?: number; hook?: number; standalone?: number; closure?: number; label?: string };
 type Clip = { review_status: string; approved_version: number | null; current_version: number; version?: number; ratio?: string; id: string; title: string; thumb_path: string | null; title_source: string; thumb?: string; generation_id: string; favorite: boolean; created_at: string; candidate: { title?: string | null; reason: string | null; brief_fit: string | null; scores: Scores | null; start_ms: number; end_ms: number } | null; url?: string; path?: string; bytes?: number };
@@ -24,7 +26,8 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   const router = useRouter();
   const [p, setP] = useState<Project | null>(null);
   const [thumb, setThumb] = useState<string | undefined>();
-  const [brief, setBrief] = useState("");
+  const [bd, setBd] = useState<BriefData>({ objective: "" });
+  const brief = composeBrief(normalizeBrief(bd));
   const [job, setJob] = useState<Job | null>(null);
   const [clips, setClips] = useState<Clip[]>([]);
   const [gens, setGens] = useState<Gen[]>([]);
@@ -65,9 +68,9 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
     (async () => {
       const { data: s } = await supabase.auth.getSession();
       if (!s.session) return router.replace("/login");
-      const { data, error } = await supabase.from("projects").select("id,name,project_brief,clip_count,mode,source_id").eq("id", id).single();
+      const { data, error } = await supabase.from("projects").select("id,name,project_brief,brief_data,clip_count,mode,source_id").eq("id", id).single();
       if (error) return setMsg("Proyecto no encontrado.");
-      setP(data as Project); setBrief((data as Project).project_brief ?? "");
+      setP(data as Project); setBd(normalizeBrief((data as Project).brief_data) ?? { objective: (data as Project).project_brief ?? "" });
       const { data: src } = await supabase.from("sources").select("thumb_path").eq("id", (data as Project).source_id).single();
       if (src?.thumb_path) setThumb((await supabase.storage.from("originals").createSignedUrl(src.thumb_path, 3600)).data?.signedUrl);
       await load();
@@ -79,7 +82,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   useEffect(() => { const t = setInterval(() => setTick((x) => x + 1), 1000); return () => clearInterval(t); }, []);
 
   async function saveBrief() {
-    const { error } = await supabase.from("projects").update({ project_brief: brief.trim() || null }).eq("id", id);
+    const { error } = await supabase.from("projects").update({ project_brief: brief.trim() || null, brief_data: normalizeBrief(bd) }).eq("id", id);
     setMsg(error ? error.message : "Enfoque guardado."); return !error;
   }
   async function detect() {
@@ -150,8 +153,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
 
       <section className="card mt-6 p-5">
         {!tool ? (<>
-          <label className="block"><span className="text-sm font-medium">Ajustar enfoque: ¿de qué trata el proyecto y qué clips necesitas?</span>
-            <textarea rows={3} maxLength={BRIEF_MAX} className="input mt-1.5 resize-y" value={brief} onChange={(e) => setBrief(e.target.value)} placeholder="Describe el tema, a quién te diriges y qué momentos quieres destacar. Puedes dejarlo vacío." /></label>
+          <BriefFields value={bd} onChange={setBd} />
           <div className="mt-3 flex flex-wrap items-center gap-3">
             <button onClick={saveBrief} className="btn btn-ghost">Guardar enfoque</button>
             <button onClick={detect} disabled={busy || active} className="btn btn-primary"><Icon n="wand" className="h-4 w-4" />{hasRun ? "Volver a detectar" : "Detectar momentos virales"}</button>

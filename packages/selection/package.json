@@ -1,1 +1,11 @@
-{ "name": "@rafaga/selection", "private": true, "version": "0.0.1", "type": "module", "exports": { ".": "./src/index.ts" } }
+{
+  "name": "@rafaga/selection",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./brief": "./src/brief.ts",
+    "./title": "./src/title.ts"
+  }
+}

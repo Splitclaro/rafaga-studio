@@ -4,3 +4,4 @@ export * from "./edit.ts";
 export * from "./fonts.ts";
 export * from "./style.ts";
 export * from "./thumb.ts";
+export * from "./templates.ts";

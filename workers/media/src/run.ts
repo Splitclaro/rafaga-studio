@@ -10,7 +10,7 @@ import { transcribe, proposeClips, safeGet, parseFeed, captureHls, concatWindow,
 import { alignLyrics, lyricsFromAsr, parseLyrics, planVariants, lyricFfmpegArgs, sequenceFor, DEFAULT_BG, LOOKS, resolveLook, varyLook, layoutLyrics, layoutToAss, planShots, lookFfmpegArgs, canvasSize, LOOK_ENGINE_VERSION, type BgItem, type BgSettings, type TimedWord, type ShotItem, type DeepPartial, type LyricLook } from "@rafaga/lyrics";
 import { extractThumb } from "./thumb.ts";
 import { ZipBuilder } from "./zip.ts";
-import { briefHash, RUBRIC_VERSION, validateCandidates, windows, transcriptText, lexicalCandidates, LEXICAL_VERSION, suggestTitle, type TWord, type RawCandidate } from "@rafaga/selection";
+import { briefHash, RUBRIC_VERSION, validateCandidates, windows, transcriptText, lexicalCandidates, LEXICAL_VERSION, suggestTitle, normalizeBrief, composeBrief, lexicalBrief, BRIEF_VERSION, type TWord, type RawCandidate } from "@rafaga/selection";
 
 const need = (k: string) => { const v = process.env[k]; if (!v) { console.error(`Falta el secreto ${k}`); process.exit(2); } return v; };
 const sb = createClient(need("SUPABASE_URL"), need("SUPABASE_SECRET_KEY"), { auth: { persistSession: false } });
@@ -51,7 +51,7 @@ const setStatus = (id: string, status: string, extra: Record<string, unknown> = 
   sb.from("jobs").update({ status, heartbeat_at: new Date().toISOString(), updated_at: new Date().toISOString(), ...extra }).eq("id", id);
 
 /** Modos de herramienta: el vídeo (o su tramo) entero como un único clip editable. */
-type ProjectRow = { id: string; name: string; workspace_id: string; source_id: string; project_brief: string | null; max_seconds: number; mode: string };
+type ProjectRow = { brief_data?: unknown; id: string; name: string; workspace_id: string; source_id: string; project_brief: string | null; max_seconds: number; mode: string };
 async function processWhole(job: Job, project: ProjectRow, src: { id: string; range_start_ms: number | null; range_end_ms: number | null }, dir: string, path: string, words: TWord[], t0: number, m: Record<string, number | string>, transcriptId?: string) {
   await setStatus(job.id, "rendering");
   const inp = join(dir, "in");
@@ -97,7 +97,7 @@ async function processJob(job: Job) {
   const t0 = Date.now();
   const dir = mkdtempSync(join(tmpdir(), "rafaga-"));
   try {
-    const project = ok(await sb.from("projects").select("id,name,workspace_id,source_id,project_brief,language,clip_count,target_seconds,max_seconds,deleted_at,mode").eq("id", job.project_id!).single(), "proyecto");
+    const project = ok(await sb.from("projects").select("id,name,workspace_id,source_id,project_brief,brief_data,language,clip_count,target_seconds,max_seconds,deleted_at,mode").eq("id", job.project_id!).single(), "proyecto");
     if (project.deleted_at) return void (await setStatus(job.id, "cancelled"));
     const src = ok(await sb.from("sources").select("id,mime,range_start_ms,range_end_ms").eq("id", project.source_id).single(), "fuente");
     const path = `${project.workspace_id}/${src.id}/original`;
@@ -136,7 +136,10 @@ async function processJob(job: Job) {
     // 2) Selección guiada por brief
     await setStatus(job.id, "selecting");
     const t2 = Date.now();
-    const brief = project.project_brief as string | null;
+    // Brief: texto compuesto (para la IA y para guardar la versión usada) y versión léxica (solo objetivo, temas, personas y exclusiones)
+    const bdata = normalizeBrief(project.brief_data);
+    const brief = (bdata ? composeBrief(bdata) : (project.project_brief as string | null)) || null;
+    const lexBrief = bdata ? lexicalBrief(bdata) : brief;
     let raw: RawCandidate[] = [];
     let selector = MODEL, fallbackReason: string | null = null;
     try {
@@ -148,13 +151,13 @@ async function processJob(job: Job) {
       // Respaldo sin IA, etiquetado: el usuario ve que la selección es léxica.
       fallbackReason = (e as Error).message.slice(0, 200);
       selector = LEXICAL_VERSION;
-      raw = lexicalCandidates(words, brief, { minSec: 12, maxSec: project.max_seconds, count: project.clip_count });
+      raw = lexicalCandidates(words, lexBrief, { minSec: 12, maxSec: project.max_seconds, count: project.clip_count });
     }
     m.selector = selector;
     const { accepted, rejected } = validateCandidates(words, raw, { minSec: 12, maxSec: project.max_seconds, count: project.clip_count, hasBrief: !!brief?.trim() });
     m.selection_ms = Date.now() - t2; m.raw = raw.length; m.accepted = accepted.length; m.rejected = rejected.length;
 
-    const gen = ok(await sb.from("generations").insert({ workspace_id: project.workspace_id, project_id: project.id, transcript_id: tr.id, brief_snapshot: brief, brief_sha256: briefHash(brief), rubric_version: RUBRIC_VERSION, model: selector, params: { clip_count: project.clip_count, max_seconds: project.max_seconds, rejected, fallbackReason }, status: "running" }).select("id").single(), "generación");
+    const gen = ok(await sb.from("generations").insert({ workspace_id: project.workspace_id, project_id: project.id, transcript_id: tr.id, brief_snapshot: brief, brief_sha256: briefHash(brief), rubric_version: RUBRIC_VERSION, model: selector, params: { clip_count: project.clip_count, max_seconds: project.max_seconds, rejected, fallbackReason, brief_data: bdata, brief_version: BRIEF_VERSION }, status: "running" }).select("id").single(), "generación");
 
     // 3) Candidatos, clips y render (primer clip antes del lote)
     await setStatus(job.id, "rendering");

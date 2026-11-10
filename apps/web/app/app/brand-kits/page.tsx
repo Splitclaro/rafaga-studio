@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { fontFamily, sniffFont, sanitizeLogo, validateStyle, PRESETS, type BrandLogo, type SubtitleStyle } from "@rafaga/composition";
+import { fontFamily, sniffFont, sanitizeLogo, validateStyle, PRESETS, TEMPLATES, kitFromTemplate, templateById, type BrandLogo, type SubtitleStyle, type StyleTemplate } from "@rafaga/composition";
 import { supabase } from "../../../lib/supabase";
 import { useWorkspaceFonts } from "../../../lib/fonts";
 import { useTextStyles } from "../../../lib/textStyles";
@@ -9,7 +9,7 @@ import LyricSample from "../../../components/LyricSample";
 import { useProjects } from "../../../components/ProjectList";
 
 type Bumper = { path: string; name: string; kind: "video" | "photo"; dur: number; hasAudio: boolean };
-type Config = { logo?: Partial<BrandLogo>; intro?: Bumper | null; outro?: Bumper | null; export?: { ratios: string[]; res: 1080 | 720 }; broll_collection?: string | null; notes?: string };
+type Config = { template?: string; layout?: string; montage?: string; lyric?: { look: string | null; style: string | null }; logo?: Partial<BrandLogo>; intro?: Bumper | null; outro?: Bumper | null; export?: { ratios: string[]; res: 1080 | 720 }; broll_collection?: string | null; notes?: string };
 type Kit = { id: string; name: string; logo_path: string | null; colors: Record<string, string>; subtitle_style: SubtitleStyle | null; config: Config; version: number; updated_at: string; archived_at: string | null };
 type Ver = { version: number; created_at: string; snapshot: { name: string; logo_path: string | null; colors: Record<string, string>; subtitle_style: SubtitleStyle | null; config: Config } };
 type App = { id: string; project_id: string; kit_version: number | null; style_changes: unknown[]; created_at: string; reverted_at: string | null };
@@ -71,6 +71,12 @@ export default function BrandKits() {
     const { data, error } = await supabase.from("brand_kits").insert({ workspace_id: w, name, colors: from?.colors ?? { primary: "#111111", accent: "#FFFFFF", text: "#FFFFFF", background: "#000000" }, subtitle_style: from?.subtitle_style ?? null, config: from?.config ?? {}, logo_path: from?.logo_path ?? null }).select("id").single();
     if (error) return setMsg(error.message);
     const l = await load(); setSel(data.id); setMsg(from ? "Kit duplicado." : "Kit creado. Añade logo, colores y estilo."); return l;
+  }
+  async function createFromTemplate(t: StyleTemplate) {
+    const k = kitFromTemplate(t); const w = await ws();
+    const { data, error } = await supabase.from("brand_kits").insert({ workspace_id: w, name: k.name, colors: k.colors, subtitle_style: k.subtitle_style, config: k.config }).select("id").single();
+    if (error) return setMsg(error.message);
+    await load(); setSel(data.id); setMsg(`Kit creado desde «${t.name}». Ajusta logo, colores y estilo, y guarda.${t.note ? ` ${t.note}` : ""}`);
   }
   async function save() {
     if (!kit || !draft || busy) return; setBusy(true);
@@ -202,13 +208,20 @@ export default function BrandKits() {
       ) : !kits ? <div className="skeleton mt-6 h-64" /> : (
         <div className="mt-6 grid gap-6 lg:grid-cols-[240px_minmax(0,1fr)]">
           <aside className="space-y-2">
-            <button onClick={() => create()} className="btn btn-primary w-full">Nuevo kit</button>
+            <details className="group relative"><summary className="btn btn-primary w-full cursor-pointer list-none">Nuevo kit</summary>
+              <div className="mt-2 rounded-2xl border border-[var(--border)] bg-white p-1.5 shadow-sm">
+                <button onClick={() => create()} className="block w-full rounded-xl px-3 py-2 text-left text-sm hover:bg-[var(--hover)]"><strong className="font-medium">En blanco</strong><span className="block text-xs text-[var(--muted)]">Empieza sin nada</span></button>
+                <p className="px-3 pb-1 pt-2 text-[11px] font-medium text-[var(--muted)]">Empezar desde una plantilla</p>
+                {TEMPLATES.map((t) => <button key={t.id} onClick={() => createFromTemplate(t)} className="block w-full rounded-xl px-3 py-2 text-left text-sm hover:bg-[var(--hover)]"><strong className="font-medium">{t.name}</strong> <span className="text-[11px] text-[var(--muted)]">· {t.sector}</span><span className="block text-xs text-[var(--muted)]">{t.description}</span></button>)}
+              </div></details>
             <ul className="space-y-1">{kits.map((k) => <li key={k.id}><button onClick={() => setSel(k.id)} aria-current={sel === k.id} className={`w-full rounded-xl px-3 py-2 text-left ${sel === k.id ? "bg-[#111] text-white" : "hover:bg-[var(--hover)]"}`}><span className="block truncate font-medium">{k.name}</span><span className={`block text-xs ${sel === k.id ? "text-white/70" : "text-[var(--muted)]"}`}>v{k.version}</span></button></li>)}</ul>
             {!kits.length && <p className="text-sm text-[var(--muted)]">Aún no tienes kits. Crea el primero y aplícalo a un proyecto.</p>}
           </aside>
 
           {!draft ? <div className="card grid min-h-64 place-items-center border-dashed p-10 text-center text-[var(--muted)]">Elige un kit o crea uno nuevo.</div> : (
             <div className="space-y-5">
+              {draft.config.template && templateById(draft.config.template) && (
+                <p className="rounded-xl bg-[var(--surface)] px-4 py-3 text-sm">Creado desde la plantilla <strong>{templateById(draft.config.template)!.name}</strong>{draft.config.lyric ? ` · letra: ${draft.config.lyric.look ? `look «${draft.config.lyric.look}»` : `estilo «${draft.config.lyric.style}»`}` : ""} · encuadre {draft.config.layout} · montaje {draft.config.montage === "frases" ? "con cortes en cambios de frase" : draft.config.montage === "fotos" ? "con fotos" : "continuo"}.{templateById(draft.config.template)!.note ? ` ${templateById(draft.config.template)!.note}` : ""}</p>)}
               <section className="card p-5">
                 <div className="flex flex-wrap items-end justify-between gap-3">
                   <label className="min-w-56 flex-1 text-sm">Nombre<input value={draft.name} maxLength={80} onChange={(e) => set({ name: e.target.value })} className="input mt-1" /></label>
