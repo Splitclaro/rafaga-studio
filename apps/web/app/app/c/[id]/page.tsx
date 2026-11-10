@@ -38,6 +38,22 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
   const fg = useRef<HTMLVideoElement>(null), bg = useRef<HTMLVideoElement>(null), stage = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.3);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [xl, setXl] = useState(false);
+  const [leftOpen, setLeftOpen] = useState(true);
+  const [leftW, setLeftW] = useState(380);
+  const listRef = useRef<HTMLOListElement>(null);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1280px)"); const f = () => setXl(mq.matches); f(); mq.addEventListener("change", f);
+    try { setLeftOpen(localStorage.getItem("rafaga.editor.left") !== "0"); const w = Number(localStorage.getItem("rafaga.editor.leftw")); if (w >= 280 && w <= 560) setLeftW(w); } catch {}
+    return () => mq.removeEventListener("change", f);
+  }, []);
+  const startResize = (e: React.PointerEvent) => {
+    e.preventDefault(); const x0 = e.clientX, w0 = leftW;
+    const mv = (ev: PointerEvent) => setLeftW(Math.min(560, Math.max(280, w0 + ev.clientX - x0)));
+    const up = () => { window.removeEventListener("pointermove", mv); window.removeEventListener("pointerup", up); setLeftW((w) => { try { localStorage.setItem("rafaga.editor.leftw", String(w)); } catch {} return w; }); };
+    window.addEventListener("pointermove", mv); window.addEventListener("pointerup", up);
+  };
+  const toggleLeft = () => { const v = !leftOpen; setLeftOpen(v); try { localStorage.setItem("rafaga.editor.left", v ? "1" : "0"); } catch {} };
   const versionRef = useRef(1);
 
   const loadRenders = useCallback(async () => {
@@ -173,6 +189,19 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
   // ---------- Render del overlay (mismas reglas que el export) ----------
   const eff = useMemo(() => (doc ? styleForRatio(doc.style, doc.ratio) : null), [doc]);
   const groups = useMemo(() => (doc && eff ? groupWords(doc.words, eff) : []), [doc, eff]);
+  // Frases para revisar: corte por puntuación final, pausa > 0,7 s o 16 palabras
+  const phrases = useMemo(() => {
+    const out: { from: number; to: number }[] = []; if (!doc) return out;
+    let from = 0;
+    doc.words.forEach((w, i) => {
+      const next = doc.words[i + 1];
+      if (!next || /[.!?…]$/.test(w.text) || next.start - w.end > 0.7 || i - from + 1 >= 16) { out.push({ from, to: i }); from = i + 1; }
+    });
+    return out;
+  }, [doc]);
+  const activeIdx = useMemo(() => { let n = -1; doc?.words.forEach((w, i) => { if (w.start <= t) n = i; }); return n; }, [doc, t]);
+  const activePhrase = useMemo(() => phrases.findIndex((p) => activeIdx >= p.from && activeIdx <= p.to), [phrases, activeIdx]);
+  useEffect(() => { if (!playing || activePhrase < 0) return; listRef.current?.querySelector<HTMLElement>(`[data-phrase="${activePhrase}"]`)?.scrollIntoView({ block: "nearest", behavior: "smooth" }); }, [activePhrase, playing]);
   if (err && !doc) return <main className="mx-auto max-w-3xl px-4 py-10">{err}</main>;
   if (!doc || !meta || !eff) return <main className="mx-auto max-w-3xl px-4 py-10 text-[var(--muted)]">Cargando editor…</main>;
   const R = RATIO_SIZE[doc.ratio];
@@ -182,14 +211,53 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
   const unsafe = doc.ratio === "9:16" && (doc.style.y > 0.84 || doc.style.y < 0.15);
   const setStyle = (patch: Partial<SubtitleStyle>) => change((d) => ({ ...d, style: { ...d.style, ...patch } }));
   const SAVE = { saved: `Guardado · v${meta.version}`, dirty: "Cambios sin guardar", saving: "Guardando…", conflict: "Conflicto de versión", error: "Error al guardar" }[save];
-  const filtered = doc.words.map((w, i) => ({ w, i })).filter(({ w }) => !q || w.text.toLowerCase().includes(q.toLowerCase()));
-  const activeWordIndex = (() => { let n = -1; doc.words.forEach((w, i) => { if (w.start <= t) n = i; }); return n; })();
+  const ql = q.trim().toLowerCase();
+  const shown = phrases.map((p, pi) => ({ p, pi })).filter(({ p }) => !ql || doc.words.slice(p.from, p.to + 1).some((w) => w.text.toLowerCase().includes(ql)));
+  const clock = (x: number) => `${Math.floor(x / 60)}:${String(Math.floor(x % 60)).padStart(2, "0")}`;
+  const transcript = (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="mb-2 flex flex-wrap gap-2">
+        <input aria-label="Buscar en la transcripción" placeholder="Buscar palabra…" value={q} onChange={(e) => setQ(e.target.value)} className="min-w-0 flex-1 rounded border border-[var(--border)] bg-white px-2 py-1 text-sm" />
+        <button onClick={() => change((d) => ({ ...d, words: offsetAll(d.words, -0.1, clipLen) }))} className="rounded border border-[var(--border)] bg-white px-2 text-xs" title="Adelantar todos los subtítulos 0,1 s">−0,1 s</button>
+        <button onClick={() => change((d) => ({ ...d, words: offsetAll(d.words, 0.1, clipLen) }))} className="rounded border border-[var(--border)] bg-white px-2 text-xs" title="Retrasar todos los subtítulos 0,1 s">+0,1 s</button>
+      </div>
+      <p className="mb-2 text-xs text-[var(--muted)]">{doc.words.length} palabras · {phrases.length} frases{ql ? ` · ${shown.length} con «${q}»` : ""}. Pulsa una palabra para ir a ese instante y corregirla; el audio y el vídeo no se cortan.</p>
+      <ol ref={listRef} className="min-h-0 flex-1 space-y-2 overflow-auto pr-1 xl:max-h-[calc(100vh-260px)] max-xl:max-h-[56vh]">
+        {shown.map(({ p, pi }) => (
+          <li key={pi} data-phrase={pi} className={`rounded-lg border px-2 py-1.5 ${pi === activePhrase ? "border-[#111] bg-white" : "border-transparent hover:bg-white/70"}`}>
+            <div className="flex gap-2">
+              <button onClick={() => { seek(doc.words[p.from].start); setSel(p.from); }} className="tnum w-10 shrink-0 pt-0.5 text-left text-xs text-[var(--muted)] hover:underline" aria-label={`Ir a ${clock(doc.words[p.from].start)}`}>{clock(doc.words[p.from].start)}</button>
+              <p className="min-w-0 flex-1 text-[15px] leading-7">
+                {doc.words.slice(p.from, p.to + 1).map((w, k) => { const i = p.from + k; const hit = !!ql && w.text.toLowerCase().includes(ql);
+                  return <button key={i} onClick={() => { seek(w.start); setSel(i); }} className={`mr-1 rounded px-0.5 text-left ${i === activeIdx ? "bg-[#111] text-white" : sel === i ? "ring-1 ring-[#111]" : hit ? "bg-black/10" : "hover:bg-black/5"}`}>{w.text}</button>; })}
+              </p>
+            </div>
+            {sel !== null && sel >= p.from && sel <= p.to && (
+              <div className="mb-1 ml-12 mt-1 grid gap-2 rounded-lg bg-[var(--surface)] p-2 text-xs">
+                <label>Texto <input aria-label={`Palabra ${sel + 1}`} value={doc.words[sel].text} onChange={(e) => change((d) => ({ ...d, words: editText(d.words, sel, e.target.value) }))} className="mt-0.5 w-full rounded border border-[var(--border)] bg-white px-1.5 py-1 text-sm" autoFocus /></label>
+                <div className="flex flex-wrap items-center gap-2">
+                  <label>Inicio <input type="number" step={0.01} value={doc.words[sel].start} onChange={(e) => change((d) => ({ ...d, words: setTiming(d.words, sel, Number(e.target.value), d.words[sel].end, clipLen) }))} className="tnum w-20 rounded border border-[var(--border)] bg-white px-1" /></label>
+                  <label>Fin <input type="number" step={0.01} value={doc.words[sel].end} onChange={(e) => change((d) => ({ ...d, words: setTiming(d.words, sel, d.words[sel].start, Number(e.target.value), clipLen) }))} className="tnum w-20 rounded border border-[var(--border)] bg-white px-1" /></label>
+                  <button onClick={() => change((d) => ({ ...d, words: splitWord(d.words, sel) }))} className="rounded border border-[var(--border)] bg-white px-2 py-1">Dividir</button>
+                  <button onClick={() => change((d) => ({ ...d, words: mergeWithNext(d.words, sel) }))} disabled={sel >= doc.words.length - 1} className="rounded border border-[var(--border)] bg-white px-2 py-1 disabled:opacity-40">Unir con siguiente</button>
+                  <button onClick={() => setSel(null)} className="ml-auto underline">Cerrar</button>
+                </div>
+              </div>)}
+          </li>))}
+        {!shown.length && <li className="text-sm text-[var(--muted)]">Ninguna frase contiene «{q}».</li>}
+      </ol>
+    </div>
+  );
+  const tabsAll = ["texto", "estilo", "encuadre", "social", "broll", "exportar"] as const;
+  const tabsShown = xl ? tabsAll.filter((x) => x !== "texto") : tabsAll;
+  const tabEff = xl && tab === "texto" ? "estilo" : tab;
 
   return (
     <main className="px-4 py-6 md:px-6">
       <header className="mb-4 flex flex-wrap items-center gap-3">
         <Link href={`/app/p/${meta.projectId}`} className="text-sm text-[var(--muted)] underline">← Proyecto</Link>
         <h1 className="min-w-0 flex-1 truncate text-lg font-semibold">{meta.title}</h1>
+        <span className="tnum hidden text-xs text-[var(--muted)] sm:inline">{doc.ratio} · {clipLen.toFixed(1)} s · {doc.words.length} palabras</span>
         <span role="status" aria-live="polite" className="rounded border border-[var(--border)] px-2 py-0.5 text-xs text-[var(--muted)]">{SAVE}</span>
         <button onClick={undo} disabled={!past.length} className="rounded border border-[var(--border)] px-2 py-1 text-sm disabled:opacity-40" title="Deshacer (Cmd+Z)">Deshacer</button>
         <button onClick={redo} disabled={!future.length} className="rounded border border-[var(--border)] px-2 py-1 text-sm disabled:opacity-40" title="Rehacer (Cmd+Shift+Z)">Rehacer</button>
@@ -197,10 +265,19 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
       </header>
       {err && <p role="alert" className="mb-3 rounded border border-[var(--border)] bg-[var(--surface)] p-2 text-sm">⚠ {err}</p>}
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_420px]">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_400px] xl:grid-cols-[var(--lw)_minmax(0,1fr)_380px]" style={{ ["--lw" as string]: leftOpen ? `${leftW}px` : "44px" }}>
+        {/* Transcripción (solo en pantallas anchas; en estrechas es la pestaña «Texto») */}
+        <section aria-label="Transcripción" className="relative hidden min-h-0 flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 xl:flex">
+          <div className="mb-2 flex items-center justify-between"><h2 className={`text-sm font-medium ${leftOpen ? "" : "sr-only"}`}>Transcripción</h2>
+            <button onClick={toggleLeft} aria-expanded={leftOpen} aria-label={leftOpen ? "Plegar transcripción" : "Mostrar transcripción"} className="rounded p-1 text-[var(--muted)] hover:bg-[var(--hover)]"><Icon n={leftOpen ? "chevL" : "chevR"} className="h-4 w-4" /></button></div>
+          {leftOpen && transcript}
+          {leftOpen && <div role="separator" aria-orientation="vertical" aria-label="Cambiar ancho de la transcripción" tabIndex={0} onPointerDown={startResize}
+            onKeyDown={(e) => { if (e.key === "ArrowLeft" || e.key === "ArrowRight") { const w = Math.min(560, Math.max(280, leftW + (e.key === "ArrowRight" ? 20 : -20))); setLeftW(w); try { localStorage.setItem("rafaga.editor.leftw", String(w)); } catch {} } }}
+            className="absolute -right-3 top-0 hidden h-full w-3 cursor-col-resize xl:block" title="Arrastra para cambiar el ancho"><span className="mx-auto mt-[40%] block h-10 w-1 rounded bg-[var(--border)]" /></div>}
+        </section>
         {/* Preview */}
         <section aria-label="Vista previa" className="flex flex-col items-center gap-3">
-          <div ref={stage} className="relative w-full overflow-hidden rounded-xl bg-black" style={{ aspectRatio: `${R.width}/${R.height}`, maxWidth: doc.ratio === "16:9" ? 860 : doc.ratio === "1:1" ? 560 : doc.ratio === "4:5" ? 480 : 380 }}>
+          <div ref={stage} className="relative w-full overflow-hidden rounded-xl bg-black" style={doc.ratio === "16:9" ? { aspectRatio: `${R.width}/${R.height}`, width: "100%", maxWidth: 1000 } : { aspectRatio: `${R.width}/${R.height}`, height: "min(calc(100vh - 240px), 820px)", minHeight: 320, width: "auto", maxWidth: "100%" }}>
             <video ref={bg} src={meta.src} muted playsInline preload="auto" className={`absolute inset-0 h-full w-full scale-110 object-cover blur-2xl ${doc.layout === "blur" ? "" : "hidden"}`} aria-hidden />
             <video ref={fg} src={meta.src} playsInline preload="auto" className={`absolute inset-0 h-full w-full ${doc.layout === "fill" ? "object-cover" : "object-contain"}`} style={doc.layout === "fill" ? { objectPosition: `${doc.cropX * 100}% 50%` } : undefined} onLoadedMetadata={() => seek(0)} />
             {doc.broll.map((b, i) => t >= b.start && t < b.start + b.dur && brollUrls[b.path] ? (b.kind === "photo"
@@ -219,48 +296,21 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
           <div className="flex w-full max-w-[860px] items-center gap-3">
             <button onClick={togglePlay} className="rounded-lg bg-[#111] px-4 py-2 text-sm font-medium text-white" aria-pressed={playing}>{playing ? "Pausa" : "Reproducir"}</button>
             <input aria-label="Posición en el clip" type="range" min={0} max={clipLen} step={1 / 30} value={t} onChange={(e) => seek(Number(e.target.value))} className="w-full" />
-            <span className="tnum w-24 text-right text-sm">{t.toFixed(2)} / {clipLen.toFixed(1)} s</span>
+            <span className="tnum w-28 shrink-0 whitespace-nowrap text-right text-sm">{t.toFixed(2)} / {clipLen.toFixed(1)} s</span>
           </div>
         </section>
 
         {/* Panel de propiedades */}
         <section aria-label="Propiedades" className="rounded-xl border border-[var(--border)] bg-[var(--surface)]">
           <div role="tablist" className="flex border-b border-[var(--border)] text-sm">
-            {(["texto", "estilo", "encuadre", "social", "broll", "exportar"] as const).map((x) => (
-              <button key={x} role="tab" aria-selected={tab === x} onClick={() => setTab(x)} className={`flex-1 px-2 py-2 text-[13px] ${tab === x ? "border-b-2 border-[#111] font-medium" : "text-[var(--muted)]"}`}>{x === "broll" ? "B-roll" : x === "social" ? "Social" : x[0].toUpperCase() + x.slice(1)}</button>
+            {tabsShown.map((x) => (
+              <button key={x} role="tab" aria-selected={tabEff === x} onClick={() => setTab(x)} className={`flex-1 px-2 py-2 text-[13px] ${tabEff === x ? "border-b-2 border-[#111] font-medium" : "text-[var(--muted)]"}`}>{x === "broll" ? "B-roll" : x === "social" ? "Social" : x[0].toUpperCase() + x.slice(1)}</button>
             ))}
           </div>
 
-          {tab === "texto" && (
-            <div className="p-3">
-              <div className="mb-2 flex gap-2">
-                <input aria-label="Buscar en la transcripción" placeholder="Buscar palabra…" value={q} onChange={(e) => setQ(e.target.value)} className="min-w-0 flex-1 rounded border border-[var(--border)] bg-white px-2 py-1 text-sm" />
-                <button onClick={() => change((d) => ({ ...d, words: offsetAll(d.words, -0.1, clipLen) }))} className="rounded border border-[var(--border)] bg-white px-2 text-xs" title="Adelantar todos los subtítulos 0,1 s">−0,1 s</button>
-                <button onClick={() => change((d) => ({ ...d, words: offsetAll(d.words, 0.1, clipLen) }))} className="rounded border border-[var(--border)] bg-white px-2 text-xs" title="Retrasar todos los subtítulos 0,1 s">+0,1 s</button>
-              </div>
-              <p className="mb-2 text-xs text-[var(--muted)]">Corregir el texto no corta el audio ni el vídeo. Selecciona una palabra para ver sus tiempos.</p>
-              <ol className="max-h-[56vh] space-y-1 overflow-auto pr-1">
-                {filtered.map(({ w, i }) => (
-                  <li key={i} className={`rounded px-1 ${i === activeWordIndex ? "bg-black/[0.06]" : ""}`}>
-                    <div className="flex items-center gap-2">
-                      <button onClick={() => { seek(w.start); setSel(i); }} className="tnum w-14 shrink-0 text-left text-xs text-[var(--muted)] underline-offset-2 hover:underline">{w.start.toFixed(2)}</button>
-                      <input aria-label={`Palabra ${i + 1}`} value={w.text} onFocus={() => setSel(i)} onChange={(e) => change((d) => ({ ...d, words: editText(d.words, i, e.target.value) }))} className="min-w-0 flex-1 rounded border border-transparent bg-transparent px-1 py-0.5 focus:border-[var(--border)] focus:bg-white" />
-                    </div>
-                    {sel === i && (
-                      <div className="mb-1 ml-16 flex flex-wrap items-center gap-2 text-xs">
-                        <label>Inicio <input type="number" step={0.01} value={w.start} onChange={(e) => change((d) => ({ ...d, words: setTiming(d.words, i, Number(e.target.value), d.words[i].end, clipLen) }))} className="tnum w-20 rounded border border-[var(--border)] bg-white px-1" /></label>
-                        <label>Fin <input type="number" step={0.01} value={w.end} onChange={(e) => change((d) => ({ ...d, words: setTiming(d.words, i, d.words[i].start, Number(e.target.value), clipLen) }))} className="tnum w-20 rounded border border-[var(--border)] bg-white px-1" /></label>
-                        <button onClick={() => change((d) => ({ ...d, words: splitWord(d.words, i) }))} className="rounded border border-[var(--border)] bg-white px-2">Dividir</button>
-                        <button onClick={() => change((d) => ({ ...d, words: mergeWithNext(d.words, i) }))} disabled={i >= doc.words.length - 1} className="rounded border border-[var(--border)] bg-white px-2 disabled:opacity-40">Unir con siguiente</button>
-                      </div>
-                    )}
-                  </li>
-                ))}
-              </ol>
-            </div>
-          )}
+          {tabEff === "texto" && <div className="flex flex-col p-3">{transcript}</div>}
 
-          {tab === "estilo" && (
+          {tabEff === "estilo" && (
             <div className="grid gap-3 p-3 text-sm">
               <div className="flex items-end gap-2">
                 <label className="flex-1">Preset
@@ -301,7 +351,7 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
             </div>
           )}
 
-          {tab === "encuadre" && (
+          {tabEff === "encuadre" && (
             <div className="grid gap-4 p-3 text-sm">
               <p className="text-[var(--muted)]">Cómo se adapta el vídeo original al formato elegido ({doc.ratio}).</p>
               <div role="radiogroup" aria-label="Encuadre" className="grid gap-2">
@@ -316,7 +366,7 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
             </div>
           )}
 
-          {tab === "social" && (
+          {tabEff === "social" && (
             <div className="grid gap-3 p-3 text-sm">
               <p className="text-[var(--muted)]">Un clic deja el clip listo para cada red: formato, encuadre y subtítulos en zona segura. Después puedes ajustar lo que quieras.</p>
               {([["TikTok", "9:16", "fill", 0.6], ["Instagram Reels", "9:16", "fill", 0.6], ["YouTube Shorts", "9:16", "fill", 0.62], ["Instagram feed", "4:5", "fill", 0.82], ["X y LinkedIn", "1:1", "blur", 0.84], ["YouTube", "16:9", "fit", 0.88]] as const).map(([name, r, lay, y]) => (
@@ -326,7 +376,7 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
             </div>
           )}
 
-          {tab === "broll" && (
+          {tabEff === "broll" && (
             <div className="grid gap-3 p-3 text-sm">
               <p className="text-[var(--muted)]">Superpón imágenes o vídeos de tus <strong>Custom Collections</strong> en momentos concretos. Posición actual: <span className="mono">{t.toFixed(1)} s</span>. La generación de B-roll con IA requiere un proveedor externo que aún no está conectado.</p>
               {!cols?.some((c) => c.items.length) && <p className="rounded-xl border border-dashed hairline p-3">Aún no tienes medios. Crea un pack de medios y sube vídeos o fotos en <Link href="/app/biblioteca?tab=collections" className="underline">Biblioteca → Packs de medios</Link>; aparecerán aquí.</p>}
@@ -345,7 +395,7 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
             </div>
           )}
 
-          {tab === "exportar" && (
+          {tabEff === "exportar" && (
             <div className="grid gap-3 p-3 text-sm">
               <label>Formato
                 <select value={doc.ratio} onChange={(e) => change((d) => ({ ...d, ratio: e.target.value as Ratio }))} className="mt-1 w-full rounded border border-[var(--border)] bg-white px-2 py-1.5">

@@ -373,26 +373,29 @@ export default function LyricStudio() {
           </div>)}
           <p className="text-center text-xs text-[var(--muted)]">Vista previa aproximada. El vídeo final usa la misma fuente, letra y tiempos.</p>
 
-          {song && (
-            <div className="rounded-3xl bg-[var(--surface)] p-4 text-sm">
-              <h2 className="text-lg">Resultados</h2>
-              {!batches.length && <p className="mt-2 text-[var(--muted)]">Tus vídeos aparecerán aquí.</p>}
-              <ul className="mt-2 space-y-1">{batches.map((b) => (
-                <li key={b.id}><button onClick={() => { setOpenBatch(b.id); loadVideos(b.id); }} className={`flex w-full justify-between gap-2 rounded-xl px-3 py-2 text-left ${openBatch === b.id ? "bg-[#111] text-white" : "hover:bg-[var(--hover)]"}`}>
-                  <span className="tnum">{new Date(b.created_at).toLocaleString("es", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}, {b.params.n}</span><span>{STAGE[b.status] ?? b.status}</span></button>
-                  {b.error_message && openBatch === b.id && <p role="alert" className="px-3 py-1">{b.error_message}</p>}</li>))}</ul>
-              {openBatch && (<>
-                <p className="mt-3 tnum">{videos.filter((v) => v.status === "ready").length} de {batches.find((b) => b.id === openBatch)?.params.n ?? "?"} listos</p>
-                <ul className="mt-2 grid grid-cols-2 gap-2">{videos.map((v) => (
-                  <li key={v.id}>
-                    {v.url ? <video src={v.url} controls preload="metadata" className="aspect-[9/16] w-full rounded-xl bg-black object-cover" /> : <div className="grid aspect-[9/16] place-items-center rounded-xl bg-[#111] text-xs text-white">Creando…</div>}
-                    <div className="mt-1 flex justify-between text-xs"><span>{v.variant}. {styleLabel(v.params.style)}</span>{v.url && <button onClick={() => download(v)} className="underline">Descargar</button>}</div>
-                  </li>))}</ul>
-              </>)}
-            </div>
-          )}
         </aside>
       </div>
+      {song && (
+        <section aria-labelledby="res-h" className="mt-8 rounded-3xl border border-[var(--border)] bg-white p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 id="res-h" className="text-2xl">Resultados</h2>
+            {openBatch && videos.some((v) => v.status === "ready" && v.url) && <button onClick={async () => { for (const v of videos.filter((x) => x.status === "ready" && x.storage_path)) { await download(v); await new Promise((r) => setTimeout(r, 900)); } }} className="btn btn-primary !py-1.5 !text-xs">Descargar todos</button>}
+          </div>
+          {!batches.length && <p className="mt-3 rounded-2xl border border-dashed border-[var(--border)] p-6 text-center text-sm text-[var(--muted)]">Tus vídeos aparecerán aquí según estén listos. Puedes cerrar la página: el trabajo sigue en segundo plano.</p>}
+          {!!batches.length && <div role="tablist" aria-label="Lotes" className="mt-3 flex gap-2 overflow-x-auto pb-1">{batches.map((b) => (
+            <button key={b.id} role="tab" aria-selected={openBatch === b.id} onClick={() => { setOpenBatch(b.id); loadVideos(b.id); }} className={`shrink-0 rounded-full border px-3 py-1.5 text-sm ${openBatch === b.id ? "border-[#111] bg-[#111] text-white" : "border-[var(--border)] hover:bg-[var(--hover)]"}`}>
+              <span className="tnum">{new Date(b.created_at).toLocaleString("es", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })} · {b.params.n}</span> <span className="opacity-70">{STAGE[b.status] ?? b.status}</span></button>))}</div>}
+          {openBatch && (() => { const b = batches.find((x) => x.id === openBatch); const ready = videos.filter((v) => v.status === "ready").length, total = (b?.params.n ?? videos.length) || 1; return (<>
+            {b?.error_message && <p role="alert" className="mt-3 rounded-xl bg-[var(--surface)] p-3 text-sm">{b.error_message}</p>}
+            <div className="mt-3 flex items-center gap-3 text-sm"><span className="tnum">{ready} de {total} listos</span><div className="h-1.5 max-w-xs flex-1 rounded-full bg-[var(--hover)]"><div className="h-full rounded-full bg-[#111] transition-all" style={{ width: `${Math.min(100, (ready / total) * 100)}%` }} /></div></div>
+            <ul className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">{videos.map((v) => (
+              <li key={v.id} className="overflow-hidden rounded-2xl border border-[var(--border)]">
+                {v.url ? <video src={v.url} controls playsInline preload="metadata" className="aspect-[9/16] w-full bg-black object-contain" /> : <div className="grid aspect-[9/16] place-items-center bg-[#111] text-sm text-white/80"><span className="pulse !bg-white" aria-hidden />Creando…</div>}
+                <div className="flex items-center justify-between gap-2 px-3 py-2 text-sm"><span className="min-w-0 truncate"><span className="tnum text-[var(--muted)]">#{v.variant}</span> {styleLabel(v.params.style)}</span>{v.url && <button onClick={() => download(v)} className="btn btn-ghost !px-2.5 !py-1 !text-xs">Descargar</button>}</div>
+              </li>))}</ul>
+          </>); })()}
+        </section>
+      )}
     </main>
   );
 }

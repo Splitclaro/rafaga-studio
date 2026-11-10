@@ -98,3 +98,6 @@ Probar Lyric Studio con una canción real (canto + instrumental). Siguiente: Sty
 
 ## Sesión 9 — H09 Style Studio
 - Compositor de subtítulos por evento (entrada, salida, caja, palabras clave, tracking, cursiva, suavizado) y 21 tratamientos; Style Studio actualizado. Sin migración. Verificado con libass local; pendiente prueba en el worker cloud.
+
+## Sesión 10 — H12 editor y resultados
+- Editor de 3 paneles con transcripción por frases, panel plegable/redimensionable y vista previa mayor; resultados de Lyric Studio a todo el ancho. Revisado en 4 anchos con servidor Supabase simulado local (solo QA, no está en el repositorio). Pendiente: timeline visual con miniaturas y recorte.
