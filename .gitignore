@@ -16,3 +16,6 @@ supabase/.temp/
 .spike/
 .fixtures/
 evidence/
+
+# Vídeo de ejemplo propio de las demos
+!apps/web/public/demo/*.mp4

@@ -17,12 +17,13 @@ export default function Demos() {
   async function use(d: (typeof DEMOS)[number]) {
     if (busy) return; setBusy(d.id); setMsg("Descargando el vídeo de ejemplo…");
     try {
-      const blob = await (await fetch(d.file)).blob();
+      const res = await fetch(d.file); const blob = await res.blob(); if (!res.ok || !blob.type.startsWith("video")) throw new Error("El vídeo de ejemplo no está disponible ahora mismo. Inténtalo de nuevo en unos minutos.");
       const file = new File([blob], `${d.id}.mp4`, { type: "video/mp4" });
       const id = await createProject({ file, name: `Ejemplo · ${d.title}`, brief: d.brief, count: 3, mode: "clips", onStep: setMsg });
       setMsg("Encolando la detección…");
       const { error } = await supabase.rpc("request_detection", { p_project: id, p_key: crypto.randomUUID() });
-      if (!error) { const { data: ss } = await supabase.auth.getSession(); fetch("/api/wake", { method: "POST", headers: { Authorization: `Bearer ${ss.session?.access_token ?? ""}` } }).catch(() => {}); }
+      if (error) throw new Error(error.message);
+      { const { data: ss } = await supabase.auth.getSession(); fetch("/api/wake", { method: "POST", headers: { Authorization: `Bearer ${ss.session?.access_token ?? ""}` } }).catch(() => {}); }
       router.push(`/app/p/${id}`);
     } catch (x) { setMsg(x instanceof Error ? x.message : "No se pudo crear el ejemplo."); setBusy(null); }
   }
