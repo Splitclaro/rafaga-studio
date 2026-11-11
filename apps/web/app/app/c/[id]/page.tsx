@@ -27,6 +27,7 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
   const [srcDur, setSrcDur] = useState(0);
   const [off, setOff] = useState(0);   // desfase de la vista previa respecto al original (0 si se reproduce el original)
   const [cutMsg, setCutMsg] = useState<string | null>(null);
+  const [cutGap, setCutGap] = useState(0.8);
   const [trimMsg, setTrimMsg] = useState<string | null>(null);
   const srcWords = useRef<Word[] | null>(null);
   const [rfMode, setRfMode] = useState<"follow" | "group">("follow");
@@ -287,7 +288,8 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
       </div>
       <div className="mb-2 rounded-lg border border-[var(--border)] bg-[var(--card)] p-2.5 text-xs">
         <div className="flex flex-wrap items-center gap-2">
-          <button onClick={() => { const p = detectCuts(doc.words, clipLen); change((d) => ({ ...d, cuts: p.cuts.length ? p.cuts : undefined })); setCutMsg(p.cuts.length ? `Se quitarán ${p.silences} silencio${p.silences === 1 ? "" : "s"} y ${p.fillers} muletilla${p.fillers === 1 ? "" : "s"} (${p.removedSec.toFixed(1)} s). El clip durará ${keptLength(clipLen, p.cuts).toFixed(1)} s. Reprodúcelo para comprobarlo.` : "No hay silencios largos ni muletillas que quitar."); }} className="btn btn-ghost !min-h-8 !px-3 !py-1 !text-xs">Quitar silencios y muletillas</button>
+          <button onClick={() => { const p = detectCuts(doc.words, clipLen, { minGap: cutGap }); change((d) => ({ ...d, cuts: p.cuts.length ? p.cuts : undefined })); setCutMsg(p.cuts.length ? `Se quitarán ${p.silences} silencio${p.silences === 1 ? "" : "s"} y ${p.fillers} muletilla${p.fillers === 1 ? "" : "s"} (${p.removedSec.toFixed(1)} s). El clip durará ${keptLength(clipLen, p.cuts).toFixed(1)} s. Reprodúcelo para comprobarlo.` : "No hay silencios largos ni muletillas que quitar."); }} className="btn btn-ghost !min-h-8 !px-3 !py-1 !text-xs">Quitar silencios y muletillas</button>
+          <label className="flex items-center gap-1 text-[var(--muted)]">Pausas desde<select value={cutGap} onChange={(e) => setCutGap(Number(e.target.value))} className="rounded border border-[var(--border)] bg-[var(--card)] px-1 py-0.5"><option value={0.8}>0,8 s</option><option value={0.45}>0,45 s</option><option value={1.5}>1,5 s</option></select></label>
           {!!doc.cuts?.length && <button onClick={() => { change((d) => ({ ...d, cuts: undefined })); setCutMsg("Cortes restaurados: el clip vuelve a durar " + clipLen.toFixed(1) + " s."); }} className="text-[var(--accent)] underline">Restaurar</button>}
         </div>
         {(cutMsg || !!doc.cuts?.length) && <p role="status" className="mt-1.5 text-[var(--muted)]">{cutMsg ?? `${doc.cuts!.length} corte${doc.cuts!.length === 1 ? "" : "s"} aplicado${doc.cuts!.length === 1 ? "" : "s"}. El clip dura ${keptLength(clipLen, doc.cuts).toFixed(1)} s.`}</p>}
