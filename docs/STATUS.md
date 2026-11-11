@@ -266,3 +266,5 @@ Probar Lyric Studio con una canción real (canto + instrumental). Siguiente: Sty
 - Sin reconstruir contra su tablero: Editor, Lyric Studio, Brand kit, Calendario, Analítica, Automatizaciones, Procesamiento (funcionan con el estilo nuevo).
 - Brand kit (presentación «Mantén tus vídeos con tu marca» sobre las pestañas de Marca) y Lyric Studio (tarjetas del sistema, pasos numerados con acento) alineados con sus tableros y verificados en producción con capturas. Lyric no se ha reprobado con una canción real tras esta tanda.
 - Siguen sin reconstruir contra su tablero: Editor, Calendario, Analítica, Automatizaciones, Procesamiento.
+- Calendario (canales + aviso de flujo manual + accesos a Automatizaciones y Analítica), Analítica (aviso de métricas sociales + operación real) y Automatizaciones (cómo funciona + límite honesto: solo feeds RSS con vídeo adjunto ≤ 50 MB) alineados con sus tableros y verificados en producción con capturas.
+- Quedan Editor y Procesamiento sin rehacer contra su tablero.
