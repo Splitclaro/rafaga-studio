@@ -60,3 +60,11 @@ test("siguiente paso según estado y fuente vinculada (los cuatro casos del enca
   assert.equal(nextStep({ status: "upcoming" }, { original: false, signal: true }).action, "prepare_scheduled");
   assert.equal(nextStep({ status: "upcoming" }, { original: false, signal: false }).action, "connect_signal");
 });
+
+test("oEmbed reconoce un vídeo sin clave y traduce los errores", async () => {
+  const { ytOembed } = await import("./youtube.ts");
+  const ok = await ytOembed("dQw4w9WgXcQ", (async () => new Response(JSON.stringify({ title: "Mi charla", author_name: "Canal" }), { status: 200 })) as typeof fetch);
+  assert.equal(ok.title, "Mi charla"); assert.equal(ok.channel, "Canal"); assert.equal(ok.status, "video"); assert.match(ok.thumb, /dQw4w9WgXcQ/);
+  await assert.rejects(ytOembed("dQw4w9WgXcQ", (async () => new Response("Not Found", { status: 404 })) as typeof fetch), /no encuentra/);
+  await assert.rejects(ytOembed("dQw4w9WgXcQ", (async () => new Response("Unauthorized", { status: 401 })) as typeof fetch), /privado/);
+});

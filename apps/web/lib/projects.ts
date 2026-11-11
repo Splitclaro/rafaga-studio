@@ -1,14 +1,15 @@
 "use client";
-import { supabase, MAX_UPLOAD_BYTES } from "./supabase";
+import { supabase, MAX_UPLOAD_BYTES, MAX_VIDEO_BYTES, PART_BYTES } from "./supabase";
 
-export const OK_MIME = ["video/mp4", "video/quicktime", "video/webm"];
+export const OK_MIME = ["video/mp4", "video/quicktime", "video/webm", "video/x-m4v", "video/x-matroska"];
+export const VIDEO_EXT = /\.(mp4|mov|webm|m4v|mkv)$/i;
 export const STAGE: Record<string, string> = { queued: "En cola", validating: "Validando", extracting: "Extrayendo audio", transcribing: "Transcribiendo", selecting: "Seleccionando momentos", tracking: "Reencuadrando", rendering: "Renderizando", done: "Listo", failed: "Fallido", cancelled: "Cancelado" };
 export const MODE_LABEL: Record<string, string> = { clips: "Clips", captions: "Subtítulos", reframe: "Reencuadre", social: "Social", broll: "B-roll" };
 export type ProjectMode = "clips" | "captions" | "reframe" | "social" | "broll";
 
 export function validateFile(f: File): string | null {
-  if (!OK_MIME.includes(f.type) && !/\.(mp4|mov|webm)$/i.test(f.name)) return "Formato no válido. Usa MP4, MOV o WebM.";
-  if (f.size > MAX_UPLOAD_BYTES) return `El archivo pesa ${(f.size / 1048576).toFixed(0)} MB y el límite actual es ${MAX_UPLOAD_BYTES / 1048576} MB (plan gratuito de almacenamiento).`;
+  if (!OK_MIME.includes(f.type) && !VIDEO_EXT.test(f.name)) return "Formato no válido. Usa MP4, MOV, M4V, MKV o WebM.";
+  if (f.size > MAX_VIDEO_BYTES) return `El archivo pesa ${(f.size / 1073741824).toFixed(1)} GB y el máximo por vídeo es ${MAX_VIDEO_BYTES / 1073741824} GB.`;
   return null;
 }
 
@@ -50,6 +51,31 @@ export function makeThumb(f: File): Promise<Blob | null> {
 
 export type CreateArgs = { file: File; name: string; brief: string; briefData?: unknown; count: number; mode?: ProjectMode; maxSeconds?: number; rangeStart?: number; rangeEnd?: number; youtubeId?: string; onStep: (s: string) => void };
 
+const mb = (b: number) => (b / 1048576).toFixed(b > 104857600 ? 0 : 1);
+/** Sube el vídeo entero o, si supera el límite por archivo, en partes de 45 MB (3 a la vez, con reintentos). El worker las une. */
+export async function uploadVideo(path: string, f: File, mime: string, parts: number, onStep: (s: string) => void) {
+  if (!parts) {
+    onStep(`Subiendo vídeo (${mb(f.size)} MB)…`);
+    const { error } = await supabase.storage.from("originals").upload(path, f, { contentType: mime, upsert: false });
+    if (error) throw new Error(`Subida fallida: ${error.message}`);
+    return;
+  }
+  let sent = 0, next = 0;
+  const one = async (i: number) => {
+    const blob = f.slice(i * PART_BYTES, Math.min(f.size, (i + 1) * PART_BYTES));
+    for (let attempt = 1; ; attempt++) {
+      const { error } = await supabase.storage.from("originals").upload(`${path}.part${String(i).padStart(3, "0")}`, blob, { contentType: "application/octet-stream", upsert: false });
+      if (!error || /exists|duplicate/i.test(error.message)) break;   // reintento de una parte que ya llegó
+      if (attempt >= 3) throw new Error(`Subida fallida en la parte ${i + 1} de ${parts}: ${error.message}`);
+      await new Promise((r) => setTimeout(r, 1500 * attempt));
+    }
+    sent += blob.size;
+    onStep(`Subiendo vídeo: ${mb(sent)} de ${mb(f.size)} MB (${Math.round((sent / f.size) * 100)} %)…`);
+  };
+  onStep(`Subiendo vídeo: 0 de ${mb(f.size)} MB…`);
+  await Promise.all(Array.from({ length: Math.min(3, parts) }, async () => { while (next < parts) await one(next++); }));
+}
+
 /** Crea fuente → sube el vídeo (y su portada) → crea proyecto. Devuelve el id del proyecto. */
 export async function createProject(a: CreateArgs): Promise<string> {
   const { data: s } = await supabase.auth.getSession();
@@ -62,14 +88,13 @@ export async function createProject(a: CreateArgs): Promise<string> {
   const thumb = await makeThumb(a.file);
   const thumbPath = thumb ? `${ws.id}/${srcId}/thumb.jpg` : null;
   const mime = OK_MIME.includes(a.file.type) ? a.file.type : /\.mov$/i.test(a.file.name) ? "video/quicktime" : /\.webm$/i.test(a.file.name) ? "video/webm" : "video/mp4";
+  const parts = a.file.size > MAX_UPLOAD_BYTES ? Math.ceil(a.file.size / PART_BYTES) : 0;
   const { error: e2 } = await supabase.from("sources").insert({
-    id: srcId, workspace_id: ws.id, kind: "upload", mime, bytes: a.file.size, created_by: uid, thumb_path: thumbPath,
+    id: srcId, workspace_id: ws.id, kind: "upload", mime, bytes: a.file.size, created_by: uid, thumb_path: thumbPath, ...(parts ? { parts } : {}),
     range_start_ms: a.rangeStart != null && a.rangeEnd ? Math.round(a.rangeStart * 1000) : null, range_end_ms: a.rangeStart != null && a.rangeEnd ? Math.round(a.rangeEnd * 1000) : null,
   });
   if (e2) throw new Error(e2.message ?? "No se pudo crear la fuente.");
-  a.onStep("Subiendo vídeo…");
-  const { error: e3 } = await supabase.storage.from("originals").upload(`${ws.id}/${srcId}/original`, a.file, { contentType: mime, upsert: false });
-  if (e3) throw new Error(`Subida fallida: ${e3.message}`);
+  await uploadVideo(`${ws.id}/${srcId}/original`, a.file, mime, parts, a.onStep);
   if (thumb && thumbPath) await supabase.storage.from("originals").upload(thumbPath, thumb, { contentType: "image/jpeg", upsert: true });
   a.onStep("Creando proyecto…");
   const { data: prj, error: e4 } = await supabase.from("projects").insert({

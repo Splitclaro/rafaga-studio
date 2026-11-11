@@ -16,7 +16,6 @@ const NAV: NavItem[] = [
   { href: "/app/calendario", label: "Calendario", icon: "calendar", ready: true, group: "Revisar y entregar" },
   { href: "/app/conexiones", label: "Conexiones", icon: "link", ready: true, group: "Revisar y entregar" },
   { href: "/app/automatizaciones", label: "Automatizaciones", icon: "bolt", ready: true, group: "Automatizar" },
-  { href: "/app/en-vivo", label: "En vivo", icon: "live", ready: true, group: "Automatizar" },
   { href: "/app/analitica", label: "Analítica", icon: "chart", ready: true, group: "Automatizar" },
 ];
 const GROUPS = ["Crear", "Revisar y entregar", "Automatizar"];

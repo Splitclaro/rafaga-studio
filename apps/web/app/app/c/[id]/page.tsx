@@ -23,6 +23,7 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
   const [meta, setMeta] = useState<{ title: string; ws: string; projectId: string; sourceId: string; version: number; base: Composition; src: string } | null>(null);
   const [mode, setMode] = useState<"quick" | "advanced">("quick");
   const [srcDur, setSrcDur] = useState(0);
+  const [off, setOff] = useState(0);   // desfase de la vista previa respecto al original (0 si se reproduce el original)
   const [trimMsg, setTrimMsg] = useState<string | null>(null);
   const srcWords = useRef<Word[] | null>(null);
   const [rfMode, setRfMode] = useState<"follow" | "group">("follow");
@@ -72,13 +73,17 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
 
   useEffect(() => {
     (async () => {
-      const { data: c, error } = await supabase.from("clips").select("id,title,workspace_id,project_id,current_version").eq("id", id).single();
+      const { data: c, error } = await supabase.from("clips").select("id,title,workspace_id,project_id,current_version,preview_path,preview_offset").eq("id", id).single();
       if (error || !c) return setErr("Clip no encontrado.");
       const { data: v } = await supabase.from("clip_versions").select("composition").eq("clip_id", id).eq("version", c.current_version).single();
       const { data: p } = await supabase.from("projects").select("source_id").eq("id", c.project_id).single();
       if (!v || !p) return setErr("No se pudo cargar la versión del clip.");
       const comp = v.composition as Composition & { preset?: string };
-      const signed = await supabase.storage.from("originals").createSignedUrl(`${c.workspace_id}/${p.source_id}/original`, 3600);
+      // Original por partes: el navegador reproduce la vista previa (tramo del clip ± 90 s) que genera el worker, con su desfase.
+      const { data: sr } = await supabase.from("sources").select("parts").eq("id", p.source_id).single();
+      const usePreview = !!sr?.parts && !!c.preview_path;
+      const signed = usePreview ? await supabase.storage.from("proxies").createSignedUrl(c.preview_path!, 3600) : await supabase.storage.from("originals").createSignedUrl(`${c.workspace_id}/${p.source_id}/original`, 3600);
+      setOff(usePreview ? Number(c.preview_offset ?? 0) : 0);
       versionRef.current = c.current_version;
       setMeta({ title: c.title, ws: c.workspace_id, projectId: c.project_id, sourceId: p.source_id, version: c.current_version, base: comp, src: signed.data?.signedUrl ?? "" });
       setDoc({ reframe: comp.reframe, startSec: comp.startSec, endSec: comp.endSec, words: comp.words, style: comp.style, ratio: comp.ratio, burn: comp.burnSubtitles, preset: comp.preset ?? "Impacto", layout: comp.layout === "fill" || comp.layout === "fit" ? comp.layout : "blur", cropX: comp.crop?.x ?? 0.5, broll: comp.broll ?? [] });
@@ -101,7 +106,7 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
   useEffect(() => {
     const v = fg.current; if (!v || !meta) return;
     const onTime = () => {
-      const rel = v.currentTime - clipStart;
+      const rel = v.currentTime + off - clipStart;
       if (rel >= clipLen) { v.pause(); setPlaying(false); seek(0); return; }
       setT(Math.max(0, rel));
       if (bg.current && Math.abs(bg.current.currentTime - v.currentTime) > 0.25) bg.current.currentTime = v.currentTime;
@@ -110,12 +115,12 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
     let raf = 0; const loop = () => { onTime(); raf = requestAnimationFrame(loop); };
     if (playing) raf = requestAnimationFrame(loop);
     return () => { v.removeEventListener("timeupdate", onTime); cancelAnimationFrame(raf); };
-  }, [meta, playing, clipLen, clipStart]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [meta, playing, clipLen, clipStart, off]); // eslint-disable-line react-hooks/exhaustive-deps
   function seek(rel: number) {
     if (!meta) return;
     const abs = clipStart + Math.max(0, Math.min(clipLen, rel));
-    if (fg.current) fg.current.currentTime = abs;
-    if (bg.current) bg.current.currentTime = abs;
+    if (fg.current) fg.current.currentTime = abs - off;
+    if (bg.current) bg.current.currentTime = abs - off;
     setT(Math.max(0, Math.min(clipLen, rel)));
   }
   function togglePlay() {
@@ -167,7 +172,7 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
     if (doc.reframe) setTrimMsg((m) => `${m ?? ""} Se quitó el seguimiento de caras: vuelve a analizar el tramo nuevo.`);
     setSel(null);
     const rel = Math.min(Math.max(0, keepAbs - r.startSec), r.endSec - r.startSec);
-    if (fg.current) fg.current.currentTime = r.startSec + rel; if (bg.current) bg.current.currentTime = r.startSec + rel; setT(rel);
+    if (fg.current) fg.current.currentTime = r.startSec + rel - off; if (bg.current) bg.current.currentTime = r.startSec + rel - off; setT(rel);
   }
   const setModeP = (m: "quick" | "advanced") => { setMode(m); try { localStorage.setItem("rafaga.editor.mode", m); } catch {} if (m === "quick" && ["social", "broll"].includes(tab)) setTab("estilo"); };
 
@@ -333,7 +338,7 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
         <section aria-label="Vista previa" className="flex flex-col items-center gap-3">
           <div ref={stage} className="relative w-full overflow-hidden rounded-xl bg-black" style={doc.ratio === "16:9" ? { aspectRatio: `${R.width}/${R.height}`, width: "100%", maxWidth: 1000 } : { aspectRatio: `${R.width}/${R.height}`, height: "min(calc(100vh - 330px), 780px)", minHeight: 320, width: "auto", maxWidth: "100%" }}>
             <video ref={bg} src={meta.src} muted playsInline preload="auto" className={`absolute inset-0 h-full w-full scale-110 object-cover blur-2xl ${doc.layout === "blur" ? "" : "hidden"}`} aria-hidden />
-            <video ref={fg} src={meta.src} playsInline preload="auto" className={`absolute inset-0 h-full w-full ${doc.layout === "fill" ? "object-cover" : "object-contain"}`} style={doc.layout === "fill" ? { objectPosition: `${(doc.reframe?.kf?.length ? xAt(doc.reframe.kf, t, doc.cropX) : doc.cropX) * 100}% 50%` } : undefined} onLoadedMetadata={() => { setSrcDur(fg.current?.duration ?? 0); seek(0); }} />
+            <video ref={fg} src={meta.src} playsInline preload="auto" className={`absolute inset-0 h-full w-full ${doc.layout === "fill" ? "object-cover" : "object-contain"}`} style={doc.layout === "fill" ? { objectPosition: `${(doc.reframe?.kf?.length ? xAt(doc.reframe.kf, t, doc.cropX) : doc.cropX) * 100}% 50%` } : undefined} onLoadedMetadata={() => { setSrcDur((fg.current?.duration ?? 0) + off); seek(0); }} />
             {doc.broll.map((b, i) => t >= b.start && t < b.start + b.dur && brollUrls[b.path] ? (b.kind === "photo"
               ? <img key={i} src={brollUrls[b.path]} alt="" className="absolute inset-0 h-full w-full object-cover" />
               : <video key={i} src={brollUrls[b.path]} muted autoPlay loop playsInline className="absolute inset-0 h-full w-full object-cover" />) : null)}
@@ -352,7 +357,7 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
             <input aria-label="Posición en el clip" type="range" min={0} max={clipLen} step={1 / 30} value={t} onChange={(e) => seek(Number(e.target.value))} className="w-full" />
             <span className="tnum w-28 shrink-0 whitespace-nowrap text-right text-sm">{t.toFixed(2)} / {clipLen.toFixed(1)} s</span>
           </div>
-          <Timeline src={meta.src} srcDuration={srcDur} start={doc.startSec} end={doc.endSec} t={t} words={doc.words} broll={doc.broll} tracks={!quick} onTrim={applyTrim} onSeek={seek} onSelectWord={(i) => setSel(i)} />
+          <Timeline src={meta.src} srcOffset={off} srcDuration={srcDur} start={doc.startSec} end={doc.endSec} t={t} words={doc.words} broll={doc.broll} tracks={!quick} onTrim={applyTrim} onSeek={seek} onSelectWord={(i) => setSel(i)} />
           {trimMsg && <p role="status" aria-live="polite" className="w-full max-w-[860px] text-xs text-[var(--muted)]">{trimMsg}</p>}
         </section>
 

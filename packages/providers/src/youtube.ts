@@ -101,3 +101,16 @@ export function nextStep(item: Pick<YtItem, "status">, linked: { original: boole
     : { action: "connect_signal", label: "Conectar señal del directo", why: "Para cortar un directo hace falta su señal: pega la URL HLS de tu emisión o usa la segunda salida del codificador." };
   return { action: linked.signal ? "prepare_scheduled" : "connect_signal", label: linked.signal ? "Preparar directo" : "Conectar señal del directo", why: "El directo aún no ha empezado: prepara el proyecto y el clipping arrancará cuando llegue la señal." };
 }
+
+/** Reconocer un vídeo por enlace sin clave de API: oEmbed público de YouTube (título, canal y portada; sin estado de directo ni duración). */
+export async function ytOembed(id: string, fetchImpl?: Fetch): Promise<YtItem> {
+  const url = `https://www.youtube.com/watch?v=${id}`;
+  let r: Response;
+  try { r = await (fetchImpl ?? fetch)(`https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(url)}`, { headers: { Accept: "application/json" } }); }
+  catch { throw new YtError("service", "No se pudo contactar con YouTube."); }
+  if (r.status === 401 || r.status === 403) throw new YtError("not_found", "El vídeo es privado o no permite insertarse: YouTube no da sus datos.");
+  if (r.status === 404 || r.status === 400) throw new YtError("not_found", "YouTube no encuentra ese vídeo. Revisa el enlace.");
+  if (!r.ok) throw new YtError("service", `YouTube respondió ${r.status}.`);
+  const j = (await r.json()) as { title?: string; author_name?: string; author_url?: string; thumbnail_url?: string };
+  return { id, title: j.title ?? "(sin título)", channel: j.author_name ?? "", channelId: "", thumb: `https://i.ytimg.com/vi/${id}/mqdefault.jpg`, status: "video", url, wasLive: false };
+}

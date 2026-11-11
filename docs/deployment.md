@@ -26,7 +26,7 @@
 1. `pnpm test` en la raíz (213+ pruebas; las de OpenCV se omiten sin `opencv-python-headless==4.10.0.84`).
 2. `cd apps/web && pnpm typecheck && pnpm build`.
 3. Si hay migración nueva: aplicarla en el editor SQL de Supabase **antes** del push (la web desplegada puede llamar a RPC nuevas), verificar privilegios con una consulta (`information_schema.role_table_grants`, `has_function_privilege`) y anotarla en `docs/STATUS.md`.
-4. Push a `main` → Vercel despliega. Comprobar con `curl -I https://rafaga-studio.vercel.app/login` y, para rutas nuevas, que respondan `401` sin sesión (`/api/youtube/search`, `/api/oauth/start`).
+4. Push a `main` → Vercel despliega. Comprobar con `curl -I https://rafaga-studio.vercel.app/login` y, para rutas nuevas, que respondan `401` sin sesión (`/api/youtube/video`, `/api/oauth/start`).
 5. Autopruebas en la nube cuando toque: `gh workflow run worker.yml -f mode=selftest|lyrics-selftest|looks-selftest|reframe-selftest|perf-selftest`.
 
 ## Vuelta atrás

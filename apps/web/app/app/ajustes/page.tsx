@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase, MAX_UPLOAD_BYTES } from "../../../lib/supabase";
+import { supabase, MAX_UPLOAD_BYTES, MAX_VIDEO_BYTES } from "../../../lib/supabase";
 import AiUsage from "../../../components/AiUsage";
 
 export default function Ajustes() {
@@ -20,7 +20,7 @@ export default function Ajustes() {
       <section className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 text-sm">
         <h2 className="font-medium">Límites actuales de la beta</h2>
         <ul className="mt-2 list-disc space-y-1 pl-5 text-[var(--muted)]">
-          <li>Tamaño máximo por vídeo: {MAX_UPLOAD_BYTES / 1048576} MB (plan gratuito de almacenamiento).</li>
+          <li>Tamaño máximo por vídeo: {MAX_VIDEO_BYTES / 1073741824} GB (se sube por partes). Canciones, fotos y B-roll: {MAX_UPLOAD_BYTES / 1048576} MB por archivo.</li>
           <li>Formatos: MP4, MOV y WebM. Clips: de 3 a 10 por proyecto.</li>
           <li>El procesamiento corre en un worker que revisa la cola cada pocos minutos.</li>
         </ul>

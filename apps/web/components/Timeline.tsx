@@ -10,14 +10,14 @@ const clock = (x: number) => `${Math.floor(x / 60)}:${String(Math.floor(x % 60))
  * El rango visible se fija al abrir (clip ± margen) para que las miniaturas no cambien mientras se arrastra.
  * Con `tracks` muestra además palabras y B-roll en su posición.
  */
-export default function Timeline({ src, srcDuration, start, end, t, words, broll, tracks, onTrim, onSeek, onSelectWord }: {
-  src: string; srcDuration: number; start: number; end: number; t: number; words: Word[]; broll: BrollItem[]; tracks: boolean;
+export default function Timeline({ src, srcOffset = 0, srcDuration, start, end, t, words, broll, tracks, onTrim, onSeek, onSelectWord }: {
+  src: string; srcOffset?: number; srcDuration: number; start: number; end: number; t: number; words: Word[]; broll: BrollItem[]; tracks: boolean;
   onTrim: (start: number, end: number) => void; onSeek: (rel: number) => void; onSelectWord?: (i: number) => void;
 }) {
   const win = useRef<{ a: number; b: number } | null>(null);
   if (!win.current && srcDuration > 0) {
     const len = end - start, pad = Math.max(8, len * 0.5);
-    win.current = { a: Math.max(0, start - pad), b: Math.min(srcDuration, end + pad) };
+    win.current = { a: Math.max(srcOffset, start - pad), b: Math.min(srcDuration, end + pad) };
   }
   const W = win.current;
   const box = useRef<HTMLDivElement>(null);
@@ -35,7 +35,7 @@ export default function Timeline({ src, srcDuration, start, end, t, words, broll
       await once("loadedmetadata");
       for (let i = 0; i < FRAMES && !dead; i++) {
         const at = W.a + ((i + 0.5) * (W.b - W.a)) / FRAMES;
-        const s = once("seeked"); v.currentTime = at; await s;
+        const s = once("seeked"); v.currentTime = Math.max(0, at - srcOffset); await s;
         const c = cvs.current[i]; if (c && v.videoWidth) { const h = c.height, w = Math.round((v.videoWidth / v.videoHeight) * h); c.width = 160; const x = c.getContext("2d"); x?.drawImage(v, (160 - w) / 2, 0, w, h); }
         if (!dead) setDone(i + 1);
       }

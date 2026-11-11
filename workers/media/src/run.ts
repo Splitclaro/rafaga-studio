@@ -2,7 +2,7 @@
 // Secretos requeridos (variables de entorno): SUPABASE_URL, SUPABASE_SECRET_KEY, DEEPGRAM_API_KEY, ANTHROPIC_API_KEY.
 import { createClient } from "@supabase/supabase-js";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync, readFileSync, rmSync, existsSync, mkdirSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync, rmSync, existsSync, mkdirSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildAss, buildComposition, ffmpegArgs, styleForRatio, renderFamily, groupsFrom, toSRT, toVTT, toTranscript, sanitizeLogo, type BrandLogo, validateStyle, SYSTEM_FONT, escapeFilterPath, PRESETS, RATIO_SIZE, type Composition, type Ratio, type Word } from "@rafaga/composition";
@@ -14,6 +14,7 @@ import { recordUsage, enforceQuota, loadLimits, loadUsage } from "./ledger.ts";
 import { scanFaces, reframePath } from "./reframe.ts";
 import { alignLyrics, lyricsFromAsr, parseLyrics, planVariants, lyricFfmpegArgs, sequenceFor, DEFAULT_BG, LOOKS, resolveLook, varyLook, layoutLyrics, layoutToAss, planShots, planShotsOnBeats, detectBeats, beatsReliable, type BeatResult, lookFfmpegArgs, canvasSize, LOOK_ENGINE_VERSION, type BgItem, type BgSettings, type TimedWord, type ShotItem, type DeepPartial, type LyricLook, planMore, restoreShots, swapShots, type MoreLock, type SavedShot, type VariantSpec } from "@rafaga/lyrics";
 import { extractThumb } from "./thumb.ts";
+import { fetchOriginal, previewArgs } from "./source.ts";
 import { ZipBuilder } from "./zip.ts";
 import { interpretBrief, refineBounds, padBounds, briefHash, RUBRIC_VERSION, validateCandidates, windows, transcriptText, lexicalCandidates, LEXICAL_VERSION, suggestTitle, normalizeBrief, composeBrief, lexicalBrief, BRIEF_VERSION, type TWord, type RawCandidate } from "@rafaga/selection";
 
@@ -57,15 +58,26 @@ type Job = { id: string; kind: string; workspace_id: string; project_id: string 
 const setStatus = (id: string, status: string, extra: Record<string, unknown> = {}) =>
   sb.from("jobs").update({ status, heartbeat_at: new Date().toISOString(), updated_at: new Date().toISOString(), ...extra }).eq("id", id);
 
+/** Vista previa del editor para originales por partes (ver source.ts). Un fallo aquí no rompe el clip. */
+async function savePreview(ws: string, clipId: string, inp: string, start: number, end: number, dir: string, height?: number) {
+  try {
+    const dur = Number(JSON.parse(sh("ffprobe", ["-v", "error", "-print_format", "json", "-show_format", inp])).format.duration);
+    const out = join(dir, `pv-${clipId}.mp4`); const { args, offset } = previewArgs(inp, out, start, end, dur, { height });
+    sh("ffmpeg", args);
+    const path = `${ws}/${clipId}/preview.mp4`;
+    const up = await sb.storage.from("proxies").upload(path, readFileSync(out), { contentType: "video/mp4", upsert: true });
+    if (up.error) throw new Error(up.error.message);
+    await sb.from("clips").update({ preview_path: path, preview_offset: offset }).eq("id", clipId);
+  } catch (e) { console.warn("vista previa", clipId, (e as Error).message); }
+}
+
 /** Modos de herramienta: el vídeo (o su tramo) entero como un único clip editable. */
 type ProjectRow = { brief_data?: unknown; id: string; name: string; workspace_id: string; source_id: string; project_brief: string | null; max_seconds: number; mode: string };
-async function processWhole(job: Job, project: ProjectRow, src: { id: string; range_start_ms: number | null; range_end_ms: number | null }, dir: string, path: string, words: TWord[], t0: number, m: Record<string, number | string>, transcriptId?: string) {
+async function processWhole(job: Job, project: ProjectRow, src: { id: string; range_start_ms: number | null; range_end_ms: number | null; parts?: number }, dir: string, path: string, words: TWord[], t0: number, m: Record<string, number | string>, transcriptId?: string) {
   await setStatus(job.id, "rendering");
   const inp = join(dir, "in");
   if (!existsSync(inp)) {
-    const dl = await sb.storage.from("originals").download(path);
-    if (dl.error || !dl.data) throw new Error(`descarga: ${dl.error?.message}`);
-    writeFileSync(inp, Buffer.from(await dl.data.arrayBuffer()));
+    await fetchOriginal(sb, path, inp);
   }
   const full = Number(JSON.parse(sh("ffprobe", ["-v", "error", "-print_format", "json", "-show_format", inp])).format.duration);
   const startSec = src.range_start_ms != null && src.range_end_ms ? src.range_start_ms / 1000 : 0;
@@ -93,6 +105,7 @@ async function processWhole(job: Job, project: ProjectRow, src: { id: string; ra
   if (up.error) throw new Error(`subida render: ${up.error.message}`);
   await sb.from("renders").insert({ workspace_id: project.workspace_id, clip_id: clip.id, clip_version: 1, ratio: "9:16", burn_subtitles: comp.burnSubtitles, spec_sha256: briefHash(JSON.stringify(comp)), storage_path: rpath, status: "ready", probe: { duration: probe.format.duration, size: probe.format.size } });
   await saveThumb(project.workspace_id, clip.id, out, dir);
+  if (src.parts) await savePreview(project.workspace_id, clip.id, inp, startSec, endSec, dir, 360);
   await sb.from("generations").update({ status: "done" }).eq("id", gen.id);
   m.render_ms = Date.now() - t1; m.first_clip_ms = Date.now() - t0; m.all_clips_ms = Date.now() - t0; m.mode = project.mode;
   await setStatus(job.id, "done", { generation_id: gen.id, metrics: m });
@@ -106,7 +119,7 @@ async function processJob(job: Job) {
   try {
     const project = ok(await sb.from("projects").select("id,name,workspace_id,source_id,project_brief,brief_data,language,clip_count,target_seconds,max_seconds,deleted_at,mode").eq("id", job.project_id!).single(), "proyecto");
     if (project.deleted_at) return void (await setStatus(job.id, "cancelled"));
-    const src = ok(await sb.from("sources").select("id,mime,range_start_ms,range_end_ms").eq("id", project.source_id).single(), "fuente");
+    const src = ok(await sb.from("sources").select("id,mime,range_start_ms,range_end_ms,kind,thumb_path,parts").eq("id", project.source_id).single(), "fuente");
     const path = `${project.workspace_id}/${src.id}/original`;
 
     if (project.mode === "reframe") return await processWhole(job, project, src, dir, path, [], t0, m);
@@ -115,14 +128,16 @@ async function processJob(job: Job) {
     let tr = (await sb.from("transcripts").select("id,words,language").eq("source_id", src.id).order("created_at", { ascending: false }).limit(1)).data?.[0];
     if (!tr) {
       await setStatus(job.id, "extracting");
-      const dl = await sb.storage.from("originals").download(path);
-      if (dl.error || !dl.data) throw new Error(`descarga: ${dl.error?.message}`);
-      const inp = join(dir, "in"); writeFileSync(inp, Buffer.from(await dl.data.arrayBuffer()));
+      const inp = join(dir, "in"); await fetchOriginal(sb, path, inp);
       const probe = JSON.parse(sh("ffprobe", ["-v", "error", "-print_format", "json", "-show_streams", "-show_format", inp]));
       const hasAudio = probe.streams.some((s: { codec_type: string }) => s.codec_type === "audio");
       const durationMs = Math.round(Number(probe.format.duration) * 1000);
       const vs = probe.streams.find((s: { codec_type: string }) => s.codec_type === "video");
       await sb.from("sources").update({ status: hasAudio ? "validated" : "failed", duration_ms: durationMs, width: vs?.width, height: vs?.height, has_audio: hasAudio }).eq("id", src.id);
+      if (!src.thumb_path) {   // enlace de YouTube: no hay portada subida desde el navegador
+        try { const jpg = join(dir, "src.jpg"); extractThumb(inp, jpg); const tp = `${project.workspace_id}/${src.id}/thumb.jpg`;
+          if (!(await sb.storage.from("originals").upload(tp, readFileSync(jpg), { contentType: "image/jpeg", upsert: true })).error) await sb.from("sources").update({ thumb_path: tp, bytes: statSync(inp).size }).eq("id", src.id); } catch { /* portada opcional */ }
+      }
       if (!hasAudio) throw Object.assign(new Error("El vídeo no tiene pista de audio: no se puede seleccionar por voz."), { permanent: true });
       if (durationMs < 15000) throw Object.assign(new Error(`El vídeo dura ${(durationMs / 1000).toFixed(1)} s. Para buscar momentos hace falta al menos 15 s de contenido hablado.`), { permanent: true, code: "too_short" });
       const audio = join(dir, "a.ogg");
@@ -198,7 +213,7 @@ async function processJob(job: Job) {
     }
     if (musicMode) {   // Música / DJ: momentos por subidas de energía con su preparación (estimación a partir del volumen, no de la voz)
       const inpM = join(dir, "in");
-      if (!existsSync(inpM)) { const dm = await sb.storage.from("originals").download(path); if (dm.error || !dm.data) throw new Error(`descarga: ${dm.error?.message}`); writeFileSync(inpM, Buffer.from(await dm.data.arrayBuffer())); }
+      await fetchOriginal(sb, path, inpM);
       const off = rs ?? 0;
       const pcmR = spawnSync("ffmpeg", ["-v", "error", ...(rs != null ? ["-ss", String(rs)] : []), ...(re != null ? ["-t", String(re - (rs ?? 0))] : []), "-i", inpM, "-vn", "-ac", "1", "-ar", "4000", "-f", "f32le", "-"], { maxBuffer: 1 << 30 });
       if (pcmR.status !== 0) throw new Error("No se pudo analizar el audio para buscar momentos musicales.");
@@ -217,9 +232,7 @@ async function processJob(job: Job) {
     await setStatus(job.id, "rendering");
     const inp = join(dir, "in");
     if (!existsSync(inp)) {
-      const d2 = await sb.storage.from("originals").download(path);
-      if (d2.error || !d2.data) throw new Error(`descarga: ${d2.error?.message}`);
-      writeFileSync(inp, Buffer.from(await d2.data.arrayBuffer()));
+      await fetchOriginal(sb, path, inp);
     }
     let firstClipMs = 0;
     const renderOne = async (i: number, c: (typeof accepted)[number]) => {
@@ -237,6 +250,7 @@ async function processJob(job: Job) {
       if (up.error) throw new Error(`subida render: ${up.error.message}`);
       await sb.from("renders").insert({ workspace_id: project.workspace_id, clip_id: clip.id, clip_version: 1, ratio: "9:16", burn_subtitles: true, spec_sha256: briefHash(JSON.stringify(comp)), storage_path: rpath, status: "ready", probe: { duration: probe.format.duration, size: probe.format.size, streams: probe.streams.map((s: { codec_name: string; width?: number; height?: number }) => [s.codec_name, s.width, s.height]) } });
       await saveThumb(project.workspace_id, clip.id, out, dir);
+      if (src.parts > 0) await savePreview(project.workspace_id, clip.id, inp, c.startSec, c.endSec, dir);
       m[`render_ms_${i}`] = Date.now() - t3;
       if (i === 0) firstClipMs = Date.now() - t0;
         };
@@ -322,10 +336,8 @@ async function processRender(job: Job) {
     const cv = ok(await sb.from("clip_versions").select("composition").eq("clip_id", clip.id).eq("version", version).single(), "versión");
     const comp = { ...(cv.composition as Composition), ratio, burnSubtitles: burn !== false };
     await setStatus(job.id, "rendering");
-    const dl = await sb.storage.from("originals").download(`${clip.workspace_id}/${project.source_id}/original`);
-    if (dl.error || !dl.data) throw new Error(`descarga: ${dl.error?.message}`);
     const inp = join(dir, "in"), ass = join(dir, "c.ass"), out = join(dir, "o.mp4");
-    writeFileSync(inp, Buffer.from(await dl.data.arrayBuffer()));
+    await fetchOriginal(sb, `${clip.workspace_id}/${project.source_id}/original`, inp);
     const fontsDir = await fontsFor(clip.workspace_id, comp.style.fontName, dir);
     writeFileSync(ass, buildAss(comp.words, { ...styleForRatio(comp.style, ratio), fontName: renderFamily(comp.style.fontName) }, RATIO_SIZE[ratio]));
     const t1 = Date.now();
@@ -390,9 +402,7 @@ async function processReframe(job: Job) {
     const clip = ok(await sb.from("clips").select("project_id").eq("id", tr.clip_id).single(), "clip");
     const project = ok(await sb.from("projects").select("source_id,deleted_at").eq("id", clip.project_id).single(), "proyecto");
     if (project.deleted_at) return void (await setStatus(job.id, "cancelled"));
-    const dl = await sb.storage.from("originals").download(`${tr.workspace_id}/${project.source_id}/original`);
-    if (dl.error || !dl.data) throw new Error(`descarga: ${dl.error?.message}`);
-    const inp = join(dir, "in"); writeFileSync(inp, Buffer.from(await dl.data.arrayBuffer()));
+    const inp = join(dir, "in"); await fetchOriginal(sb, `${tr.workspace_id}/${project.source_id}/original`, inp);
     const len = Number(tr.source_end) - Number(tr.source_start);
     const t1 = Date.now();
     const scan = scanFaces(inp, Number(tr.source_start), len);
