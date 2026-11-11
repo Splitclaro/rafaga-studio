@@ -203,8 +203,14 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
             <div className="mono text-sm text-[var(--muted)]">{elapsed >= 60 ? `${Math.floor(elapsed / 60)} min ${elapsed % 60} s` : `${elapsed} s`}{job.status === "done" ? ` · ${clips.length} clip${clips.length === 1 ? "" : "s"}` : ""}</div>
           </div>
           {job.status !== "failed" && job.status !== "cancelled" && (
-            <ol className="mt-4 grid grid-cols-5 gap-1.5" aria-label="Etapas">{(["En cola", "Audio", "Transcripción", "Momentos", "Clips"] as const).map((l, i) => (
-              <li key={l}><div className={`h-1.5 rounded-full ${i < phaseIdx || job.status === "done" ? "bg-[var(--accent)]" : i === phaseIdx ? "skeleton !rounded-full" : "bg-[#E5E5E5]"}`} /><span className={`mt-1 block text-xs ${i <= phaseIdx || job.status === "done" ? "" : "text-[var(--muted)]"}`}>{l}</span></li>))}</ol>)}
+            <ol className="mt-4 divide-y hairline rounded-xl border hairline" aria-label="Fases del proceso">{(["queued", "validating", "extracting", "transcribing", "selecting", "tracking", "rendering"] as const).map((k, i, all) => {
+              const cur = job.status === "done" ? all.length : Math.max(0, all.indexOf(job.status as (typeof all)[number]));
+              const st = i < cur ? "done" : i === cur ? "now" : "todo";
+              return (<li key={k} className={`flex items-center gap-3 px-4 py-2.5 text-sm ${st === "now" ? "bg-[var(--accent-soft)]" : ""}`}>
+                <span aria-hidden className={`grid h-5 w-5 shrink-0 place-items-center rounded-full text-[11px] ${st === "done" ? "bg-[#E6F4EC] text-[#0F7B4F]" : st === "now" ? "bg-[var(--accent)] text-white" : "border hairline text-transparent"}`}>{st === "done" ? "✓" : st === "now" ? "•" : "·"}</span>
+                <span className={st === "todo" ? "text-[var(--muted)]" : "font-medium"}>{STAGE[k]}</span>
+                <span className={`ml-auto text-xs font-medium ${st === "done" ? "text-[#0F7B4F]" : st === "now" ? "text-[var(--accent-ink)]" : "text-[var(--muted)]"}`}>{st === "done" ? "Completada" : st === "now" ? "En curso" : "Pendiente"}</span></li>);
+            })}</ol>)}
           {job.status === "queued" && <p className="mt-3 text-sm text-[var(--muted)]">{wake === "warm" ? "El worker ya está activo: lo recogerá en segundos." : wake === "woken" ? "Arrancando el worker (1–2 min la primera vez)." : "El worker arranca según el programador de GitHub, que puede tardar varios minutos."} Llevas {waiting} min en cola.{waiting >= 15 && " Si sigue así, el worker no está activo."}</p>}
           {job.error_message && <p role="alert" className="mt-3 text-sm">⚠ {job.error_message}</p>}
           {job.status === "failed" && (job.error_code === "no_speech" || job.error_code === "no_speech_range" || /no se detectó voz|no hay habla/i.test(job.error_message ?? "")) && (
