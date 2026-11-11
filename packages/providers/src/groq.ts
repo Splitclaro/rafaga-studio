@@ -4,9 +4,10 @@ import type { TWord, RawCandidate } from "@rafaga/selection";
 import { CANDIDATE_TOOL, SYSTEM_PROMPT } from "@rafaga/selection";
 
 export interface AiConfig { key: string; baseUrl: string; sttModel: string; sttFallbackModel: string; editorialModel: string; visionModel: string }
-export const AI_MODEL_DEFAULTS = { sttModel: "whisper-large-v3-turbo", sttFallbackModel: "whisper-large-v3", editorialModel: "llama-3.3-70b-versatile", visionModel: "meta-llama/llama-4-scout-17b-16e-instruct" } as const;
+export const AI_MODEL_DEFAULTS = { sttModel: "whisper-large-v3-turbo", sttFallbackModel: "whisper-large-v3", editorialModel: "openai/gpt-oss-120b", visionModel: "meta-llama/llama-4-scout-17b-16e-instruct" } as const;
 export function aiConfig(env: Record<string, string | undefined>): AiConfig {
-  return { key: env.GROQ_API_KEY || "", baseUrl: env.GROQ_BASE_URL || "https://api.groq.com/openai/v1",   // «||»: una variable vacía del workflow cuenta como no definida
+  return { key: /^\s*PEGAR/i.test(env.GROQ_API_KEY ?? "") ? "" : (env.GROQ_API_KEY || "").trim(),   // un valor provisional («PEGAR_AQUI…») no cuenta como clave
+    baseUrl: env.GROQ_BASE_URL || "https://api.groq.com/openai/v1",   // «||»: una variable vacía del workflow cuenta como no definida
     sttModel: env.GROQ_STT_MODEL || AI_MODEL_DEFAULTS.sttModel, sttFallbackModel: env.GROQ_STT_FALLBACK_MODEL || AI_MODEL_DEFAULTS.sttFallbackModel,
     editorialModel: env.GROQ_EDITORIAL_MODEL || AI_MODEL_DEFAULTS.editorialModel, visionModel: env.GROQ_VISION_MODEL || AI_MODEL_DEFAULTS.visionModel };
 }

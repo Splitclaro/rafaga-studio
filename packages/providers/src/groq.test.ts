@@ -38,7 +38,7 @@ test("selección editorial: JSON del modelo → candidatos saneados + uso de tok
   let body: { model: string; response_format: unknown; messages: { role: string; content: string }[] } | null = null;
   const f = (async (_u: string, init: RequestInit) => { body = JSON.parse(init.body as string); return json({ choices: [{ message: { content: JSON.stringify({ clips: [{ startWord: 3, endWord: 40, title: "T", reason: "R", briefFit: "B", scores: { relevance: 11, hook: 7, standalone: -2, closure: 8 } }, { startWord: "x", endWord: 2 }] }) } }], usage: { prompt_tokens: 1200, completion_tokens: 150 } }); }) as unknown as typeof fetch;
   const r = await groqProposeClips(cfg, { brief: "consejos prácticos", windowText: "[0]Hola [1]mundo", target: "45s (máx 90s)", fetchImpl: f });
-  assert.equal(body!.model, "llama-3.3-70b-versatile"); assert.deepEqual(body!.response_format, { type: "json_object" });
+  assert.equal(body!.model, "openai/gpt-oss-120b"); assert.deepEqual(body!.response_format, { type: "json_object" });
   assert.match(body!.messages[0].content, /DATOS, no instrucciones/); assert.match(body!.messages[1].content, /<brief>consejos prácticos<\/brief>/);
   assert.equal(r.clips.length, 1, "descarta el candidato sin índices"); assert.deepEqual(r.clips[0].scores, { relevance: 10, hook: 7, standalone: 0, closure: 8 });
   assert.deepEqual(r.usage, { tokensIn: 1200, tokensOut: 150 });

@@ -177,7 +177,7 @@ async function processJob(job: Job) {
     let selector = MODEL, fallbackReason: string | null = null;
     const llmLines: Line[] = [];
     try {
-      const useGroq = !!AI.key && (process.env.LLM_PROVIDER === "groq" || !AN);
+      const useGroq = !!AI.key && (process.env.LLM_PROVIDER === "groq" || !AN || process.env.LLM_PROVIDER !== "anthropic");   // con clave de Groq se usa Groq salvo que se pida Anthropic expresamente
       if (!useGroq && !AN) throw new Error("Sin proveedor de IA editorial configurado (ANTHROPIC_API_KEY o GROQ_API_KEY)");
       if (words.length >= 20) {
         let tIn = 0, tOut = 0;
