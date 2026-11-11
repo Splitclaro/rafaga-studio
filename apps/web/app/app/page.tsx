@@ -32,7 +32,6 @@ export default function Dashboard() {
   const fileInput = useRef<HTMLInputElement>(null);
   const audioInput = useRef<HTMLInputElement>(null);
   const [tab, setTab] = useState<Tab>("clips");
-  const [origin, setOrigin] = useState<"file" | "youtube">("file");
   const [yt, setYt] = useState<YtItem | null>(null);
   const [ytProject, setYtProject] = useState<string | null>(null);   // proyecto con original autorizado ya vinculado a este vídeo
   const [mode, setMode] = useState<ProjectMode>("clips");
@@ -139,20 +138,20 @@ export default function Dashboard() {
             {tab === "clips" ? (
             <form onSubmit={submit}>
               <input ref={fileInput} id="file" type="file" accept="video/*,.mp4,.mov,.webm,.m4v,.mkv" className="sr-only" onChange={(e) => pick(e.target.files?.[0] ?? null)} />
-              {mode === "clips" && <div role="group" aria-label="Origen del vídeo" className="mb-4 inline-flex rounded-full border hairline bg-[var(--surface)] p-[3px] text-sm">{([["file", "Subir archivo"], ["youtube", "Enlace de YouTube"]] as const).map(([k, l]) => <button key={k} type="button" aria-pressed={origin === k} onClick={() => { setOrigin(k); setMsg(null); }} className={`rounded-full px-4 py-2 ${origin === k ? "bg-[var(--ink)] font-semibold text-white" : "text-[var(--muted)] hover:text-[var(--text)]"}`}>{l}</button>)}</div>}
-              {mode === "clips" && origin === "youtube" && (!yt ? <YouTubeLink onPick={onYtPick} /> : (
+              
+              {mode === "clips" && (!yt ? <YouTubeLink onPick={onYtPick} /> : (
                 <div className="rounded-2xl border hairline bg-white p-3">
                   <div className="flex items-center gap-3">{/* eslint-disable-next-line @next/next/no-img-element */}<img src={yt.thumb} alt="" className="h-14 w-24 shrink-0 rounded-lg object-cover" /><div className="min-w-0 flex-1"><div className="line-clamp-2 text-sm font-medium">{yt.title}</div><div className="truncate text-xs text-[var(--muted)]">{yt.channel}{yt.durationSec ? ` · ${Math.floor(yt.durationSec / 60)} min` : ""}</div></div><button type="button" onClick={() => { setYt(null); setYtProject(null); setFile(null); }} className="btn btn-ghost !px-3 !py-1.5 !text-xs">Cambiar</button></div>
                   {ytProject ? <div className="mt-3 flex flex-wrap items-center gap-3"><p className="text-sm text-[var(--muted)]">Ya tienes un proyecto con este vídeo.</p><Link href={`/app/p/${ytProject}`} className="btn btn-primary">Abrir proyecto</Link></div>
                     : <p className="mt-3 text-sm text-[var(--muted)]">Vídeo reconocido. YouTube no permite que nuestro servidor descargue el vídeo, así que hace falta su archivo: elígelo abajo y pulsa «Obtener clips». Si el vídeo es tuyo, lo descargas en YouTube Studio → Contenido → ⋮ → Descargar. El título y tu encargo se conservan.</p>}
                 </div>))}
-              {(mode !== "clips" || origin === "file" || (yt && !ytProject)) && <label htmlFor="file" onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)} onDrop={(e) => { e.preventDefault(); setDrag(false); pick(e.dataTransfer.files?.[0] ?? null); }}
+              {(mode !== "clips" || !yt || !ytProject) && <><p className="my-3 text-center text-xs text-[var(--muted)]">{mode === "clips" ? "o sube el archivo" : ""}</p><label htmlFor="file" onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)} onDrop={(e) => { e.preventDefault(); setDrag(false); pick(e.dataTransfer.files?.[0] ?? null); }}
                 className={`flex cursor-pointer items-center gap-4 rounded-2xl border-[1.5px] border-dashed px-5 py-7 transition-colors focus-within:shadow-[var(--ring)] ${drag ? "border-[var(--accent)] bg-[#EEF2FF]" : "border-[#9FB3FF] bg-[var(--surface)] hover:border-[var(--accent)]"}`}>
                 <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[linear-gradient(135deg,#1D4FFF_0%,#4F7BFF_60%,#22D3EE_130%)] text-white"><Icon n="upload" /></span>
                 {file ? <span className="min-w-0 flex-1"><span className="block truncate font-medium">{file.name}</span><span className="mono text-xs text-[var(--muted)]">{(file.size / 1048576).toFixed(1)} MB{dur ? ` · ${Math.floor(dur / 60)}:${String(Math.round(dur % 60)).padStart(2, "0")}` : ""}</span></span>
                   : <span className="min-w-0 flex-1"><span className="block font-medium">Suelta tu vídeo aquí o elige un archivo</span><span className="text-sm text-[var(--muted)]">MP4, MOV, M4V, MKV o WebM, hasta {MAX_VIDEO_BYTES / 1073741824} GB</span></span>}
                 <span className="btn btn-ghost hidden sm:inline-flex">{file ? "Cambiar" : "Subir"}</span>
-              </label>}
+              </label></>}
 
               {mode === "clips" ? (
                 <div className="mt-4"><BriefFields value={bd} onChange={setBd} compact /></div>
@@ -163,7 +162,7 @@ export default function Dashboard() {
               <div className="mt-4 flex flex-wrap items-center gap-3">
                 <button type="button" onClick={() => setAdv(!adv)} aria-expanded={adv} className="chip"><Icon n={adv ? "chevD" : "chevR"} className="h-3 w-3" />Ajustes</button>
                 <span className="mono text-xs text-[var(--muted)]">{mode === "clips" ? `${count} clips` : recipe.label}{maxLen ? ` · hasta ${maxLen} s` : ""}{from || to ? ` · ${from || "0:00"}–${to || "fin"}` : ""}</span>
-                <button disabled={busy || !file || (origin === "youtube" && !yt)} className="btn btn-primary ml-auto !px-7 !py-3 !text-[15px]">{busy ? "Subiendo…" : mode === "clips" ? "Obtener clips" : `Crear con ${recipe.label}`}</button>
+                <button disabled={busy || !file} className="btn btn-primary ml-auto !px-7 !py-3 !text-[15px]">{busy ? "Subiendo…" : mode === "clips" ? "Obtener clips" : `Crear con ${recipe.label}`}</button>
               </div>
               {adv && (
                 <div className="mt-3 grid gap-3 rounded-2xl border hairline bg-white p-4 text-sm sm:grid-cols-2">
@@ -189,7 +188,17 @@ export default function Dashboard() {
             )}
           </section>
 
-          <aside aria-label="Resumen"><HomeOverview rows={rows} /></aside>
+          <aside aria-label="Resumen" className="flex flex-col gap-4">
+            <HomeOverview rows={rows} />
+            <section aria-labelledby="como" className="card p-4">
+              <h2 id="como" className="text-[17px]">Cómo funciona</h2>
+              <ol className="mt-3 space-y-3 text-sm">
+                {([["Trae tu vídeo", "Sube el archivo o pega un enlace de YouTube; si es tuyo, elígelo de tu canal."], ["Di qué buscar", "Escribe qué momentos quieres, para quién y qué evitar. Ráfaga te dice cómo lo ha entendido."], ["Recibe los clips ordenados", "Cada clip llega vertical, con subtítulos y su puntuación de encaje estimada. Edita, aprueba y descarga."]] as const).map(([t, d], i) => (
+                  <li key={t} className="flex gap-3"><span className="tnum grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[#EEF2FF] text-xs font-semibold text-[var(--accent)]">{i + 1}</span><span><span className="block font-medium">{t}</span><span className="text-[var(--muted)]">{d}</span></span></li>
+                ))}
+              </ol>
+            </section>
+          </aside>
         </div>
 
         {/* Recientes */}

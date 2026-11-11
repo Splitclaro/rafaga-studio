@@ -1,0 +1,38 @@
+feature,area,priority,original,clone,notes
+Entrada única enlace o archivo + un botón,inicio,must,"Klap, Ssemble, Nexus, Vizard",parcial,"Ráfaga tiene dos pestañas y selector de herramienta; unificar"
+Zona de arrastre con límites visibles (duración, tamaño, formato),inicio,should,Ssemble,si,"hasta 4 GB; sin límite de duración declarado"
+Reconocer el enlace de YouTube (título/canal/portada),inicio,must,"Nexus, Klap, Ssemble",si,"oEmbed sin clave"
+Obtener el vídeo desde un enlace sin subir el archivo,inicio,must,"Klap, Ssemble, Nexus, Opus",no,"bloqueado: anti-bots de YouTube; no se esquiva"
+Conectar YouTube y elegir uno de mis vídeos,inicio,should,Nexus,parcial,"código hecho; falta conectar la cuenta"
+Conectar Twitch y elegir una emisión,inicio,could,Nexus,no,
+Demos para ver el resultado sin subir nada,inicio,should,"Nexus, Vizard",no,"con contenido propio, no de terceros"
+Cómo funciona en 3 pasos,inicio,should,Nexus,no,
+Decir qué buscar antes de generar (encargo),inicio,must,Nexus,si,"encargo libre + «Lo que he entendido»"
+Estilo de subtítulos elegible antes de generar,inicio,should,Nexus,parcial,"en el editor; no en el inicio"
+Lista de proyectos con miniatura estado y búsqueda,proyectos,must,"Ssemble, Vizard",si,
+Vista lista/rejilla y carpetas de proyectos,proyectos,could,Vizard,parcial,"archivar y duplicar hechos; sin carpetas"
+Proyectos caducan a N días,proyectos,could,Ssemble,no,
+Resultados: lista lateral numerada de clips,resultados,must,Vizard,no,
+Resultados: puntuación de viralidad grande por clip,resultados,must,"Vizard, Nexus, Opus",parcial,"«Encaje estimado» 0–100 en la tarjeta; hacerla protagonista (0–10)"
+Resultados: ordenar por puntuación,resultados,must,Vizard,si,
+Resultados: transcripción del clip visible,resultados,should,Vizard,parcial,"hay motivo; no el texto"
+Resultados: seleccionar todo + acciones masivas (descargar/borrar),resultados,must,Vizard,parcial,
+Resultados: favorito y descartar,resultados,should,Vizard,si,
+Resultados: calidad del clip (720p/1080p),resultados,could,Vizard,no,
+Resultados: aviso de ediciones pendientes + actualizar,resultados,should,Vizard,no,
+Recorrido guiado de primera vez,resultados,could,Vizard,no,
+Editar recortando por transcripción,editor,should,Vizard,parcial,"recorte con línea de tiempo; no borrando texto"
+Reencuadre 9:16 con seguimiento de cara,editor,must,"Klap, Opus",parcial,"por caras; no por hablante"
+Variaciones de subtítulos listas para exportar,editor,should,Klap,parcial,"presets; variaciones automáticas no"
+Mejora con IA («AI Enhance»),editor,could,Vizard,no,
+Traducir/doblar,editor,could,Vizard,no,
+Descargar MP4,exportar,must,todos,si,"validado como MP4"
+Publicar en redes,exportar,should,"Vizard, Ssemble",no,"requiere revisión de cada plataforma"
+Programar en calendario,calendario,should,"Ssemble, Vizard, Klap",parcial,"calendario existe; no publica"
+Automatización de canal (clipear cada subida),automatizar,should,Ssemble,parcial,
+Umbral de viralidad y duración por defecto,automatizar,should,Ssemble,no,
+Marca (logo intro outro fuentes),marca,should,"Vizard, Wayin",si,
+Créditos/consumo visible,cuenta,should,"Vizard, Ssemble",si,"minutos semanales en el menú"
+Analítica,analitica,could,"Vizard, Klap, Ssemble",parcial,
+API / MCP / Zapier / Make / n8n,integraciones,could,Klap,no,
+Campañas de pago por visualizaciones,monetizar,could,Ssemble,skip,"red de terceros; fuera de alcance"

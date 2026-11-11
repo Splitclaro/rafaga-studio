@@ -5,11 +5,13 @@ import Icon from "../Icon";
 import { supabase } from "../../lib/supabase";
 import { validateStyle, type SubtitleStyle } from "@rafaga/composition";
 import { ClipCard, type WallClip } from "./ClipCard";
+import { ClipRow } from "./ClipRow";
+import { downloadMp4 } from "../../lib/download";
 import { pieceStatus, STATUS_LABEL, type PieceStatus } from "./status";
 
 type Filter = "all" | "to_review" | "approved" | "changes" | "failed" | "fav";
 type Sort = "score" | "time" | "title" | "recent";
-type View = "grid" | "list";
+type View = "detail" | "grid" | "list";
 const safe = (t: string) => t.replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "").slice(0, 50) || "pieza";
 
 /**
@@ -23,7 +25,7 @@ export default function ClipWall({ projectId, projectName, clips, onFavorite, on
   const key = `rafaga.wall.${projectId}`;
   const [filter, setFilter] = useState<Filter>("all");
   const [sort, setSort] = useState<Sort>(showScore ? "score" : "recent");
-  const [view, setView] = useState<View>("grid");
+  const [view, setView] = useState<View>("detail");
   const [q, setQ] = useState("");
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [preview, setPreview] = useState<string | null>(null);
@@ -36,7 +38,7 @@ export default function ClipWall({ projectId, projectName, clips, onFavorite, on
   const [dName, setDName] = useState(""), [dDesc, setDDesc] = useState("");
   const last = useRef<string | null>(null);
 
-  useEffect(() => { try { const s = JSON.parse(sessionStorage.getItem(key) ?? "null"); if (s) { setFilter(s.filter ?? "all"); setSort(s.sort ?? "score"); setView(s.view ?? "grid"); setQ(s.q ?? ""); if (Array.isArray(s.sel)) setSel(new Set(s.sel)); } } catch {} }, [key]);
+  useEffect(() => { try { const s = JSON.parse(sessionStorage.getItem(key) ?? "null"); if (s) { setFilter(s.filter ?? "all"); setSort(s.sort ?? "score"); setView(s.view ?? "detail"); setQ(s.q ?? ""); if (Array.isArray(s.sel)) setSel(new Set(s.sel)); } } catch {} }, [key]);
   useEffect(() => { try { sessionStorage.setItem(key, JSON.stringify({ filter, sort, view, q, sel: [...sel] })); } catch {} }, [key, filter, sort, view, q, sel]);
   useEffect(() => { const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches; if (reduce) setPreview(null); }, [preview]);
 
@@ -79,8 +81,7 @@ export default function ClipWall({ projectId, projectName, clips, onFavorite, on
     const rows: Record<string, string | number>[] = [];
     for (const [i, c] of ready.entries()) {
       const name = `${safe(projectName)}_${String(i + 1).padStart(2, "0")}-${safe(c.title)}_${(c.ratio ?? "9x16").replace(":", "x")}_v${c.version}.mp4`;
-      const { data } = await supabase.storage.from("renders").createSignedUrl(c.path!, 300, { download: name });
-      if (data?.signedUrl) { const a = document.createElement("a"); a.href = data.signedUrl; a.download = name; document.body.appendChild(a); a.click(); a.remove(); }
+      const dl = await downloadMp4("renders", c.path!, name); if (!dl.ok) { setMsg(`«${c.title}»: ${dl.error}`); }
       const st = pieceStatus(c).status;
       rows.push({ titulo: c.title, archivo: name, version: c.version, formato: c.ratio ?? "", duracion_s: c.durMs ? +(c.durMs / 1000).toFixed(1) : "", estado: STATUS_LABEL(st), id_interno: c.id });
       await new Promise((r) => setTimeout(r, 900));
@@ -134,7 +135,7 @@ export default function ClipWall({ projectId, projectName, clips, onFavorite, on
           <div className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-3 py-2"><Icon n="search" className="h-4 w-4 text-[var(--muted)]" /><input id="wall-q" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar título" className="w-36 bg-transparent text-sm outline-none sm:w-48" /></div>
           <label className="sr-only" htmlFor="wall-s">Ordenar</label>
           <select id="wall-s" value={sort} onChange={(e) => setSort(e.target.value as Sort)} className="rounded-xl border border-[var(--border)] bg-white px-3 py-2 text-sm">{showScore && <option value="score">Mayor encaje primero</option>}<option value="recent">Más recientes</option><option value="time">Más antiguos</option><option value="title">Título A–Z</option></select>
-          <div role="group" aria-label="Vista" className="inline-flex rounded-xl border border-[var(--border)] bg-white p-0.5">{([["grid", "Galería"], ["list", "Lista"]] as const).map(([k, l]) => <button key={k} aria-pressed={view === k} onClick={() => setView(k)} className={`rounded-lg px-3 py-1.5 text-sm ${view === k ? "bg-[var(--ink)] text-white" : "text-[var(--muted)]"}`}>{l}</button>)}</div>
+          <div role="group" aria-label="Vista" className="inline-flex rounded-xl border border-[var(--border)] bg-white p-0.5">{([["detail", "Detalle"], ["grid", "Galería"], ["list", "Lista"]] as const).map(([k, l]) => <button key={k} aria-pressed={view === k} onClick={() => setView(k)} className={`rounded-lg px-3 py-1.5 text-sm ${view === k ? "bg-[var(--ink)] text-white" : "text-[var(--muted)]"}`}>{l}</button>)}</div>
         </div>
       </div>
 
@@ -146,6 +147,20 @@ export default function ClipWall({ projectId, projectName, clips, onFavorite, on
 
       {!shown.length ? (
         <div className="mt-4 rounded-2xl bg-[var(--surface)] p-10 text-center text-sm text-[var(--muted)]">{q || filter !== "all" ? "Ninguna pieza coincide con este filtro." : "Aún no hay resultados."}{(q || filter !== "all") && <button className="ml-2 underline" onClick={() => { setQ(""); setFilter("all"); }}>Quitar filtros</button>}</div>
+      ) : view === "detail" ? (
+        <div className="mt-4 grid gap-6 lg:grid-cols-[230px_minmax(0,1fr)]">
+          <nav aria-label="Clips del proyecto" className="hidden lg:block">
+            <div className="sticky top-20 max-h-[calc(100vh-7rem)] overflow-auto pr-1">
+              <button onClick={() => setSel(sel.size === shown.length ? new Set() : new Set(shown.map((c) => c.id)))} className="mb-2 flex items-center gap-2 text-sm text-[var(--muted)] hover:text-[var(--text)]"><input type="checkbox" readOnly checked={sel.size > 0 && sel.size === shown.length} aria-hidden tabIndex={-1} className="h-4 w-4 accent-[var(--accent)]" />Seleccionar todo</button>
+              <ol className="space-y-1">{shown.map((c, i) => (
+                <li key={c.id}><a href={`#clip-${c.id}`} className="flex items-center gap-2.5 rounded-xl p-1.5 text-sm hover:bg-[var(--hover)]">
+                  <span className="relative h-12 w-[27px] shrink-0 overflow-hidden rounded-md bg-[var(--ink)]">{c.thumb && /* eslint-disable-next-line @next/next/no-img-element */ <img src={c.thumb} alt="" loading="lazy" className="h-full w-full object-cover" />}</span>
+                  <span className="min-w-0"><span className="tnum text-xs text-[var(--muted)]">{i + 1}{c.score != null ? ` · ${c.score.toFixed(1)}` : ""}</span><span className="line-clamp-2 block leading-snug">{c.title}</span></span>
+                </a></li>))}</ol>
+            </div>
+          </nav>
+          <ul className="space-y-4">{shown.map((c, i) => <ClipRow key={c.id} c={c} index={i + 1} projectName={projectName} selected={sel.has(c.id)} onSelect={onSelect} onFavorite={onFavorite} onDiscard={onDiscard} />)}</ul>
+        </div>
       ) : view === "grid" ? (
         <ul className="mt-4 grid grid-cols-2 gap-x-4 gap-y-6 md:grid-cols-3 xl:grid-cols-4">
           {shown.map((c) => <ClipCard key={c.id} c={c} selected={sel.has(c.id)} previewing={preview === c.id} onSelect={onSelect} onPreview={setPreview} />)}

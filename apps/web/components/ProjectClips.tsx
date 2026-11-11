@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "../lib/supabase";
+import { downloadMp4 } from "../lib/download";
 import { Chip, isActive, type Row } from "./ProjectList";
 import Icon from "./Icon";
 
@@ -37,8 +38,7 @@ export default function ProjectClips({ p, onDelete, onChanged }: { p: Row; onDel
 
   async function dl(c: ClipRow) {
     if (!c.path) return;
-    const { data } = await supabase.storage.from("renders").createSignedUrl(c.path, 300, { download: `${safe(c.title)}-${(c.ratio ?? "").replace(":", "x")}.mp4` });
-    if (data?.signedUrl) { const a = document.createElement("a"); a.href = data.signedUrl; a.download = ""; document.body.appendChild(a); a.click(); a.remove(); }
+    const r = await downloadMp4("renders", c.path, `${safe(c.title)}-${(c.ratio ?? "").replace(":", "x")}.mp4`); if (!r.ok) setNote(r.error);
   }
   async function dlAll() {
     const ready = (clips ?? []).filter((c) => c.path);
