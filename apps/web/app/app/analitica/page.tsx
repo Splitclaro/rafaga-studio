@@ -83,7 +83,7 @@ export default function Analitica() {
       <td className="pl-3 text-xs text-[var(--muted)]">{!xs.length ? "sin datos" : xs.length < MIN_SAMPLE ? "muestra insuficiente" : ""}</td></tr>);
 
   return (
-    <main className="mx-auto max-w-6xl px-4 pb-16 pt-8 md:px-8">
+    <main className="mx-auto max-w-[1240px] px-4 pb-16 pt-8 md:px-10">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div><h1 className="text-3xl">Analítica</h1><p className="mt-1 text-sm text-[var(--muted)]">Operación real de tu workspace: volumen, fallos por causa, cola y tiempos por fase. Sin métricas sociales hasta tener conexiones autorizadas.</p></div>
         <div className="flex flex-wrap gap-2 text-sm">
@@ -92,6 +92,7 @@ export default function Analitica() {
           <select id="kind" value={kind} onChange={(e) => setKind(e.target.value)} className="rounded-full border border-[var(--border)] bg-white px-3 py-1.5"><option value="all">Todos los tipos</option>{Object.entries(KIND).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
         </div>
       </header>
+      <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border hairline bg-[var(--card)] p-4 text-sm"><span aria-hidden className="grid h-10 w-10 place-items-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]">⚭</span><span className="min-w-0 flex-1"><b>Métricas de redes: conecta una cuenta primero.</b><br /><span className="text-[var(--muted)]">Las cifras sociales solo se muestran si la plataforma las entrega por su API oficial. No inventamos números. Abajo, la operación real de tu espacio.</span></span><a href="/app/conexiones" className="btn btn-primary">Conectar cuenta</a></div>
       <div className="mt-5"><OpsStatus compact /></div>
 
       {!s ? <div className="skeleton mt-6 h-64" /> : (<>

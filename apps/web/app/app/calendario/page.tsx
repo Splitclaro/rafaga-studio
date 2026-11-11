@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import Icon from "../../../components/Icon";
 import { supabase } from "../../../lib/supabase";
 import { zonedToUtc, utcToLocalInput, localZone, ZONES } from "../../../lib/tz";
@@ -84,11 +85,17 @@ export default function Calendario() {
   const upcoming = (posts ?? []).filter((p) => p.status !== "cancelled");
 
   return (
-    <main className="mx-auto max-w-6xl px-4 pb-20 pt-8 md:px-8">
+    <main className="mx-auto max-w-[1240px] px-4 pb-20 pt-8 md:px-10">
       <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div><h1 className="text-3xl">Calendario</h1><p className="mt-1 max-w-2xl text-[var(--muted)]">Planifica cuándo y dónde publicar cada clip. Por ahora el calendario es un planificador: la publicación automática en redes llegará con las conexiones.</p></div>
-        <button onClick={() => newPost()} className="btn btn-primary"><Icon n="plus" className="h-4 w-4" />Nueva publicación</button>
+        <div className="flex flex-wrap gap-2"><Link href="/app/automatizaciones" className="btn btn-ghost">Automatizaciones</Link><Link href="/app/analitica" className="btn btn-ghost">Analítica</Link><button onClick={() => newPost()} className="btn btn-primary"><Icon n="plus" className="h-4 w-4" />Nueva publicación</button></div>
       </header>
+      <section aria-label="Canales y publicación" className="mb-5 grid gap-3 lg:grid-cols-[1fr_1fr]">
+        <div className="card p-4 text-sm"><span className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Canales conectados</span>
+          <div className="mt-2 flex items-center justify-between"><span><b>YouTube</b><br /><span className="text-[var(--muted)]">Solo lectura. No puede publicar.</span></span><Link href="/app/conexiones" className="font-semibold text-[var(--accent)]">Gestionar</Link></div>
+          <div className="mt-2 flex items-center justify-between border-t hairline pt-2"><span><b>TikTok · Instagram</b><br /><span className="text-[var(--muted)]">Pendiente de aprobación de la plataforma.</span></span><span className="mono text-xs text-[var(--muted)]">sin conectar</span></div></div>
+        <div className="rounded-2xl border border-[#E9D6A8] bg-[#FFFAEB] p-4 text-sm text-[#6B4A00]"><b>Publicación directa no disponible todavía.</b> Mientras tanto, flujo manual: descarga el MP4 desde Exportados, copia título y hashtags y súbelo tú. Ráfaga guarda el estado y la fecha en el calendario.</div>
+      </section>
       {msg && <p role="status" aria-live="polite" className="card mb-4 p-3 text-sm">{msg}</p>}
 
       <div className="mb-4 flex flex-wrap items-center gap-3">

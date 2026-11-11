@@ -62,11 +62,16 @@ export default function Automatizaciones() {
   }
 
   return (
-    <main className="mx-auto max-w-5xl px-4 pb-20 pt-8 md:px-8">
+    <main className="mx-auto max-w-[1240px] px-4 pb-20 pt-8 md:px-10">
       <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div><h1 className="text-3xl">Automatizaciones</h1><p className="mt-1 max-w-2xl text-[var(--muted)]">Vigila un feed RSS con tus vídeos y crea los clips de cada entrada nueva sin que tengas que subirla.</p></div>
         <button onClick={() => { setForm({ ...blank }); setMsg(null); }} className="btn btn-primary"><Icon n="plus" className="h-4 w-4" />Nueva regla</button>
       </header>
+      <section aria-label="Cómo funciona" className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        {([["Elige un origen", "Un feed RSS con tus vídeos."], ["Detecta novedades", "Cada entrada nueva con vídeo adjunto (hasta 50 MB) se descarga."], ["Clips con IA", "Se buscan los mejores momentos con tu encargo."], ["Borradores", "Los clips quedan para revisar. Nada se publica solo."], ["Tú revisas", "Abre el proyecto creado y edita o descarga."]] as const).map(([t, d], i) => (
+          <div key={t} className="card p-4"><span className="grid h-6 w-6 place-items-center rounded-full bg-[var(--accent-soft)] text-xs font-semibold text-[var(--accent-ink)]">{i + 1}</span><b className="mt-2 block text-sm">{t}</b><span className="text-xs text-[var(--muted)]">{d}</span></div>))}
+      </section>
+      <div className="mt-3 rounded-2xl border border-[#E9D6A8] bg-[#FFFAEB] p-3.5 text-sm text-[#6B4A00]"><b>Límite de YouTube:</b> un canal de YouTube no entrega el archivo, así que no se puede procesar solo. Usa un feed RSS cuyas entradas incluyan el vídeo como archivo adjunto.</div>
       {msg && <p role="status" aria-live="polite" className="card mb-4 p-3 text-sm">{msg}</p>}
 
       <section className="card mb-6 grid gap-4 p-5 text-sm sm:grid-cols-3">
