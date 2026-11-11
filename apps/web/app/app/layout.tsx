@@ -37,6 +37,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const [notes, setNotes] = useState<Note[]>([]);
   const [bell, setBell] = useState(false);
   const [seen, setSeen] = useState(0);
+  const [usage, setUsage] = useState<{ used: number; limit: number } | null>(null);
 
   const poll = useCallback(async () => {
     const { data } = await supabase.from("jobs").select("id,status,kind,updated_at,error_message").order("updated_at", { ascending: false }).limit(15);
@@ -55,6 +56,9 @@ export default function AppShell({ children }: { children: ReactNode }) {
       const cur = l.find((x) => x.active) ?? l[0];
       setWs(cur?.name ?? "Mi espacio"); setRole(cur?.role ?? "");
       poll();
+      const { data: u } = await supabase.rpc("ai_usage_summary");
+      const us = u as { week_source_minutes?: number; limits?: { weekly_source_minutes?: number } } | null;
+      if (us?.limits?.weekly_source_minutes) setUsage({ used: Number(us.week_source_minutes ?? 0), limit: Number(us.limits.weekly_source_minutes) });
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => { if (!s) router.replace("/login"); });
     const t = setInterval(poll, 8000);
@@ -133,6 +137,13 @@ export default function AppShell({ children }: { children: ReactNode }) {
           ))}
         </nav>
 
+        {usage && !collapsed && (
+          <Link href="/app/ajustes" className="mx-3 mb-2 hidden rounded-[10px] px-3 py-2 hover:bg-[var(--hover)] md:block" aria-label={`Consumo esta semana: ${usage.used} de ${usage.limit} minutos`}>
+            <span className="block text-xs text-[var(--muted)]">Esta semana</span>
+            <span className="tnum mb-2 mt-0.5 block text-sm font-semibold">{Math.round(usage.used)} de {usage.limit} min</span>
+            <span className="block h-1 overflow-hidden rounded-full bg-[var(--border)]"><span className="block h-full rounded-full bg-[var(--accent)]" style={{ width: `${Math.min(100, (usage.used / usage.limit) * 100)}%` }} /></span>
+          </Link>
+        )}
         <div className="hidden border-t hairline p-3 md:block">
           <Link href="/app/ajustes" aria-current={path.startsWith("/app/ajustes") ? "page" : undefined} className="flex items-center gap-3 rounded-[10px] px-3 py-2 text-sm text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--text)]"><Icon n="gear" className="h-[18px] w-[18px]" /><span className={collapsed ? "sr-only" : ""}>Uso y ajustes</span></Link>
           <a href="https://github.com/Splitclaro/rafaga-studio#readme" target="_blank" rel="noreferrer" className="flex items-center gap-3 rounded-[10px] px-3 py-2 text-sm text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--text)]"><Icon n="help" className="h-[18px] w-[18px]" /><span className={collapsed ? "sr-only" : ""}>Ayuda</span></a>

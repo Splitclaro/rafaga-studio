@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import BriefFields, { EMPTY_BRIEF, briefText } from "../../components/BriefFields";
 import { normalizeBrief, type BriefData } from "@rafaga/selection/brief";
-import PendingStrip from "../../components/PendingStrip";
+import HomeOverview from "../../components/HomeOverview";
 import YouTubeLink from "../../components/YouTubeLink";
 import type { YtItem } from "@rafaga/providers/youtube";
 import Icon from "../../components/Icon";
@@ -106,27 +106,37 @@ export default function Dashboard() {
   const recent = rows?.filter((p) => !isActive(p.status)).slice(0, 8) ?? [];
 
   return (
-    <main className="mx-auto max-w-6xl px-4 pb-20 pt-8 md:px-8">
-      <header className="mx-auto mb-8 max-w-3xl">
-        <h1 className="text-4xl tracking-tight md:text-5xl">Tu próximo gran momento.</h1>
-        <p className="mt-2 text-base text-[var(--muted)]">Continúa un proyecto o transforma una nueva fuente.</p>
-      </header>
-      {/* Creación */}
-      <section aria-label="Crear" className="mx-auto max-w-3xl">
-        <div className="flex items-end justify-between gap-3">
-          <div role="tablist" aria-label="Tipo de generación" className="inline-flex rounded-t-2xl border border-b-0 hairline bg-[var(--surface)] p-1 pb-0">
-            {([["clips", "Clips de vídeo largo", "scissors"], ["lyrics", "Vídeo con letra", "music"]] as const).map(([k, l, i]) => (
-              <button key={k} role="tab" aria-selected={tab === k} onClick={() => { setTab(k); setMsg(null); }} className={`flex items-center gap-2 rounded-t-xl px-4 py-2.5 text-sm font-medium ${tab === k ? "bg-white text-[var(--text)] shadow-[0_-1px_0_#fff,0_0_0_1px_var(--border)]" : "text-[var(--muted)] hover:text-[var(--text)]"}`}><Icon n={i} className="h-4 w-4" />{l}</button>
-            ))}
+    <main className="px-4 pb-20 pt-8 md:px-10">
+      <div className="mx-auto max-w-[1240px]">
+        <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h1 className="text-[34px] leading-[1.1] tracking-tight [text-wrap:balance]">Tu próximo gran momento.</h1>
+            <p className="mt-2 text-base text-[var(--muted)]">Elige una fuente, cuéntanos qué buscas y Ráfaga corta por ti.</p>
           </div>
-          <Link href="/app/biblioteca" className="mb-1 flex items-center gap-2 text-sm text-[var(--muted)] hover:text-[var(--text)]"><Icon n="grid" className="h-4 w-4" />Todos los proyectos</Link>
-        </div>
+          <Link href="/app/biblioteca" className="flex items-center gap-2 text-sm font-semibold text-[var(--accent)]"><Icon n="grid" className="h-4 w-4" />Todos los proyectos</Link>
+        </header>
 
-        <div className="card-raised rounded-tl-none p-5 md:p-6">
-          {tab === "clips" ? (
+        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
+          {/* Crear */}
+          <section aria-label="Crear" className="card p-5 md:p-6">
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+              <div role="tablist" aria-label="Qué quieres crear" className="inline-flex rounded-xl border hairline bg-[var(--surface)] p-[3px]">
+                {([["clips", "Clips de vídeo largo", "scissors"], ["lyrics", "Vídeo con letra", "music"]] as const).map(([k, l, i]) => (
+                  <button key={k} role="tab" aria-selected={tab === k} onClick={() => { setTab(k); setMsg(null); }} className={`flex items-center gap-2 rounded-[10px] px-4 py-2 text-sm ${tab === k ? "bg-white font-semibold text-[var(--text)] shadow-[0_0_0_1px_var(--border)]" : "text-[var(--muted)] hover:text-[var(--text)]"}`}><Icon n={i} className="h-4 w-4" />{l}</button>
+                ))}
+              </div>
+              {tab === "clips" && (
+                <label className="flex items-center gap-2 text-sm text-[var(--muted)]">Herramienta
+                  <select value={mode} onChange={(e) => { setMode(e.target.value as ProjectMode); setFile(null); setMsg(null); setDur(null); }} className="input !w-auto !py-1.5 text-[var(--text)]">
+                    {RECIPES.map((r) => <option key={r.mode} value={r.mode}>{r.label}</option>)}
+                  </select>
+                </label>
+              )}
+            </div>
+            {tab === "clips" ? (
             <form onSubmit={submit}>
               <input ref={fileInput} id="file" type="file" accept="video/*,.mp4,.mov,.webm,.m4v,.mkv" className="sr-only" onChange={(e) => pick(e.target.files?.[0] ?? null)} />
-              {mode === "clips" && <div role="group" aria-label="Origen del vídeo" className="mb-3 inline-flex rounded-full bg-[var(--hover)] p-0.5 text-sm">{([["file", "Subir archivo"], ["youtube", "Enlace de YouTube"]] as const).map(([k, l]) => <button key={k} type="button" aria-pressed={origin === k} onClick={() => { setOrigin(k); setMsg(null); }} className={`rounded-full px-4 py-1.5 ${origin === k ? "bg-[var(--ink)] text-white" : "text-[var(--muted)]"}`}>{l}</button>)}</div>}
+              {mode === "clips" && <div role="group" aria-label="Origen del vídeo" className="mb-4 inline-flex rounded-full border hairline bg-[var(--surface)] p-[3px] text-sm">{([["file", "Subir archivo"], ["youtube", "Enlace de YouTube"]] as const).map(([k, l]) => <button key={k} type="button" aria-pressed={origin === k} onClick={() => { setOrigin(k); setMsg(null); }} className={`rounded-full px-4 py-2 ${origin === k ? "bg-[var(--ink)] font-semibold text-white" : "text-[var(--muted)] hover:text-[var(--text)]"}`}>{l}</button>)}</div>}
               {mode === "clips" && origin === "youtube" && (!yt ? <YouTubeLink onPick={onYtPick} /> : (
                 <div className="rounded-2xl border hairline bg-white p-3">
                   <div className="flex items-center gap-3">{/* eslint-disable-next-line @next/next/no-img-element */}<img src={yt.thumb} alt="" className="h-14 w-24 shrink-0 rounded-lg object-cover" /><div className="min-w-0 flex-1"><div className="line-clamp-2 text-sm font-medium">{yt.title}</div><div className="truncate text-xs text-[var(--muted)]">{yt.channel}{yt.durationSec ? ` · ${Math.floor(yt.durationSec / 60)} min` : ""}</div></div><button type="button" onClick={() => { setYt(null); setYtProject(null); setFile(null); }} className="btn btn-ghost !px-3 !py-1.5 !text-xs">Cambiar</button></div>
@@ -134,8 +144,8 @@ export default function Dashboard() {
                     : <p className="mt-3 text-sm text-[var(--muted)]">Vídeo reconocido. YouTube no permite que nuestro servidor descargue el vídeo, así que hace falta su archivo: elígelo abajo y pulsa «Obtener clips». Si el vídeo es tuyo, lo descargas en YouTube Studio → Contenido → ⋮ → Descargar. El título y tu encargo se conservan.</p>}
                 </div>))}
               {(mode !== "clips" || origin === "file" || (yt && !ytProject)) && <label htmlFor="file" onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)} onDrop={(e) => { e.preventDefault(); setDrag(false); pick(e.dataTransfer.files?.[0] ?? null); }}
-                className={`flex cursor-pointer items-center gap-4 rounded-2xl border border-dashed bg-white px-5 py-5 transition-colors focus-within:shadow-[var(--ring)] ${drag ? "border-[var(--ink)] bg-[var(--hover)]" : "hairline hover:border-[#bdbdbd]"}`}>
-                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[var(--hover)] text-[var(--accent)]"><Icon n="upload" /></span>
+                className={`flex cursor-pointer items-center gap-4 rounded-2xl border-[1.5px] border-dashed px-5 py-7 transition-colors focus-within:shadow-[var(--ring)] ${drag ? "border-[var(--accent)] bg-[#EEF2FF]" : "border-[#9FB3FF] bg-[var(--surface)] hover:border-[var(--accent)]"}`}>
+                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[linear-gradient(135deg,#1D4FFF_0%,#4F7BFF_60%,#22D3EE_130%)] text-white"><Icon n="upload" /></span>
                 {file ? <span className="min-w-0 flex-1"><span className="block truncate font-medium">{file.name}</span><span className="mono text-xs text-[var(--muted)]">{(file.size / 1048576).toFixed(1)} MB{dur ? ` · ${Math.floor(dur / 60)}:${String(Math.round(dur % 60)).padStart(2, "0")}` : ""}</span></span>
                   : <span className="min-w-0 flex-1"><span className="block font-medium">Suelta tu vídeo aquí o elige un archivo</span><span className="text-sm text-[var(--muted)]">MP4, MOV, M4V, MKV o WebM, hasta {MAX_VIDEO_BYTES / 1073741824} GB</span></span>}
                 <span className="btn btn-ghost hidden sm:inline-flex">{file ? "Cambiar" : "Subir"}</span>
@@ -150,7 +160,7 @@ export default function Dashboard() {
               <div className="mt-4 flex flex-wrap items-center gap-3">
                 <button type="button" onClick={() => setAdv(!adv)} aria-expanded={adv} className="chip"><Icon n={adv ? "chevD" : "chevR"} className="h-3 w-3" />Ajustes</button>
                 <span className="mono text-xs text-[var(--muted)]">{mode === "clips" ? `${count} clips` : recipe.label}{maxLen ? ` · hasta ${maxLen} s` : ""}{from || to ? ` · ${from || "0:00"}–${to || "fin"}` : ""}</span>
-                <button disabled={busy || !file || (origin === "youtube" && !yt)} className="btn btn-primary ml-auto px-6 py-2.5">{busy ? "Subiendo…" : mode === "clips" ? "Obtener clips" : `Crear con ${recipe.label}`}</button>
+                <button disabled={busy || !file || (origin === "youtube" && !yt)} className="btn btn-primary ml-auto !px-7 !py-3 !text-[15px]">{busy ? "Subiendo…" : mode === "clips" ? "Obtener clips" : `Crear con ${recipe.label}`}</button>
               </div>
               {adv && (
                 <div className="mt-3 grid gap-3 rounded-2xl border hairline bg-white p-4 text-sm sm:grid-cols-2">
@@ -162,7 +172,7 @@ export default function Dashboard() {
               )}
               <p role="status" aria-live="polite" className="mt-2 min-h-5 text-sm text-[var(--muted)]">{msg ?? (file ? (mode === "clips" && !brief ? "Sin descripción: los momentos se detectan automáticamente." : "") : "Elige un vídeo para empezar.")}</p>
             </form>
-          ) : (
+            ) : (
             <div>
               <input ref={audioInput} type="file" accept="audio/*,.mp3,.wav" className="sr-only" id="audio" onChange={(e) => { pickAudio(e.target.files?.[0]); e.target.value = ""; }} />
               <label htmlFor="audio" className="flex cursor-pointer items-center gap-4 rounded-2xl border border-dashed hairline bg-white px-5 py-5 hover:border-[#bdbdbd]">
@@ -173,53 +183,38 @@ export default function Dashboard() {
               <div className="mt-4 flex flex-wrap items-center gap-2 text-sm"><span className="text-[var(--muted)]">O sigue con una canción ya subida:</span><Link href="/app/lyric-studio" className="chip">Abrir Lyric Studio</Link></div>
               <p role="status" aria-live="polite" className="mt-2 min-h-5 text-sm text-[var(--muted)]">{msg}</p>
             </div>
-          )}
+            )}
+          </section>
+
+          <aside aria-label="Resumen"><HomeOverview rows={rows} /></aside>
         </div>
 
-        {tab === "clips" && (
-          <div className="mt-4 flex flex-wrap items-center justify-center gap-2" role="group" aria-label="Herramientas">
-            {RECIPES.map((r) => (
-              <button key={r.mode} aria-pressed={mode === r.mode} onClick={() => { setMode(r.mode); setFile(null); setMsg(null); setDur(null); }} className="chip"><Icon n={r.icon} className="h-3.5 w-3.5" />{r.label}</button>
-            ))}
+        {/* Recientes */}
+        <section aria-labelledby="recientes" className="mt-12">
+          <div className="mb-4 flex items-baseline justify-between gap-4">
+            <h2 id="recientes" className="text-2xl tracking-tight">Continúa donde lo dejaste</h2>
+            <Link href="/app/biblioteca" className="text-sm font-semibold text-[var(--accent)]">Abrir biblioteca</Link>
           </div>
+          {err && <p role="alert">No se pudieron cargar los proyectos: {err}</p>}
+          {!rows && !err && <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{[0, 1, 2, 3].map((i) => <li key={i} className="skeleton aspect-[4/3]" />)}</ul>}
+          {rows && !rows.length && <p className="card border-dashed p-8 text-center text-[var(--muted)]">Todavía no hay proyectos. Sube tu primer vídeo arriba.</p>}
+          {!!rows?.length && <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{[...current, ...recent].slice(0, 8).map((p) => <li key={p.id}><ProjectCard p={p} /></li>)}</ul>}
+        </section>
+
+        {!!batches.length && (
+          <section aria-labelledby="letras" className="mt-12">
+            <div className="mb-4 flex items-baseline justify-between gap-4"><h2 id="letras" className="text-2xl tracking-tight">Vídeos con letra</h2><Link href="/app/lyric-studio" className="text-sm font-semibold text-[var(--accent)]">Abrir Lyric Studio</Link></div>
+            <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              {batches.map((b) => (
+                <li key={b.id}><Link href="/app/lyric-studio" className="card lift block overflow-hidden">
+                  <div className="relative grid aspect-video place-items-center bg-[linear-gradient(135deg,#141B34,#0B1020)] text-white/70"><Icon n="music" className="h-8 w-8" /><span className="chip absolute left-2 top-2 !py-0.5">{isActive(b.status) && <span className="pulse" aria-hidden />}{STAGE[b.status] ?? b.status}</span></div>
+                  <div className="p-3"><div className="truncate text-sm font-medium">{b.title}</div><div className="tnum text-xs text-[var(--muted)]">{b.params.n} vídeo{b.params.n === 1 ? "" : "s"}, {new Date(b.created_at).toLocaleDateString("es", { day: "numeric", month: "short" })}</div></div>
+                </Link></li>
+              ))}
+            </ul>
+          </section>
         )}
-      </section>
-
-      {/* En curso */}
-      <PendingStrip />
-
-      {current.length > 0 && (
-        <section aria-labelledby="curso" className="mt-12">
-          <h2 id="curso" className="mb-3 flex items-center gap-2 text-lg"><span className="pulse" aria-hidden />En curso</h2>
-          <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{current.map((p) => <li key={p.id}><ProjectCard p={p} /></li>)}</ul>
-        </section>
-      )}
-
-      {/* Recientes */}
-      <section aria-labelledby="recientes" className="mt-12">
-        <div className="mb-3 flex items-center gap-4">
-          <h2 id="recientes" className="text-lg tracking-tight">Continúa donde lo dejaste</h2>
-          <Link href="/app/biblioteca" className="text-sm text-[var(--muted)] underline underline-offset-4 hover:text-[var(--text)]">Ver todos</Link>
-        </div>
-        {err && <p role="alert">No se pudieron cargar los proyectos: {err}</p>}
-        {!rows && !err && <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{[0, 1, 2, 3].map((i) => <li key={i} className="skeleton aspect-[4/3]" />)}</ul>}
-        {rows && !recent.length && !current.length && <p className="card border-dashed p-8 text-center text-[var(--muted)]">Todavía no hay proyectos. Sube tu primer vídeo arriba.</p>}
-        {!!recent.length && <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{recent.map((p) => <li key={p.id}><ProjectCard p={p} /></li>)}</ul>}
-      </section>
-
-      {!!batches.length && (
-        <section aria-labelledby="letras" className="mt-12">
-          <div className="mb-3 flex items-center gap-4"><h2 id="letras" className="text-lg">Vídeos con letra</h2><Link href="/app/lyric-studio" className="text-sm text-[var(--muted)] underline underline-offset-4 hover:text-[var(--text)]">Abrir Lyric Studio</Link></div>
-          <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {batches.map((b) => (
-              <li key={b.id}><Link href="/app/lyric-studio" className="card lift block overflow-hidden">
-                <div className="relative grid aspect-video place-items-center bg-[var(--hover)] text-[var(--muted)]"><Icon n="music" className="h-8 w-8 text-[var(--muted)]/70" /><span className="chip absolute left-2 top-2 !py-0.5">{isActive(b.status) && <span className="pulse" aria-hidden />}{STAGE[b.status] ?? b.status}</span></div>
-                <div className="p-3"><div className="truncate text-sm font-medium">{b.title}</div><div className="mono text-xs text-[var(--muted)]">{b.params.n} vídeo{b.params.n === 1 ? "" : "s"} · {new Date(b.created_at).toLocaleDateString("es", { day: "numeric", month: "short" })}</div></div>
-              </Link></li>
-            ))}
-          </ul>
-        </section>
-      )}
+      </div>
     </main>
   );
 }
