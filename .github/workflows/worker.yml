@@ -22,6 +22,8 @@ jobs:
         timeout-minutes: 10
         run: |
           # Los espejos de apt de GitHub a veces se cuelgan: tiempos máximos y reintentos en vez de esperar 30 min.
+          # El espejo de Azure de los runners se cuelga a veces: se cambia al espejo oficial antes de actualizar.
+          for f in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do [ -f "$f" ] && sudo sed -i 's#http://azure.archive.ubuntu.com#http://archive.ubuntu.com#g; s#https://azure.archive.ubuntu.com#http://archive.ubuntu.com#g' "$f"; done
           for i in 1 2 3; do
             sudo timeout 120 apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 update -qq \
               && sudo timeout 300 apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=20 install -y -qq ffmpeg fonts-liberation fontconfig espeak-ng && break
