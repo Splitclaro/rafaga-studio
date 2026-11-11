@@ -268,3 +268,4 @@ Probar Lyric Studio con una canción real (canto + instrumental). Siguiente: Sty
 - Siguen sin reconstruir contra su tablero: Editor, Calendario, Analítica, Automatizaciones, Procesamiento.
 - Calendario (canales + aviso de flujo manual + accesos a Automatizaciones y Analítica), Analítica (aviso de métricas sociales + operación real) y Automatizaciones (cómo funciona + límite honesto: solo feeds RSS con vídeo adjunto ≤ 50 MB) alineados con sus tableros y verificados en producción con capturas.
 - Quedan Editor y Procesamiento sin rehacer contra su tablero.
+- Lyric Studio recompuesto como el tablero: canciones arriba, pasos 1–3 en la columna principal y tarjeta de vista previa/exportación fija a la derecha. Verificado en producción subiendo un MP3 de prueba (forma de onda, tramo, detección de 3 momentos, letra con modos, estilos). No se generó un vídeo con letra en esta comprobación. La canción de prueba «e2e-song» queda en Biblioteca de medios.
