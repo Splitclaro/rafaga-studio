@@ -277,14 +277,14 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
   const transcript = (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="mb-2 flex flex-wrap gap-2">
-        <input aria-label="Buscar en la transcripción" placeholder="Buscar palabra…" value={q} onChange={(e) => setQ(e.target.value)} className="min-w-0 flex-1 rounded border border-[var(--border)] bg-white px-2 py-1 text-sm" />
-        {!quick && <button onClick={() => change((d) => ({ ...d, words: offsetAll(d.words, -0.1, clipLen) }))} className="rounded border border-[var(--border)] bg-white px-2 text-xs" title="Adelantar todos los subtítulos 0,1 s">−0,1 s</button>}
-        {!quick && <button onClick={() => change((d) => ({ ...d, words: offsetAll(d.words, 0.1, clipLen) }))} className="rounded border border-[var(--border)] bg-white px-2 text-xs" title="Retrasar todos los subtítulos 0,1 s">+0,1 s</button>}
+        <input aria-label="Buscar en la transcripción" placeholder="Buscar palabra…" value={q} onChange={(e) => setQ(e.target.value)} className="min-w-0 flex-1 rounded border border-[var(--border)] bg-[var(--card)] px-2 py-1 text-sm" />
+        {!quick && <button onClick={() => change((d) => ({ ...d, words: offsetAll(d.words, -0.1, clipLen) }))} className="rounded border border-[var(--border)] bg-[var(--card)] px-2 text-xs" title="Adelantar todos los subtítulos 0,1 s">−0,1 s</button>}
+        {!quick && <button onClick={() => change((d) => ({ ...d, words: offsetAll(d.words, 0.1, clipLen) }))} className="rounded border border-[var(--border)] bg-[var(--card)] px-2 text-xs" title="Retrasar todos los subtítulos 0,1 s">+0,1 s</button>}
       </div>
       <p className="mb-2 text-xs text-[var(--muted)]">{doc.words.length} palabras · {phrases.length} frases{ql ? ` · ${shown.length} con «${q}»` : ""}. Pulsa una palabra para ir a ese instante y corregirla; el audio y el vídeo no se cortan.</p>
       <ol ref={listRef} className="min-h-0 flex-1 space-y-2 overflow-auto pr-1 xl:max-h-[calc(100vh-260px)] max-xl:max-h-[56vh]">
         {shown.map(({ p, pi }) => (
-          <li key={pi} data-phrase={pi} className={`rounded-lg border px-2 py-1.5 ${pi === activePhrase ? "border-[var(--ink)] bg-white" : "border-transparent hover:bg-white/70"}`}>
+          <li key={pi} data-phrase={pi} className={`rounded-lg border px-2 py-1.5 ${pi === activePhrase ? "border-[var(--ink)] bg-[var(--card)]" : "border-transparent hover:bg-[var(--hover)]"}`}>
             <div className="flex gap-2">
               <button onClick={() => { seek(doc.words[p.from].start); setSel(p.from); }} className="tnum w-10 shrink-0 pt-0.5 text-left text-xs text-[var(--muted)] hover:underline" aria-label={`Ir a ${clock(doc.words[p.from].start)}`}>{clock(doc.words[p.from].start)}</button>
               <p className="min-w-0 flex-1 text-[15px] leading-7">
@@ -294,12 +294,12 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
             </div>
             {sel !== null && sel >= p.from && sel <= p.to && (
               <div className="mb-1 ml-12 mt-1 grid gap-2 rounded-lg bg-[var(--surface)] p-2 text-xs">
-                <label>Texto <input aria-label={`Palabra ${sel + 1}`} value={doc.words[sel].text} onChange={(e) => change((d) => ({ ...d, words: editText(d.words, sel, e.target.value) }))} className="mt-0.5 w-full rounded border border-[var(--border)] bg-white px-1.5 py-1 text-sm" autoFocus /></label>
+                <label>Texto <input aria-label={`Palabra ${sel + 1}`} value={doc.words[sel].text} onChange={(e) => change((d) => ({ ...d, words: editText(d.words, sel, e.target.value) }))} className="mt-0.5 w-full rounded border border-[var(--border)] bg-[var(--card)] px-1.5 py-1 text-sm" autoFocus /></label>
                 <div className="flex flex-wrap items-center gap-2">
-                  {!quick && <><label>Inicio <input type="number" step={0.01} value={doc.words[sel].start} onChange={(e) => change((d) => ({ ...d, words: setTiming(d.words, sel, Number(e.target.value), d.words[sel].end, clipLen) }))} className="tnum w-20 rounded border border-[var(--border)] bg-white px-1" /></label>
-                  <label>Fin <input type="number" step={0.01} value={doc.words[sel].end} onChange={(e) => change((d) => ({ ...d, words: setTiming(d.words, sel, d.words[sel].start, Number(e.target.value), clipLen) }))} className="tnum w-20 rounded border border-[var(--border)] bg-white px-1" /></label>
-                  <button onClick={() => change((d) => ({ ...d, words: splitWord(d.words, sel) }))} className="rounded border border-[var(--border)] bg-white px-2 py-1">Dividir</button>
-                  <button onClick={() => change((d) => ({ ...d, words: mergeWithNext(d.words, sel) }))} disabled={sel >= doc.words.length - 1} className="rounded border border-[var(--border)] bg-white px-2 py-1 disabled:opacity-40">Unir con siguiente</button></>}
+                  {!quick && <><label>Inicio <input type="number" step={0.01} value={doc.words[sel].start} onChange={(e) => change((d) => ({ ...d, words: setTiming(d.words, sel, Number(e.target.value), d.words[sel].end, clipLen) }))} className="tnum w-20 rounded border border-[var(--border)] bg-[var(--card)] px-1" /></label>
+                  <label>Fin <input type="number" step={0.01} value={doc.words[sel].end} onChange={(e) => change((d) => ({ ...d, words: setTiming(d.words, sel, d.words[sel].start, Number(e.target.value), clipLen) }))} className="tnum w-20 rounded border border-[var(--border)] bg-[var(--card)] px-1" /></label>
+                  <button onClick={() => change((d) => ({ ...d, words: splitWord(d.words, sel) }))} className="rounded border border-[var(--border)] bg-[var(--card)] px-2 py-1">Dividir</button>
+                  <button onClick={() => change((d) => ({ ...d, words: mergeWithNext(d.words, sel) }))} disabled={sel >= doc.words.length - 1} className="rounded border border-[var(--border)] bg-[var(--card)] px-2 py-1 disabled:opacity-40">Unir con siguiente</button></>}
                   <button onClick={() => setSel(null)} className="ml-auto underline">Cerrar</button>
                 </div>
               </div>)}
@@ -313,7 +313,7 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
   const tabEff = xl && tab === "texto" ? "estilo" : quick && ["social", "broll"].includes(tab) ? "estilo" : tab;
 
   return (
-    <main className="px-4 py-6 md:px-6">
+    <main className="theme-dark min-h-screen px-4 py-6 md:px-6">
       <header className="mb-4 flex flex-wrap items-center gap-3">
         <Link href={`/app/p/${meta.projectId}`} className="text-sm text-[var(--muted)] underline">← Proyecto</Link>
         <h1 className="min-w-0 flex-1 truncate text-lg font-semibold">{meta.title}</h1>
@@ -377,15 +377,15 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
             <div className="grid gap-3 p-3 text-sm">
               <div className="flex items-end gap-2">
                 <label className="flex-1">Preset
-                  <select value={doc.preset} onChange={(e) => change((d) => ({ ...d, preset: e.target.value, style: { ...presetStyle(e.target.value) } }))} className="mt-1 w-full rounded border border-[var(--border)] bg-white px-2 py-1.5">
+                  <select value={doc.preset} onChange={(e) => change((d) => ({ ...d, preset: e.target.value, style: { ...presetStyle(e.target.value) } }))} className="mt-1 w-full rounded border border-[var(--border)] bg-[var(--card)] px-2 py-1.5">
                     <optgroup label="Base">{Object.keys(PRESETS).map((p) => <option key={p}>{p}</option>)}</optgroup>
                     {!!myStyles?.length && <optgroup label="Mis estilos">{myStyles.map((x) => <option key={x.id} value={x.name}>{x.name}</option>)}</optgroup>}
                   </select></label>
-                <button onClick={() => change((d) => ({ ...d, style: { ...presetStyle(d.preset) } }))} className="rounded border border-[var(--border)] bg-white px-3 py-1.5">Restaurar preset</button>
+                <button onClick={() => change((d) => ({ ...d, style: { ...presetStyle(d.preset) } }))} className="rounded border border-[var(--border)] bg-[var(--card)] px-3 py-1.5">Restaurar preset</button>
               </div>
               <div className="grid grid-cols-[1fr_auto] items-end gap-2">
                 <label>Fuente
-                  <select value={doc.style.fontName} onChange={(e) => setStyle({ fontName: e.target.value })} className="mt-1 w-full rounded border border-[var(--border)] bg-white px-2 py-1.5" style={{ fontFamily: `"${doc.style.fontName}", Arial` }}>
+                  <select value={doc.style.fontName} onChange={(e) => setStyle({ fontName: e.target.value })} className="mt-1 w-full rounded border border-[var(--border)] bg-[var(--card)] px-2 py-1.5" style={{ fontFamily: `"${doc.style.fontName}", Arial` }}>
                     <option value="Bootzy TM">Bootzy TM (fuente de los clips)</option>
                     <option value="Arial">Arial</option>
                     {fonts?.map((f) => <option key={f.id} value={f.family} style={{ fontFamily: `"${f.family}"` }}>{f.family}</option>)}
@@ -423,7 +423,7 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
               </div>}
               {(() => { const busy = !!rf && ["queued", "analyzing"].includes(rf.status); const ready = rf?.status === "ready" && rf.path; const st = ready && rf.path!.mode === "static";
                 return (
-                <div className="rounded-xl border border-[var(--border)] bg-white p-3" aria-label="Reencuadre automático">
+                <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-3" aria-label="Reencuadre automático">
                   <div className="font-medium">Reencuadre automático</div>
                   <p className="mt-0.5 text-xs text-[var(--muted)]">Detecta caras en este tramo y mueve el recorte para mantenerlas en cuadro. Es una sugerencia: la ves en la vista previa antes de aplicarla, y es la misma que se exporta.</p>
                   {doc.reframe ? (
@@ -431,7 +431,7 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
                       <div className="mt-2 flex flex-wrap gap-2"><button onClick={clearReframe} className="btn btn-ghost !px-3 !py-1 !text-xs">Quitar seguimiento</button><button onClick={analyzeFaces} disabled={busy} className="btn btn-ghost !px-3 !py-1 !text-xs">Volver a analizar</button></div></div>
                   ) : (
                     <div className="mt-2 flex flex-wrap items-end gap-2">
-                      <label className="text-xs">Seguir a<select value={rfMode} onChange={(e) => setRfMode(e.target.value as "follow" | "group")} className="mt-1 block rounded-full border border-[var(--border)] bg-white px-3 py-1.5 text-sm"><option value="follow">La cara principal</option><option value="group">El grupo (si caben)</option></select></label>
+                      <label className="text-xs">Seguir a<select value={rfMode} onChange={(e) => setRfMode(e.target.value as "follow" | "group")} className="mt-1 block rounded-full border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-sm"><option value="follow">La cara principal</option><option value="group">El grupo (si caben)</option></select></label>
                       <button onClick={analyzeFaces} disabled={busy} className="btn btn-primary !py-1.5 !text-xs disabled:opacity-50">{busy ? "Analizando…" : "Analizar caras"}</button>
                     </div>)}
                   {busy && <p role="status" aria-live="polite" className="mt-2 text-xs text-[var(--muted)]">Analizando el tramo de {(doc.endSec - doc.startSec).toFixed(0)} s en segundo plano. Puedes seguir editando; avisa aquí al terminar.</p>}
@@ -480,7 +480,7 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
           {tabEff === "exportar" && (
             <div className="grid gap-3 p-3 text-sm">
               <label>Formato
-                <select value={doc.ratio} onChange={(e) => change((d) => ({ ...d, ratio: e.target.value as Ratio }))} className="mt-1 w-full rounded border border-[var(--border)] bg-white px-2 py-1.5">
+                <select value={doc.ratio} onChange={(e) => change((d) => ({ ...d, ratio: e.target.value as Ratio }))} className="mt-1 w-full rounded border border-[var(--border)] bg-[var(--card)] px-2 py-1.5">
                   <option value="9:16">9:16 · 1080×1920 (Shorts, Reels, TikTok)</option>
                   <option value="4:5">4:5 · 1080×1350 (feed Instagram)</option>
                   <option value="1:1">1:1 · 1080×1080</option>
@@ -490,15 +490,15 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
               <button onClick={exportMp4} className="rounded-lg bg-[var(--accent)] px-4 py-2 font-medium text-white">Exportar MP4 (versión actual)</button>
               {exporting && <p role="status" aria-live="polite" className="text-[var(--muted)]">{exporting}</p>}
               <div className="flex flex-wrap gap-2">
-                <button onClick={() => saveText(`${meta.title}.srt`, toSRT(doc.words, eff), "application/x-subrip")} className="rounded border border-[var(--border)] bg-white px-3 py-1.5">SRT</button>
-                <button onClick={() => saveText(`${meta.title}.vtt`, toVTT(doc.words, eff), "text/vtt")} className="rounded border border-[var(--border)] bg-white px-3 py-1.5">VTT</button>
-                <button onClick={() => saveText(`${meta.title}.txt`, toTranscript(doc.words), "text/plain")} className="rounded border border-[var(--border)] bg-white px-3 py-1.5">Transcripción</button>
+                <button onClick={() => saveText(`${meta.title}.srt`, toSRT(doc.words, eff), "application/x-subrip")} className="rounded border border-[var(--border)] bg-[var(--card)] px-3 py-1.5">SRT</button>
+                <button onClick={() => saveText(`${meta.title}.vtt`, toVTT(doc.words, eff), "text/vtt")} className="rounded border border-[var(--border)] bg-[var(--card)] px-3 py-1.5">VTT</button>
+                <button onClick={() => saveText(`${meta.title}.txt`, toTranscript(doc.words), "text/plain")} className="rounded border border-[var(--border)] bg-[var(--card)] px-3 py-1.5">Transcripción</button>
               </div>
               <h3 className="mt-2 font-medium">Exportaciones</h3>
               {!renders.length && <p className="text-[var(--muted)]">Aún no hay exportaciones de este clip.</p>}
               <ul className="space-y-1">
                 {renders.map((r) => (
-                  <li key={r.id} className="flex items-center justify-between rounded border border-[var(--border)] bg-white px-2 py-1">
+                  <li key={r.id} className="flex items-center justify-between rounded border border-[var(--border)] bg-[var(--card)] px-2 py-1">
                     <span className="tnum">v{r.clip_version} · {r.ratio} · {r.burn_subtitles ? "con subtítulos" : "sin subtítulos"}</span>
                     <button onClick={() => download(r)} className="underline">Descargar</button>
                   </li>

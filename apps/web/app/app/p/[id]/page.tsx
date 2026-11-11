@@ -226,7 +226,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
           onDiscard={async (cid) => { await supabase.from("clips").update({ discarded: true }).eq("id", cid); setClips((l) => l.filter((x) => x.id !== cid)); }}
           clips={clips.map<WallClip>((c) => ({ id: c.id, title: c.title, title_source: c.title_source, thumb: c.thumb, url: c.url, path: c.path, bytes: c.bytes, favorite: c.favorite, version: c.version ?? c.current_version, ratio: c.ratio,
             review_status: c.review_status, approved_version: c.approved_version, current_version: c.current_version, durMs: c.candidate ? c.candidate.end_ms - c.candidate.start_ms : undefined,
-            score: c.candidate?.scores?.overall ?? null, reason: c.candidate?.reason, brief_fit: c.candidate?.brief_fit, startMs: c.candidate?.start_ms, endMs: c.candidate?.end_ms, created_at: c.created_at, hasRender: !!c.path }))} />
+            score: c.candidate?.scores?.overall ?? null, factors: c.candidate?.scores ?? null, reason: c.candidate?.reason, brief_fit: c.candidate?.brief_fit, startMs: c.candidate?.start_ms, endMs: c.candidate?.end_ms, created_at: c.created_at, hasRender: !!c.path }))} />
       )}
 
       {!tool && !!rejected.length && (

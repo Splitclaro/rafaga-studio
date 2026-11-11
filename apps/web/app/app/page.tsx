@@ -112,19 +112,19 @@ export default function Dashboard() {
       <div className="mx-auto max-w-[1240px]">
         <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="text-[40px] leading-[1.05] tracking-tight [text-wrap:balance] md:text-[46px]">Tu próximo <span className="text-grad">gran momento</span>.</h1>
-            <p className="mt-2 text-base text-[var(--muted)]">Elige una fuente, cuéntanos qué buscas y Ráfaga corta por ti.</p>
+            <h1 className="text-[34px] leading-[1.1] tracking-tight [text-wrap:balance] md:text-[42px]">Convierte tu vídeo largo en clips listos para publicar</h1>
+            <p className="mt-2 max-w-2xl text-base text-[var(--muted)]">Sube tu vídeo, cuéntanos qué momentos buscas y Ráfaga te devuelve clips verticales con subtítulos y una puntuación de encaje estimada.</p>
           </div>
           <Link href="/app/biblioteca" className="flex items-center gap-2 text-sm font-semibold text-[var(--accent)]"><Icon n="grid" className="h-4 w-4" />Todos los proyectos</Link>
         </header>
 
         <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
           {/* Crear */}
-          <section aria-label="Crear" className="panel-night theme-dark p-5 md:p-7">
+          <section aria-label="Crear" className="hero-soft p-5 md:p-7">
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-              <div role="tablist" aria-label="Qué quieres crear" className="inline-flex rounded-xl border hairline bg-[var(--surface)] p-[3px]">
+              <div role="tablist" aria-label="Qué quieres crear" className="inline-flex rounded-xl border hairline bg-white/70 p-[3px]">
                 {([["clips", "Clips de vídeo largo", "scissors"], ["lyrics", "Vídeo con letra", "music"]] as const).map(([k, l, i]) => (
-                  <button key={k} role="tab" aria-selected={tab === k} onClick={() => { setTab(k); setMsg(null); }} className={`flex items-center gap-2 rounded-[10px] px-4 py-2 text-sm ${tab === k ? "bg-[var(--card)]/[.12] font-semibold text-white shadow-[0_0_0_1px_rgba(255,255,255,.14)]" : "text-[var(--muted)] hover:text-[var(--text)]"}`}><Icon n={i} className="h-4 w-4" />{l}</button>
+                  <button key={k} role="tab" aria-selected={tab === k} onClick={() => { setTab(k); setMsg(null); }} className={`flex items-center gap-2 rounded-[10px] px-4 py-2 text-sm ${tab === k ? "bg-[var(--card)] font-semibold text-[var(--ink)] shadow-[0_0_0_1px_var(--border-2)]" : "text-[var(--muted)] hover:text-[var(--text)]"}`}><Icon n={i} className="h-4 w-4" />{l}</button>
                 ))}
               </div>
               {tab === "clips" && (
@@ -143,11 +143,11 @@ export default function Dashboard() {
                 <div className="rounded-2xl border hairline bg-[var(--card)] p-3">
                   <div className="flex items-center gap-3">{/* eslint-disable-next-line @next/next/no-img-element */}<img src={yt.thumb} alt="" className="h-14 w-24 shrink-0 rounded-lg object-cover" /><div className="min-w-0 flex-1"><div className="line-clamp-2 text-sm font-medium">{yt.title}</div><div className="truncate text-xs text-[var(--muted)]">{yt.channel}{yt.durationSec ? ` · ${Math.floor(yt.durationSec / 60)} min` : ""}</div></div><button type="button" onClick={() => { setYt(null); setYtProject(null); setFile(null); }} className="btn btn-ghost !px-3 !py-1.5 !text-xs">Cambiar</button></div>
                   {ytProject ? <div className="mt-3 flex flex-wrap items-center gap-3"><p className="text-sm text-[var(--muted)]">Ya tienes un proyecto con este vídeo.</p><Link href={`/app/p/${ytProject}`} className="btn btn-primary">Abrir proyecto</Link></div>
-                    : <p className="mt-3 text-sm text-[var(--muted)]">Vídeo reconocido. YouTube no permite que nuestro servidor descargue el vídeo, así que hace falta su archivo: elígelo abajo y pulsa «Obtener clips». Si el vídeo es tuyo, lo descargas en YouTube Studio → Contenido → ⋮ → Descargar. El título y tu encargo se conservan.</p>}
+                    : <p className="mt-3 text-sm text-[var(--muted)]">Vídeo elegido de tu canal. YouTube no entrega el archivo, ni siquiera conectando tu cuenta: descárgalo en YouTube Studio → Contenido → ⋮ → Descargar, súbelo abajo y pulsa «Obtener clips». El título y tu encargo se conservan.</p>}
                 </div>))}
-              {(mode !== "clips" || !yt || !ytProject) && <><p className="my-3 text-center text-xs text-[var(--muted)]">{mode === "clips" ? "o sube el archivo" : ""}</p><label htmlFor="file" onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)} onDrop={(e) => { e.preventDefault(); setDrag(false); pick(e.dataTransfer.files?.[0] ?? null); }}
-                className={`flex cursor-pointer items-center gap-4 rounded-2xl border-[1.5px] border-dashed px-5 py-7 transition-colors focus-within:shadow-[var(--ring)] ${drag ? "border-[#7FA0FF] bg-[var(--card)]/10" : "border-white/25 bg-[var(--card)]/[.04] hover:border-[#7FA0FF] hover:bg-[var(--card)]/[.07]"}`}>
-                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[linear-gradient(135deg,#1D4FFF_0%,#4F7BFF_60%,#22D3EE_130%)] text-white"><Icon n="upload" /></span>
+              {(mode !== "clips" || !yt || !ytProject) && <><p className="my-3 text-center text-xs text-[var(--muted)]">{mode === "clips" && !yt ? "o sube el archivo" : ""}</p><label htmlFor="file" onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)} onDrop={(e) => { e.preventDefault(); setDrag(false); pick(e.dataTransfer.files?.[0] ?? null); }}
+                className={`flex cursor-pointer items-center gap-4 rounded-2xl border-[1.5px] border-dashed px-5 py-7 transition-colors focus-within:shadow-[var(--ring)] ${drag ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--border-2)] bg-[var(--card)] hover:border-[var(--accent)]"}`}>
+                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[var(--accent)] text-white"><Icon n="upload" /></span>
                 {file ? <span className="min-w-0 flex-1"><span className="block truncate font-medium">{file.name}</span><span className="mono text-xs text-[var(--muted)]">{(file.size / 1048576).toFixed(1)} MB{dur ? ` · ${Math.floor(dur / 60)}:${String(Math.round(dur % 60)).padStart(2, "0")}` : ""}</span></span>
                   : <span className="min-w-0 flex-1"><span className="block font-medium">Suelta tu vídeo aquí o elige un archivo</span><span className="text-sm text-[var(--muted)]">MP4, MOV, M4V, MKV o WebM, hasta {MAX_VIDEO_BYTES / 1073741824} GB</span></span>}
                 <span className="btn btn-ghost hidden sm:inline-flex">{file ? "Cambiar" : "Subir"}</span>
@@ -193,7 +193,7 @@ export default function Dashboard() {
             <section aria-labelledby="como" className="card p-4">
               <h2 id="como" className="text-[17px]">Cómo funciona</h2>
               <ol className="mt-3 space-y-3 text-sm">
-                {([["Trae tu vídeo", "Sube el archivo o pega un enlace de YouTube; si es tuyo, elígelo de tu canal."], ["Di qué buscar", "Escribe qué momentos quieres, para quién y qué evitar. Ráfaga te dice cómo lo ha entendido."], ["Recibe los clips ordenados", "Cada clip llega vertical, con subtítulos y su puntuación de encaje estimada. Edita, aprueba y descarga."]] as const).map(([t, d], i) => (
+                {([["Trae tu vídeo", "Sube el archivo de tu vídeo. Si está en YouTube, descárgalo desde YouTube Studio y súbelo aquí."], ["Di qué buscar", "Escribe qué momentos quieres, para quién y qué evitar. Ráfaga te dice cómo lo ha entendido."], ["Recibe los clips ordenados", "Cada clip llega vertical, con subtítulos y su puntuación de encaje estimada. Edita, aprueba y descarga."]] as const).map(([t, d], i) => (
                   <li key={t} className="flex gap-3"><span className="tnum grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[#EEF2FF] text-xs font-semibold text-[var(--accent)]">{i + 1}</span><span><span className="block font-medium">{t}</span><span className="text-[var(--muted)]">{d}</span></span></li>
                 ))}
               </ol>
@@ -219,7 +219,7 @@ export default function Dashboard() {
             <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               {batches.map((b) => (
                 <li key={b.id}><Link href="/app/lyric-studio" className="card lift block overflow-hidden">
-                  <div className="relative grid aspect-video place-items-center bg-[linear-gradient(135deg,#141B34,#0B1020)] text-white/70"><Icon n="music" className="h-8 w-8" /><span className="chip absolute left-2 top-2 !py-0.5 text-[var(--text)]">{isActive(b.status) && <span className="pulse" aria-hidden />}{STAGE[b.status] ?? b.status}</span></div>
+                  <div className="relative grid aspect-video place-items-center bg-[var(--accent-soft)] text-[var(--accent)]"><Icon n="music" className="h-8 w-8" /><span className="chip absolute left-2 top-2 !py-0.5 text-[var(--text)]">{isActive(b.status) && <span className="pulse" aria-hidden />}{STAGE[b.status] ?? b.status}</span></div>
                   <div className="p-3"><div className="truncate text-sm font-medium">{b.title}</div><div className="tnum text-xs text-[var(--muted)]">{b.params.n} vídeo{b.params.n === 1 ? "" : "s"}, {new Date(b.created_at).toLocaleDateString("es", { day: "numeric", month: "short" })}</div></div>
                 </Link></li>
               ))}

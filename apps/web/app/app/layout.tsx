@@ -7,18 +7,19 @@ import Icon from "../../components/Icon";
 import CommandPalette, { type NavItem } from "../../components/CommandPalette";
 
 const NAV: NavItem[] = [
-  { href: "/app", label: "Inicio", icon: "home", ready: true, group: "Crear" },
+  { href: "/app", label: "Inicio", icon: "home", ready: true, group: "Trabajo" },
+  { href: "/app/biblioteca", label: "Proyectos", icon: "folder", ready: true, group: "Trabajo" },
+  { href: "/app/exports", label: "Exportados", icon: "download", ready: true, group: "Trabajo" },
+  { href: "/app/calendario", label: "Calendario", icon: "calendar", ready: true, group: "Trabajo" },
+  { href: "/app/analitica", label: "Analítica", icon: "chart", ready: true, group: "Trabajo" },
   { href: "/app/lyric-studio", label: "Lyric Studio", icon: "music", ready: true, group: "Crear" },
   { href: "/app/style-studio", label: "Style Studio", icon: "type", ready: true, group: "Crear" },
-  { href: "/app/biblioteca", label: "Biblioteca", icon: "folder", ready: true, group: "Crear" },
   { href: "/app/brand-kits", label: "Brand kit", icon: "brand", ready: true, group: "Crear" },
-  { href: "/app/entregas", label: "Entregas", icon: "share", ready: true, group: "Revisar y entregar" },
-  { href: "/app/calendario", label: "Calendario", icon: "calendar", ready: true, group: "Revisar y entregar" },
-  { href: "/app/conexiones", label: "Conexiones", icon: "link", ready: true, group: "Revisar y entregar" },
-  { href: "/app/automatizaciones", label: "Automatizaciones", icon: "bolt", ready: true, group: "Automatizar" },
-  { href: "/app/analitica", label: "Analítica", icon: "chart", ready: true, group: "Automatizar" },
+  { href: "/app/entregas", label: "Entregas", icon: "share", ready: true, group: "Compartir" },
+  { href: "/app/conexiones", label: "Conexiones", icon: "link", ready: true, group: "Compartir" },
+  { href: "/app/automatizaciones", label: "Automatizaciones", icon: "bolt", ready: true, group: "Compartir" },
 ];
-const GROUPS = ["Crear", "Revisar y entregar", "Automatizar"];
+const GROUPS = ["Trabajo", "Crear", "Compartir"];
 type Ws = { id: string; name: string; role: string; personal: boolean; active: boolean; members: number };
 const ROLE: Record<string, string> = { owner: "Propietario", admin: "Admin", editor: "Editor", reviewer: "Revisor", viewer: "Lector", member: "Editor" };
 type Note = { id: string; status: string; kind: string; updated_at: string; error_message: string | null };
@@ -87,11 +88,11 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen md:flex">
-      <aside className={`theme-dark z-20 bg-[var(--night)] text-[var(--text)] md:sticky md:top-0 md:flex md:h-screen md:shrink-0 md:flex-col md:border-r md:border-white/5 ${collapsed ? "md:w-[68px]" : "md:w-64"}`}>
-        <div className="flex items-center justify-between gap-2 px-4 py-3 md:px-3 md:py-4">
+      <aside className={`z-20 border-b border-[var(--border)] bg-[var(--card)] md:sticky md:top-0 md:flex md:h-screen md:shrink-0 md:flex-col md:border-b-0 md:border-r ${collapsed ? "md:w-[68px]" : "md:w-64"}`}>
+        <div className="flex items-center justify-between gap-2 px-4 py-3 md:px-4 md:py-4">
           <Link href="/app" className="flex min-w-0 items-center gap-2.5 font-semibold" aria-label="Ráfaga Studio, inicio">
-            <span aria-hidden className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] bg-[image:var(--grad)] text-white shadow-[0_0_20px_-2px_var(--glow),inset_0_1px_0_rgba(255,255,255,.35)]"><Icon n="bolt" className="h-4 w-4" /></span>
-            <span className={`text-[15px] tracking-tight ${collapsed ? "md:sr-only" : ""}`}>Ráfaga Studio</span>
+            <span aria-hidden className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] bg-[var(--accent)] text-white"><Icon n="bolt" className="h-4 w-4" /></span>
+            <span className={`font-display text-[17px] tracking-tight text-[var(--ink)] ${collapsed ? "md:sr-only" : ""}`}>ráfaga</span>
           </Link>
           <button onClick={toggle} aria-label={collapsed ? "Expandir menú" : "Plegar menú"} aria-expanded={!collapsed} className="hidden rounded-lg p-1.5 text-[var(--muted)] hover:bg-[var(--hover)] md:block"><Icon n={collapsed ? "chevR" : "chevL"} className="h-4 w-4" /></button>
         </div>
@@ -99,8 +100,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
         {!collapsed && (
           <div className="relative mx-3 mb-2 hidden md:block">
             <button onClick={() => setMenu(!menu)} aria-expanded={menu} className="card flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm hover:bg-[var(--hover)]">
-              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#1D4FFF] text-xs font-semibold text-white">{(email[0] ?? "?").toUpperCase()}</span>
-              <span className="min-w-0 flex-1"><span className="block truncate font-medium leading-tight">{ws}</span><span className="block truncate text-xs text-[var(--muted)]">{ROLE[role] ?? ""}{role ? " · " : ""}{email}</span></span>
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] bg-[#FFD9E2] text-sm font-semibold text-[#8A1538]">{(ws[0] ?? email[0] ?? "?").toUpperCase()}</span>
+              <span className="min-w-0 flex-1"><span className="block truncate font-medium leading-tight">{ws}</span><span className="block truncate text-xs text-[var(--muted)]">{ROLE[role] ?? ""}{role ? " · " : ""}{spaces.find((x) => x.active)?.members ?? 1} miembro{(spaces.find((x) => x.active)?.members ?? 1) === 1 ? "" : "s"}</span></span>
               <Icon n="chevD" className="h-4 w-4 text-[var(--muted)]" />
             </button>
             {menu && (
@@ -122,40 +123,39 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
         <nav aria-label="Principal" className="flex gap-1 overflow-x-auto px-3 pb-3 md:block md:flex-1 md:overflow-y-auto md:pb-4">
           {GROUPS.map((g) => (
-            <div key={g} className="md:mt-3 md:first:mt-0">
-              {!collapsed && <div className="hidden px-3 pb-1 pt-2 text-xs font-medium text-[var(--muted)] md:block">{g}</div>}
-              <div className="flex gap-1 md:block md:space-y-0.5">
-                {NAV.filter((n) => n.group === g).map((n) => (
-                  <Link key={n.href} href={n.href} title={collapsed ? n.label : undefined} aria-current={active(n.href) ? "page" : undefined}
-                    className={`group relative flex shrink-0 items-center gap-3 rounded-[10px] px-3 py-2 text-sm transition-colors ${active(n.href) ? "bg-white/[.09] font-semibold text-white ring-1 ring-white/15 shadow-[0_0_24px_-8px_var(--glow)]" : "text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--text)]"}`}>
-                                        <Icon n={n.icon} className="h-[18px] w-[18px] shrink-0" /><span className={collapsed ? "md:sr-only" : ""}>{n.label}</span>
-                    {!n.ready && !collapsed && <span className="ml-auto hidden rounded-md border hairline px-1.5 text-[10px] text-[var(--muted)] md:inline">Pronto</span>}
-                  </Link>
-                ))}
-              </div>
+            <div key={g} className="flex gap-1 md:mt-4 md:block md:space-y-0.5 md:first:mt-1">
+              {!collapsed && <div className="hidden px-3 pb-1 pt-1 text-xs font-medium text-[var(--muted)] md:block">{g}</div>}
+              {NAV.filter((n) => n.group === g).map((n) => (
+                <Link key={n.href} href={n.href} title={collapsed ? n.label : undefined} aria-current={active(n.href) ? "page" : undefined}
+                  className={`flex shrink-0 items-center gap-3 rounded-[10px] px-3 py-2 text-sm transition-colors ${active(n.href) ? "bg-[var(--accent-soft)] font-semibold text-[var(--accent-ink)]" : "text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--ink)]"}`}>
+                  <Icon n={n.icon} className="h-[18px] w-[18px] shrink-0" /><span className={collapsed ? "md:sr-only" : ""}>{n.label}</span>
+                </Link>
+              ))}
             </div>
           ))}
         </nav>
 
         {usage && !collapsed && (
-          <Link href="/app/ajustes" className="mx-3 mb-2 hidden rounded-[10px] px-3 py-2 hover:bg-[var(--hover)] md:block" aria-label={`Consumo esta semana: ${usage.used} de ${usage.limit} minutos`}>
+          <Link href="/app/ajustes" className="mx-3 mb-2 hidden rounded-[10px] border hairline px-3 py-2 hover:bg-[var(--hover)] md:block" aria-label={`Consumo esta semana: ${usage.used} de ${usage.limit} minutos`}>
             <span className="block text-xs text-[var(--muted)]">Esta semana</span>
             <span className="tnum mb-2 mt-0.5 block text-sm font-semibold">{Math.round(usage.used)} de {usage.limit} min</span>
-            <span className="block h-1 overflow-hidden rounded-full bg-[var(--border)]"><span className="block h-full rounded-full bg-[image:var(--grad)] shadow-[0_0_10px_var(--glow)]" style={{ width: `${Math.min(100, (usage.used / usage.limit) * 100)}%` }} /></span>
+            <span className="block h-1.5 overflow-hidden rounded-full bg-[var(--border)]"><span className="block h-full rounded-full bg-[var(--accent)]" style={{ width: `${Math.min(100, (usage.used / usage.limit) * 100)}%` }} /></span>
           </Link>
         )}
         <div className="hidden border-t hairline p-3 md:block">
-          <Link href="/app/ajustes" aria-current={path.startsWith("/app/ajustes") ? "page" : undefined} className="flex items-center gap-3 rounded-[10px] px-3 py-2 text-sm text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--text)]"><Icon n="gear" className="h-[18px] w-[18px]" /><span className={collapsed ? "sr-only" : ""}>Uso y ajustes</span></Link>
-          <a href="https://github.com/Splitclaro/rafaga-studio#readme" target="_blank" rel="noreferrer" className="flex items-center gap-3 rounded-[10px] px-3 py-2 text-sm text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--text)]"><Icon n="help" className="h-[18px] w-[18px]" /><span className={collapsed ? "sr-only" : ""}>Ayuda</span></a>
+          <Link href="/app/ajustes" aria-current={path.startsWith("/app/ajustes") ? "page" : undefined} className="flex items-center gap-3 rounded-[10px] px-3 py-2 text-sm text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--ink)]"><Icon n="gear" className="h-[18px] w-[18px]" /><span className={collapsed ? "sr-only" : ""}>Uso y ajustes</span></Link>
+          <a href="https://github.com/Splitclaro/rafaga-studio#readme" target="_blank" rel="noreferrer" className="flex items-center gap-3 rounded-[10px] px-3 py-2 text-sm text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--ink)]"><Icon n="help" className="h-[18px] w-[18px]" /><span className={collapsed ? "sr-only" : ""}>Ayuda</span></a>
         </div>
       </aside>
 
-      <div className="aurora min-w-0 flex-1">
+      <div className="min-w-0 flex-1">
         <header className="glass sticky top-0 z-10 flex items-center gap-3 border-b hairline px-4 py-2.5 md:px-8">
           <span className="hidden text-sm text-[var(--muted)] md:block">{current}</span>
           <button onClick={() => setPalette(true)} className="card ml-auto flex min-w-0 items-center gap-2 px-3 py-1.5 text-sm text-[var(--muted)] hover:bg-[var(--hover)] md:ml-6 md:w-72" aria-label="Buscar o ir a (Cmd+K)">
             <Icon n="search" className="h-4 w-4 shrink-0" /><span className="min-w-0 flex-1 truncate text-left">Buscar o ir a…</span><span className="kbd hidden md:inline">⌘K</span>
           </button>
+          <Link href="/app/director" className="btn btn-ghost !min-h-9 !py-1.5 hidden md:inline-flex"><Icon n="wand" className="h-4 w-4 text-[var(--accent)]" />Director IA</Link>
+          <Link href="/app/equipo" className="btn btn-ghost !min-h-9 !py-1.5 hidden lg:inline-flex">Invitar</Link>
           {running > 0 && <Link href="/app/biblioteca" className="chip" aria-label={`${running} trabajos en curso`}><span className="pulse" aria-hidden /> <span className="tnum">{running}</span> en curso</Link>}
           <div className="relative">
             <button onClick={openBell} aria-label={`Notificaciones${unread ? `, ${unread} nuevas` : ""}`} aria-expanded={bell} className="card relative grid h-9 w-9 place-items-center hover:bg-[var(--hover)]">

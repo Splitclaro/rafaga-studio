@@ -57,7 +57,7 @@ export default function SubtitleEditor({ initialWords, duration }: { initialWord
           {words.map((w, i) => (
             <li key={i} className="flex items-center gap-2">
               <button className="tnum w-14 text-left text-xs text-[var(--muted)]" onClick={() => { setPlaying(false); setT(w.start); }}>{w.start.toFixed(2)}s</button>
-              <input aria-label={`Palabra ${i + 1}`} className="w-full rounded bg-white ring-1 ring-[var(--border)] px-2 py-1" value={w.text} onChange={(e) => editWord(i, e.target.value)} />
+              <input aria-label={`Palabra ${i + 1}`} className="w-full rounded bg-[var(--card)] ring-1 ring-[var(--border)] px-2 py-1" value={w.text} onChange={(e) => editWord(i, e.target.value)} />
             </li>
           ))}
         </ol>

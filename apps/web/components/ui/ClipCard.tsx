@@ -6,7 +6,7 @@ import { StatusLabel, pieceStatus, fmtDur } from "./status";
 
 export type WallClip = {
   id: string; title: string; title_source: string; thumb?: string; url?: string; path?: string; bytes?: number; favorite: boolean; version: number; ratio?: string;
-  review_status: string; approved_version: number | null; current_version: number; durMs?: number; score?: number | null; reason?: string | null; brief_fit?: string | null; startMs?: number; endMs?: number; created_at: string; hasRender: boolean;
+  review_status: string; approved_version: number | null; current_version: number; durMs?: number; score?: number | null; factors?: { relevance?: number; hook?: number; standalone?: number; closure?: number } | null; reason?: string | null; brief_fit?: string | null; startMs?: number; endMs?: number; created_at: string; hasRender: boolean;
 };
 
 /** Tarjeta de pieza: miniatura grande, selección, duración, estado con texto+icono y acción de revisión. Útil sin hover. */

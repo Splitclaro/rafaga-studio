@@ -18,7 +18,9 @@ function ClipRowBase({ c, index, selected, onSelect, onFavorite, onDiscard, proj
 }) {
   const st = pieceStatus(c);
   const [playing, setPlaying] = useState(false);
-  const [text, setText] = useState<string | null>(null), [open, setOpen] = useState(false), [err, setErr] = useState<string | null>(null);
+  const [text, setText] = useState<string | null>(null), [open, setOpen] = useState(false), [err, setErr] = useState<string | null>(null), [bd, setBd] = useState(false);
+  const F: [string, number | undefined][] = [["Claridad del gancho", c.factors?.hook], ["Independencia (se entiende solo)", c.factors?.standalone], ["Relevancia con tu encargo", c.factors?.relevance], ["Cierre (termina en frase completa)", c.factors?.closure]];
+  const hasF = F.some(([, v]) => typeof v === "number");
   const score = c.score != null ? Math.max(0, Math.min(10, c.score)) : null;
 
   async function toggleText() {
@@ -74,6 +76,11 @@ function ClipRowBase({ c, index, selected, onSelect, onFavorite, onDiscard, proj
           </div>
           {err && <p role="alert" className="mt-2 text-sm text-[var(--danger)]">{err}</p>}
 
+          {hasF && (<>
+            <button onClick={() => setBd((b) => !b)} aria-expanded={bd} className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--accent)]"><Icon n={bd ? "chevD" : "chevR"} className="h-3.5 w-3.5" />Ver desglose del encaje</button>
+            {bd && <div className="mt-2 rounded-xl border hairline bg-[var(--surface)] p-4">
+              <ul className="space-y-2.5">{F.filter(([, v]) => typeof v === "number").map(([n, v]) => { const x = Math.max(0, Math.min(10, v as number)); return <li key={n} className="flex items-center gap-3 text-sm"><span className="w-56 shrink-0">{n}</span><span className="h-2 flex-1 overflow-hidden rounded-full bg-[var(--border)]"><span className="block h-full rounded-full bg-[var(--accent)]" style={{ width: `${x * 10}%` }} /></span><span className="mono w-8 text-right">{x.toFixed(1)}</span></li>; })}</ul>
+              <p className="mt-3 text-xs text-[var(--muted)]">Estimación editorial del selector (IA o reglas). No predice rendimiento ni garantiza viralidad.</p></div>}</>)}
           {(c.reason || c.brief_fit) && <p className="mt-4 text-sm leading-relaxed text-[var(--text)]">{c.reason}{c.brief_fit ? <span className="mt-1 block text-[var(--muted)]">{c.brief_fit}</span> : null}</p>}
           <button onClick={toggleText} aria-expanded={open} className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--accent)]"><Icon n={open ? "chevD" : "chevR"} className="h-3.5 w-3.5" />Transcripción del clip</button>
           {open && <p className="mt-2 max-h-48 overflow-auto rounded-xl bg-[var(--surface)] p-3 text-sm leading-relaxed text-[var(--text)]">{text ?? "Cargando…"}</p>}
