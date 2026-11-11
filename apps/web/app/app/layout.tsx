@@ -18,6 +18,7 @@ const NAV: NavItem[] = [
   { href: "/app/entregas", label: "Entregas", icon: "share", ready: true, group: "Compartir" },
   { href: "/app/conexiones", label: "Conexiones", icon: "link", ready: true, group: "Compartir" },
   { href: "/app/automatizaciones", label: "Automatizaciones", icon: "bolt", ready: true, group: "Compartir" },
+  { href: "/app/demos", label: "Demos", icon: "play", ready: true, group: "Compartir" },
 ];
 const GROUPS = ["Trabajo", "Crear", "Compartir"];
 type Ws = { id: string; name: string; role: string; personal: boolean; active: boolean; members: number };

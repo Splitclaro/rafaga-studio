@@ -190,6 +190,9 @@ export default function Dashboard() {
 
           <aside aria-label="Resumen" className="flex flex-col gap-4">
             <HomeOverview rows={rows} />
+            <Link href="/app/demos" className="card lift block p-4"><span className="mono text-xs text-[var(--muted)]">SIN SUBIR NADA</span><span className="mt-1 block text-[17px] font-semibold">Prueba con una demo</span><span className="mt-0.5 block text-sm text-[var(--muted)]">Crea un proyecto con un vídeo de ejemplo y recorre todo el flujo.</span></Link>
+            <Link href="/app/conexiones" className="card lift flex items-center gap-3 p-4"><span className="grid h-10 w-10 place-items-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]"><Icon n="link" /></span><span className="min-w-0 flex-1"><span className="block text-sm font-semibold">Conectar YouTube</span><span className="block text-xs text-[var(--muted)]">Elige uno de tus vídeos (solo lectura)</span></span><Icon n="chevR" className="h-4 w-4 text-[var(--muted)]" /></Link>
+            <div className="card flex items-center gap-3 p-4 opacity-75"><span className="grid h-10 w-10 place-items-center rounded-xl bg-[var(--surface)]"><Icon n="live" /></span><span className="min-w-0 flex-1"><span className="block text-sm font-semibold">Conectar Twitch</span><span className="block text-xs text-[var(--muted)]">Elige una de tus emisiones</span></span><span className="chip !min-h-6 !py-0">Próximamente</span></div>
             <section aria-labelledby="como" className="card p-4">
               <h2 id="como" className="text-[17px]">Cómo funciona</h2>
               <ol className="mt-3 space-y-3 text-sm">
