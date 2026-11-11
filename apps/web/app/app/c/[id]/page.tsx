@@ -3,7 +3,7 @@ import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   activeWordAt, groupWords, editText, splitWord, mergeWithNext, setTiming, offsetAll, styleForRatio, toSRT, toVTT, toTranscript,
-  PRESETS, RATIO_SIZE, caseOf, trimClip, xAt, retimeWords, detectCuts, cutEndAt, keptLength, type Cut, type ReframePath, type Composition, type BrollItem, type Ratio, type SubtitleStyle, type Word,
+  PRESETS, RATIO_SIZE, caseOf, trimClip, xAt, retimeWords, sanitizeCam, speakerStats, defaultSpeakerX, planSpeakerReframe, detectCuts, cutEndAt, keptLength, type Cut, type ReframePath, type Composition, type BrollItem, type Ratio, type SubtitleStyle, type Word,
 } from "@rafaga/composition";
 import { r2Signed } from "../../../../lib/projects";
 import { supabase } from "../../../../lib/supabase";
@@ -14,9 +14,10 @@ import { useTextStyles } from "../../../../lib/textStyles";
 import Icon from "../../../../components/Icon";
 import Timeline from "../../../../components/Timeline";
 
-type Layout = "blur" | "fill" | "fit";
+type Layout = "blur" | "fill" | "fit" | "split";
+type Cam = { x: number; y: number; w: number; h: number };
 type Reframe = { kf: { t: number; x: number }[]; mode?: string; coverage?: number };
-type Doc = { cuts?: Cut[]; reframe?: Reframe; startSec: number; endSec: number; words: Word[]; style: SubtitleStyle; ratio: Ratio; burn: boolean; preset: string; layout: Layout; cropX: number; broll: BrollItem[] };
+type Doc = { cam?: Cam; splitTop?: number; cuts?: Cut[]; reframe?: Reframe; startSec: number; endSec: number; words: Word[]; style: SubtitleStyle; ratio: Ratio; burn: boolean; preset: string; layout: Layout; cropX: number; broll: BrollItem[] };
 type Render = { id: string; clip_version: number; ratio: string; burn_subtitles: boolean; storage_path: string; created_at: string };
 
 export default function ClipEditor({ params }: { params: Promise<{ id: string }> }) {
@@ -30,6 +31,9 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
   const [cutGap, setCutGap] = useState(0.8);
   const [trimMsg, setTrimMsg] = useState<string | null>(null);
   const srcWords = useRef<Word[] | null>(null);
+  const [vdim, setVdim] = useState<{ w: number; h: number }>({ w: 16, h: 9 });
+  const [spkX, setSpkX] = useState<Record<number, number>>({});
+  const [spkMsg, setSpkMsg] = useState<string | null>(null);
   const [rfMode, setRfMode] = useState<"follow" | "group">("follow");
   const [rf, setRf] = useState<{ id: string; status: string; path: ReframePath | null; error: string | null } | null>(null);
   const [doc, setDoc] = useState<Doc | null>(null);
@@ -91,7 +95,7 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
       setOff(usePreview ? Number(c.preview_offset ?? 0) : 0);
       versionRef.current = c.current_version;
       setMeta({ title: c.title, ws: c.workspace_id, projectId: c.project_id, sourceId: p.source_id, version: c.current_version, base: comp, src: signed.data?.signedUrl ?? "" });
-      setDoc({ cuts: comp.cuts, reframe: comp.reframe, startSec: comp.startSec, endSec: comp.endSec, words: comp.words, style: comp.style, ratio: comp.ratio, burn: comp.burnSubtitles, preset: comp.preset ?? "Impacto", layout: comp.layout === "fill" || comp.layout === "fit" ? comp.layout : "blur", cropX: comp.crop?.x ?? 0.5, broll: comp.broll ?? [] });
+      setDoc({ cam: comp.cam, splitTop: comp.splitTop, cuts: comp.cuts, reframe: comp.reframe, startSec: comp.startSec, endSec: comp.endSec, words: comp.words, style: comp.style, ratio: comp.ratio, burn: comp.burnSubtitles, preset: comp.preset ?? "Impacto", layout: comp.layout === "fill" || comp.layout === "fit" || comp.layout === "split" ? comp.layout : "blur", cropX: comp.crop?.x ?? 0.5, broll: comp.broll ?? [] });
       await loadRenders();
     })();
   }, [id, loadRenders]);
@@ -197,7 +201,7 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
     if (!meta) return null;
     setSave("saving");
     const next = versionRef.current + 1;
-    const composition: Composition & { preset: string } = { ...meta.base, startSec: d.startSec, endSec: d.endSec, words: d.words, style: d.style, ratio: d.ratio, burnSubtitles: d.burn, preset: d.preset, layout: d.layout, crop: { x: d.cropX }, broll: d.broll, cuts: d.cuts?.length ? d.cuts : undefined, ...(d.reframe && d.layout === "fill" ? { reframe: d.reframe } : { reframe: undefined }) };
+    const composition: Composition & { preset: string } = { ...meta.base, startSec: d.startSec, endSec: d.endSec, words: d.words, style: d.style, ratio: d.ratio, burnSubtitles: d.burn, preset: d.preset, layout: d.layout, crop: { x: d.cropX }, broll: d.broll, cuts: d.cuts?.length ? d.cuts : undefined, cam: d.layout === "split" ? sanitizeCam(d.cam) : undefined, splitTop: d.layout === "split" ? (d.splitTop ?? 0.58) : undefined, ...(d.reframe && d.layout === "fill" ? { reframe: d.reframe } : { reframe: undefined }) };
     const { data: s } = await supabase.auth.getSession();
     const ins = await supabase.from("clip_versions").insert({ clip_id: id, workspace_id: meta.ws, version: next, composition, created_by: s.session?.user.id });
     if (ins.error) { setSave(ins.error.code === "23505" ? "conflict" : "error"); setErr(ins.error.code === "23505" ? "Otra sesión guardó este clip. Recarga para ver la última versión." : ins.error.message); return null; }
@@ -352,8 +356,20 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
         {/* Preview */}
         <section aria-label="Vista previa" className="flex flex-col items-center gap-3">
           <div ref={stage} className="relative w-full overflow-hidden rounded-xl bg-black" style={doc.ratio === "16:9" ? { aspectRatio: `${R.width}/${R.height}`, width: "100%", maxWidth: 1000 } : { aspectRatio: `${R.width}/${R.height}`, height: "min(calc(100vh - 330px), 780px)", minHeight: 320, width: "auto", maxWidth: "100%" }}>
-            <video ref={bg} src={meta.src} muted playsInline preload="auto" className={`absolute inset-0 h-full w-full scale-110 object-cover blur-2xl ${doc.layout === "blur" ? "" : "hidden"}`} aria-hidden />
-            <video ref={fg} src={meta.src} playsInline preload="auto" className={`absolute inset-0 h-full w-full ${doc.layout === "fill" ? "object-cover" : "object-contain"}`} style={doc.layout === "fill" ? { objectPosition: `${(doc.reframe?.kf?.length ? xAt(doc.reframe.kf, t, doc.cropX) : doc.cropX) * 100}% 50%` } : undefined} onLoadedMetadata={() => { setSrcDur((fg.current?.duration ?? 0) + off); seek(0); }} />
+            {(() => {
+              const split = doc.layout === "split", cam = sanitizeCam(doc.cam), top = doc.splitTop ?? 0.58;
+              const ac = (R.width / (R.height * (1 - top))), ar = (cam.w * vdim.w) / (cam.h * vdim.h), va = vdim.w / vdim.h;
+              // Cámara: región recortada y ampliada para cubrir la mitad inferior (mismo cálculo que el export: scale increase + crop centrado)
+              const hFirst = ar > ac;
+              const vw = hFirst ? (va / ac / cam.h) * 100 : 100 / cam.w, vh = hFirst ? 100 / cam.h : (ac / va / cam.w) * 100;
+              const left = -(cam.x * vw) - (hFirst ? (cam.w * vw - 100) / 2 : 0), topOff = -(cam.y * vh) - (hFirst ? 0 : (cam.h * vh - 100) / 2);
+              return (<>
+                <div className={split ? "absolute inset-x-0 bottom-0 overflow-hidden bg-black" : "absolute inset-0"} style={split ? { height: `${(1 - top) * 100}%` } : undefined}>
+                  <video ref={bg} src={meta.src} muted playsInline preload="auto" className={split ? "absolute max-w-none" : `absolute inset-0 h-full w-full scale-110 object-cover blur-2xl ${doc.layout === "blur" ? "" : "hidden"}`} style={split ? { width: `${vw}%`, height: `${vh}%`, left: `${left}%`, top: `${topOff}%` } : undefined} aria-hidden />
+                </div>
+                <video ref={fg} src={meta.src} playsInline preload="auto" className={`absolute inset-x-0 top-0 w-full ${split ? "object-contain" : doc.layout === "fill" ? "inset-0 h-full object-cover" : "inset-0 h-full object-contain"}`} style={split ? { height: `${top * 100}%` } : doc.layout === "fill" ? { objectPosition: `${(doc.reframe?.kf?.length ? xAt(doc.reframe.kf, t, doc.cropX) : doc.cropX) * 100}% 50%` } : undefined} onLoadedMetadata={() => { setSrcDur((fg.current?.duration ?? 0) + off); if (fg.current?.videoWidth) setVdim({ w: fg.current.videoWidth, h: fg.current.videoHeight }); seek(0); }} />
+              </>);
+            })()}
             {doc.broll.map((b, i) => t >= b.start && t < b.start + b.dur && brollUrls[b.path] ? (b.kind === "photo"
               ? <img key={i} src={brollUrls[b.path]} alt="" className="absolute inset-0 h-full w-full object-cover" />
               : <video key={i} src={brollUrls[b.path]} muted autoPlay loop playsInline className="absolute inset-0 h-full w-full object-cover" />) : null)}
@@ -431,7 +447,7 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
             <div className="grid gap-4 p-3 text-sm">
               <p className="text-[var(--muted)]">Cómo se adapta el vídeo original al formato elegido ({doc.ratio}).</p>
               {!quick && <div role="radiogroup" aria-label="Encuadre" className="grid gap-2">
-                {([["blur", "Desenfocado", "Vídeo completo centrado sobre su propio fondo desenfocado."], ["fill", "Rellenar", "Recorta para ocupar todo el cuadro. Elige qué parte se ve."], ["fit", "Ajustar", "Vídeo completo con barras negras."]] as const).map(([k, l, d]) => (
+                {([["blur", "Desenfocado", "Vídeo completo centrado sobre su propio fondo desenfocado."], ["fill", "Rellenar", "Recorta para ocupar todo el cuadro. Elige qué parte se ve."], ["fit", "Ajustar", "Vídeo completo con barras negras."], ["split", "Pantalla + cámara", "Arriba la pantalla completa; abajo la cámara ampliada. Elige dónde está la cámara."]] as const).map(([k, l, d]) => (
                   <button key={k} role="radio" aria-checked={doc.layout === k} onClick={() => change((x) => ({ ...x, layout: k }))} className={`rounded-xl border p-3 text-left ${doc.layout === k ? "border-[var(--ink)] ring-1 ring-[#111]" : "hairline hover:bg-[var(--hover)]"}`}><span className="font-medium">{l}</span><span className="block text-xs text-[var(--muted)]">{d}</span></button>))}
               </div>}
               {(() => { const busy = !!rf && ["queued", "analyzing"].includes(rf.status); const ready = rf?.status === "ready" && rf.path; const st = ready && rf.path!.mode === "static";
@@ -452,6 +468,23 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
                   {ready && !doc.reframe && (
                     <div className="mt-2 text-xs"><p role="status">{st ? rf.path!.note : `Caras en el ${Math.round(rf.path!.coverage * 100)} % del clip · ${rf.path!.kf.length} puntos de movimiento.${rf.path!.coverage < 0.6 ? " Cobertura baja: revisa la vista previa antes de exportar." : ""}`}</p>
                       {!st && <button onClick={applyReframe} className="btn btn-primary mt-2 !py-1.5 !text-xs">Aplicar</button>}</div>)}
+                </div>); })()}
+              {doc.layout === "split" && (() => { const cam = sanitizeCam(doc.cam); const set = (k: keyof Cam, v: number) => change((x) => ({ ...x, cam: sanitizeCam({ ...sanitizeCam(x.cam), [k]: v }) }));
+                return (<div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-3" aria-label="Pantalla y cámara">
+                  <div className="font-medium">Región de la cámara</div>
+                  <p className="mt-0.5 text-xs text-[var(--muted)]">La parte del vídeo original que ocupa la zona inferior. La vista previa y el export usan el mismo recorte.</p>
+                  {([["x", "Izquierda", cam.x], ["y", "Arriba", cam.y], ["w", "Ancho", cam.w], ["h", "Alto", cam.h]] as const).map(([k, l, v]) => <label key={k} className="mt-2 block text-xs">{l} · <span className="mono">{Math.round(v * 100)} %</span><input type="range" min={0} max={1} step={0.01} value={v} onChange={(e) => set(k, Number(e.target.value))} className="mt-1 w-full" /></label>)}
+                  <label className="mt-2 block text-xs">Altura de la pantalla · <span className="mono">{Math.round((doc.splitTop ?? 0.58) * 100)} %</span><input type="range" min={0.35} max={0.75} step={0.01} value={doc.splitTop ?? 0.58} onChange={(e) => change((x) => ({ ...x, splitTop: Number(e.target.value) }))} className="mt-1 w-full" /></label>
+                </div>); })()}
+              {(() => { const stats = speakerStats(doc.words); const ids = stats.map((x) => x.speaker); const xs = { ...defaultSpeakerX(ids), ...spkX };
+                return (<div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-3" aria-label="Hablantes detectados">
+                  <div className="font-medium">Hablantes detectados</div>
+                  {!stats.length ? <p className="mt-1 text-xs text-[var(--muted)]">Esta transcripción no distingue hablantes. Se identifican al transcribir vídeos nuevos; los subidos antes de hoy no los tienen.</p> : (<>
+                    <p className="mt-0.5 text-xs text-[var(--muted)]">Indica en qué parte del encuadre aparece cada persona y el recorte seguirá a quien habla (cambia en las pausas).</p>
+                    <ul className="mt-2 space-y-2">{stats.map((sp) => <li key={sp.speaker} className="text-xs"><div className="flex justify-between"><b>Hablante {sp.speaker + 1}</b><span className="text-[var(--muted)]">{Math.round(sp.share * 100)} % · {sp.words} palabras</span></div>
+                      <label className="mt-1 block">Posición en el vídeo · <span className="mono">{Math.round((xs[sp.speaker] ?? 0.5) * 100)} %</span><input type="range" min={0} max={1} step={0.01} value={xs[sp.speaker] ?? 0.5} onChange={(e) => setSpkX({ ...xs, [sp.speaker]: Number(e.target.value) })} className="mt-1 w-full" /></label></li>)}</ul>
+                    <button onClick={() => { const kf = planSpeakerReframe(doc.words, xs, clipLen); if (!kf.length) return setSpkMsg("No hay tramos de habla suficientes para seguir."); change((x) => ({ ...x, layout: "fill", reframe: { kf, mode: "speakers", coverage: 1 } })); setSpkMsg(`Aplicado: ${kf.length} puntos de movimiento. Reprodúcelo para comprobarlo.`); }} className="btn btn-primary mt-3 !py-1.5 !text-xs">Seguir al hablante activo</button>
+                    {spkMsg && <p role="status" className="mt-1.5 text-xs text-[var(--muted)]">{spkMsg}</p>}</>)}
                 </div>); })()}
               {!quick && doc.layout === "fill" && (<label>Posición horizontal del recorte · <span className="mono">{Math.round(doc.cropX * 100)} %</span>
                 <input type="range" min={0} max={1} step={0.01} value={doc.cropX} disabled={!!doc.reframe} onChange={(e) => change((x) => ({ ...x, cropX: Number(e.target.value) }))} className="mt-1 w-full disabled:opacity-40" />

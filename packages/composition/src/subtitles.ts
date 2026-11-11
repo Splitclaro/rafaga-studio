@@ -2,6 +2,8 @@
 // Tiempos en segundos RELATIVOS AL CLIP. Una sola función decide la palabra activa.
 
 export interface Word {
+  /** Hablante (0, 1, 2…) si la transcripción tiene diarización. */
+  speaker?: number;
   text: string;
   start: number; // s, relativo al clip
   end: number;

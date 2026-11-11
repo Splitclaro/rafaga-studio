@@ -16,7 +16,9 @@ export interface Composition {
   fps: 30;
   ratio: Ratio;
   /** blur: vídeo completo sobre fondo desenfocado · fill: rellena el cuadro recortando (posición manual crop.x) · fit: vídeo completo con barras negras */
-  layout: "speaker" | "blur" | "fill" | "fit";
+  layout: "speaker" | "blur" | "fill" | "fit" | "split";
+  /** Pantalla + cámara (layout «split»): región normalizada de la cámara en el fotograma y fracción de alto de la zona de pantalla. */
+  cam?: { x: number; y: number; w: number; h: number }; splitTop?: number;
   crop: { x: number }; // 0..1, posición horizontal del recorte en layout fill
   /** Reencuadre automático: keyframes de crop.x en tiempo relativo al clip (solo layout fill). Si existe, manda sobre crop.x. */
   reframe?: { kf: { t: number; x: number }[]; mode?: string; coverage?: number };
@@ -36,7 +38,7 @@ export function buildComposition(src: { words: Word[]; startSec: number; endSec:
   if (!(endSec > startSec)) throw new Error("Intervalo inválido");
   const words = src.words
     .filter((w) => w.end > startSec && w.start < endSec)
-    .map((w) => ({ text: w.text, start: ms(Math.max(0, w.start - startSec)), end: ms(Math.min(endSec - startSec, w.end - startSec)) }));
+    .map((w) => ({ text: w.text, start: ms(Math.max(0, w.start - startSec)), end: ms(Math.min(endSec - startSec, w.end - startSec)), ...(typeof w.speaker === "number" ? { speaker: w.speaker } : {}) }));
   return { v: 1, sourceSha256: src.sha256 ?? null, startSec, endSec, fps: 30, ratio: src.ratio ?? "9:16", layout: "blur", crop: { x: 0.5 }, words, style: src.style ?? PRESET_IMPACTO, burnSubtitles: true };
 }
 
@@ -46,6 +48,11 @@ export interface BrandLogo { position: "tl" | "tr" | "bl" | "br"; scale: number;
 export interface BrandBumper { kind: "video" | "photo"; dur: number; hasAudio: boolean }
 export const LOGO_DEFAULT: BrandLogo = { position: "tr", scale: 0.16, opacity: 0.9, margin: 0.04 };
 const clampN = (v: unknown, a: number, b: number, d: number) => { const n = Number(v); return Number.isFinite(n) ? Math.min(b, Math.max(a, n)) : d; };
+/** Región de cámara válida: dentro del fotograma y con un tamaño mínimo. Por defecto, esquina inferior derecha. */
+export function sanitizeCam(c: Partial<{ x: number; y: number; w: number; h: number }> | null | undefined) {
+  const w = clampN(c?.w, 0.1, 1, 0.3), h = clampN(c?.h, 0.1, 1, 0.3);
+  return { w, h, x: clampN(c?.x, 0, 1 - w, 1 - w), y: clampN(c?.y, 0, 1 - h, 1 - h) };
+}
 export function sanitizeLogo(l: Partial<BrandLogo> | null | undefined): BrandLogo {
   const p = l?.position;
   return { position: p === "tl" || p === "bl" || p === "br" ? p : "tr", scale: clampN(l?.scale, 0.05, 0.4, LOGO_DEFAULT.scale), opacity: clampN(l?.opacity, 0.1, 1, LOGO_DEFAULT.opacity), margin: clampN(l?.margin, 0, 0.15, LOGO_DEFAULT.margin) };
@@ -63,11 +70,13 @@ export function ffmpegArgs(c: Composition, io: { input: string; assPath: string;
   const cx = Math.min(1, Math.max(0, c.crop?.x ?? 0.5));
   const kfMapped = (c.reframe?.kf ?? []).map((k) => ({ ...k, t: mapTime(k.t, cuts) })).filter((k, i, a) => i === 0 || k.t > a[i - 1].t);
   const cxExpr = kfMapped.length ? cropXExpr(kfMapped) : cx.toFixed(3);
-  const layout = c.layout === "fill" || c.layout === "fit" ? c.layout : "blur";
+  const layout = c.layout === "fill" || c.layout === "fit" || c.layout === "split" ? c.layout : "blur";
+  const cam = sanitizeCam(c.cam), topH = Math.round((H * clampN(c.splitTop, 0.35, 0.75, 0.58)) / 2) * 2, botH = H - topH;
   // Fondo desenfocado: se desenfoca a 1/6 de tamaño y se reescala (el desenfoque fuerte no necesita resolución; ~5× más barato que a 1080×1920)
   const bw = Math.max(2, Math.round(W / 12) * 2), bh = Math.max(2, Math.round(H / 12) * 2);
   const base =
-    layout === "fill" ? `${vsrc}scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H}:'(in_w-${W})*(${cxExpr})':'(in_h-${H})/2',setsar=1[base]`
+    layout === "split" ? `${vsrc}split=2[sa][sb];[sa]scale=${W}:${topH}:force_original_aspect_ratio=decrease,pad=${W}:${topH}:(ow-iw)/2:(oh-ih)/2:black[st];[sb]crop='trunc(iw*${cam.w}/2)*2':'trunc(ih*${cam.h}/2)*2':'trunc(iw*${cam.x}/2)*2':'trunc(ih*${cam.y}/2)*2',scale=${W}:${botH}:force_original_aspect_ratio=increase,crop=${W}:${botH}[sbt];[st][sbt]vstack=inputs=2,setsar=1[base]`
+    : layout === "fill" ? `${vsrc}scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H}:'(in_w-${W})*(${cxExpr})':'(in_h-${H})/2',setsar=1[base]`
     : layout === "fit" ? `${vsrc}scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:black,setsar=1[base]`
     : `${vsrc}split=2[bg][fg];[bg]scale=${bw}:${bh}:force_original_aspect_ratio=increase,crop=${bw}:${bh},boxblur=6:3,scale=${W}:${H}:flags=bilinear[b];[fg]scale=${W}:${H}:force_original_aspect_ratio=decrease[f];[b][f]overlay=(W-w)/2:(H-h)/2,setsar=1[base]`;
   const parts = cuts.length ? [`[0:v]fps=${c.fps},select='${keepExpr(cuts)}',setpts=N/(${c.fps}*TB)[sv]`, base] : [base];

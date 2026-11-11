@@ -19,14 +19,14 @@ export interface Transcript { language: string | null; words: TWord[] }
 
 /** Deepgram prerecorded (verificado: POST /v1/listen, Authorization: Token, nova-3, smart_format, detect_language). */
 export async function transcribe(audio: Uint8Array, mime: string, key: string, language: "auto" | "es" | "en"): Promise<Transcript> {
-  const qs = new URLSearchParams({ model: "nova-3", smart_format: "true", punctuate: "true" });
+  const qs = new URLSearchParams({ model: "nova-3", smart_format: "true", punctuate: "true", diarize: "true" });
   if (language === "auto") qs.set("detect_language", "true"); else qs.set("language", language);
   return retry(async () => {
     const r = await fetch(`https://api.deepgram.com/v1/listen?${qs}`, { method: "POST", headers: { Authorization: `Token ${key}`, "Content-Type": mime }, body: new Blob([audio as BlobPart]) });
     if (!r.ok) throw await httpErr(r, "Deepgram");
-    const j = (await r.json()) as { results: { channels: { detected_language?: string; alternatives: { words: { word: string; punctuated_word?: string; start: number; end: number }[] }[] }[] } };
+    const j = (await r.json()) as { results: { channels: { detected_language?: string; alternatives: { words: { word: string; punctuated_word?: string; start: number; end: number; speaker?: number }[] }[] }[] } };
     const ch = j.results.channels[0];
-    const words = ch.alternatives[0].words.map((w) => ({ text: (w.punctuated_word ?? w.word).trim(), start: w.start, end: w.end }));
+    const words = ch.alternatives[0].words.map((w) => ({ text: (w.punctuated_word ?? w.word).trim(), start: w.start, end: w.end, ...(typeof w.speaker === "number" ? { speaker: w.speaker } : {}) }));
     return { language: ch.detected_language ?? (language === "auto" ? null : language), words };
   });
 }

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-export interface TWord { text: string; start: number; end: number }
+export interface TWord { text: string; start: number; end: number; speaker?: number }
 export interface RawCandidate {
   startWord: number; endWord: number; // índices INCLUSIVOS en el transcript (los tiempos se derivan, nunca del modelo)
   title: string; reason: string; briefFit: string;
