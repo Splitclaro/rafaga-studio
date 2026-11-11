@@ -8,7 +8,7 @@ concurrency: { group: media-worker, cancel-in-progress: false }
 permissions: { contents: read, actions: read }
 jobs:
   process:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
@@ -21,19 +21,13 @@ jobs:
       - if: steps.gate.outputs.ready == 'true'
         timeout-minutes: 10
         run: |
-          # Los espejos de apt de GitHub a veces se cuelgan: tiempos máximos y reintentos en vez de esperar 30 min.
-          # Los runners traen repositorios de terceros (Microsoft, Azure CLI, etc.) que a veces no responden y cuelgan `apt-get update`.
-          # Solo hace falta el de Ubuntu: se apartan los demás y se usa el espejo oficial.
-          sudo mkdir -p /tmp/apt-off
-          for f in /etc/apt/sources.list.d/*; do case "$f" in */ubuntu.sources) ;; *) sudo mv "$f" /tmp/apt-off/ 2>/dev/null || true ;; esac; done
-          for f in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do [ -f "$f" ] && sudo sed -i 's#https\?://azure.archive.ubuntu.com#http://archive.ubuntu.com#g' "$f"; done
-          ls /etc/apt/sources.list.d/ || true
+          # `apt-get update` en ubuntu-24.04 se colgó >1 h el 2026-11-11. Aquí: imagen 22.04, tiempos máximos y reintentos.
           for i in 1 2 3; do
-            sudo timeout 90 apt-get -o Acquire::Retries=1 -o Acquire::http::Timeout=15 update 2>&1 | tail -15
-            sudo timeout 300 apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=20 install -y -qq ffmpeg fonts-liberation fontconfig espeak-ng && break
-            echo "::warning::apt intento $i fallido o lento; reintentando"; sleep 5
+            sudo timeout 90 apt-get -o Acquire::Retries=1 -o Acquire::http::Timeout=15 update -qq \
+              && sudo timeout 300 apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=20 install -y -qq ffmpeg fonts-liberation fontconfig espeak-ng && break
+            echo "::warning::apt intento $i fallido o lento"; sleep 5
           done
-          command -v ffmpeg >/dev/null
+          command -v ffmpeg >/dev/null && ffmpeg -hide_banner -version | head -1
       - if: steps.gate.outputs.ready == 'true'
         run: python3 -m pip install --quiet --break-system-packages "opencv-python-headless==4.10.0.84" "numpy<2.1" && python3 -c "import cv2; print('opencv', cv2.__version__)"   # reencuadre automático (detección de caras)
       - if: steps.gate.outputs.ready == 'true'
