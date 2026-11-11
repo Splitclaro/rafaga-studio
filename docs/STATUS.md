@@ -278,3 +278,11 @@ Probar Lyric Studio con una canción real (canto + instrumental). Siguiente: Sty
 - Verificado en producción: clip de 25,3 s con 4 silencios → el editor anunció 17,0 s → el MP4 exportado dura 0:17.
 - Límites: detecta pausas por huecos entre palabras de la transcripción (si el motor de voz rellena el hueco, no hay corte); recortar el tramo después borra los cortes; las muletillas cubren solo hesitaciones sin significado.
 - Siguen sin construir: hablantes detectados y layouts de pantalla+cámara.
+
+### Sesión 26 — Hablantes detectados y pantalla + cámara
+- Diarización: Deepgram nova-3 con `diarize=true`; cada palabra guarda `speaker` en `transcripts.words`. Solo vídeos transcritos a partir de ahora (los anteriores no lo tienen).
+- `packages/composition/src/speakers.ts` (+ pruebas): estadísticas por hablante, tramos (las interjecciones breves no cambian de plano), trayectoria de recorte que cambia en las pausas. «Seguir al hablante activo» usa el mismo mecanismo `reframe.kf` que el seguimiento de caras, así que vista previa = export.
+- Layout `split` (pantalla + cámara): `Composition.cam` + `splitTop`; `ffmpegArgs` hace `split + vstack`; el editor lo previsualiza con el mismo recorte y ofrece los controles.
+- Verificado: 66 pruebas del paquete (render real de blur/fill/fit/split con cortes: 1080×1920 y duración correcta) y 241 de 243 en total; en producción, un diálogo de dos voces sintéticas devolvió 2 hablantes (52 % / 48 %) y el editor muestra el panel y las opciones.
+- No verificado: el aspecto visual de «pantalla + cámara» con una grabación real de pantalla y cámara; «Seguir al hablante activo» exportado a MP4 en producción (la trayectoria usa el mecanismo ya probado de reencuadre).
+- Comprobado: `GROQ_API_KEY` existe en los secretos de Actions (puesta el 11 nov a las 19:59) y desde las 20:59 las selecciones usan `groq:openai/gpt-oss-120b`. La transcripción sigue en Deepgram (no hay `ASR_PROVIDER=groq`).
