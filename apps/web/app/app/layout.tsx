@@ -123,11 +123,11 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
         <nav aria-label="Principal" className="flex gap-1 overflow-x-auto px-3 pb-3 md:block md:flex-1 md:overflow-y-auto md:pb-4">
           {GROUPS.map((g) => (
-            <div key={g} className="flex gap-1 md:mt-4 md:block md:space-y-0.5 md:first:mt-1">
-              {!collapsed && <div className="hidden px-3 pb-1 pt-1 text-xs font-medium text-[var(--muted)] md:block">{g}</div>}
+            <div key={g} className="flex gap-1 md:mt-3 md:block md:space-y-0.5 md:first:mt-0">
+              {!collapsed && <div className="hidden px-3 pb-0.5 text-xs font-medium text-[var(--muted)] md:block">{g}</div>}
               {NAV.filter((n) => n.group === g).map((n) => (
                 <Link key={n.href} href={n.href} title={collapsed ? n.label : undefined} aria-current={active(n.href) ? "page" : undefined}
-                  className={`flex shrink-0 items-center gap-3 rounded-[10px] px-3 py-2 text-sm transition-colors ${active(n.href) ? "bg-[var(--accent-soft)] font-semibold text-[var(--accent-ink)]" : "text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--ink)]"}`}>
+                  className={`flex shrink-0 items-center gap-3 rounded-[10px] px-3 py-1.5 text-sm transition-colors ${active(n.href) ? "bg-[var(--accent-soft)] font-semibold text-[var(--accent-ink)]" : "text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--ink)]"}`}>
                   <Icon n={n.icon} className="h-[18px] w-[18px] shrink-0" /><span className={collapsed ? "md:sr-only" : ""}>{n.label}</span>
                 </Link>
               ))}
@@ -136,15 +136,14 @@ export default function AppShell({ children }: { children: ReactNode }) {
         </nav>
 
         {usage && !collapsed && (
-          <Link href="/app/ajustes" className="mx-3 mb-2 hidden rounded-[10px] border hairline px-3 py-2 hover:bg-[var(--hover)] md:block" aria-label={`Consumo esta semana: ${usage.used} de ${usage.limit} minutos`}>
-            <span className="block text-xs text-[var(--muted)]">Esta semana</span>
-            <span className="tnum mb-2 mt-0.5 block text-sm font-semibold">{Math.round(usage.used)} de {usage.limit} min</span>
-            <span className="block h-1.5 overflow-hidden rounded-full bg-[var(--border)]"><span className="block h-full rounded-full bg-[var(--accent)]" style={{ width: `${Math.min(100, (usage.used / usage.limit) * 100)}%` }} /></span>
+          <Link href="/app/ajustes" className="mx-3 mb-2 hidden rounded-[10px] border hairline px-3 py-1.5 hover:bg-[var(--hover)] md:block" aria-label={`Consumo esta semana: ${usage.used} de ${usage.limit} minutos`}>
+            <span className="tnum flex items-baseline justify-between text-xs"><span className="text-[var(--muted)]">Esta semana</span><span className="font-semibold">{Math.round(usage.used)} / {usage.limit} min</span></span>
+            <span className="mt-1 block h-1 overflow-hidden rounded-full bg-[var(--border)]"><span className="block h-full rounded-full bg-[var(--accent)]" style={{ width: `${Math.min(100, (usage.used / usage.limit) * 100)}%` }} /></span>
           </Link>
         )}
-        <div className="hidden border-t hairline p-3 md:block">
-          <Link href="/app/ajustes" aria-current={path.startsWith("/app/ajustes") ? "page" : undefined} className="flex items-center gap-3 rounded-[10px] px-3 py-2 text-sm text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--ink)]"><Icon n="gear" className="h-[18px] w-[18px]" /><span className={collapsed ? "sr-only" : ""}>Uso y ajustes</span></Link>
-          <a href="https://github.com/Splitclaro/rafaga-studio#readme" target="_blank" rel="noreferrer" className="flex items-center gap-3 rounded-[10px] px-3 py-2 text-sm text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--ink)]"><Icon n="help" className="h-[18px] w-[18px]" /><span className={collapsed ? "sr-only" : ""}>Ayuda</span></a>
+        <div className="hidden border-t hairline p-2 md:block">
+          <Link href="/app/ajustes" aria-current={path.startsWith("/app/ajustes") ? "page" : undefined} className="flex items-center gap-3 rounded-[10px] px-3 py-1.5 text-sm text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--ink)]"><Icon n="gear" className="h-[18px] w-[18px]" /><span className={collapsed ? "sr-only" : ""}>Uso y ajustes</span></Link>
+          <a href="https://github.com/Splitclaro/rafaga-studio#readme" target="_blank" rel="noreferrer" className="flex items-center gap-3 rounded-[10px] px-3 py-1.5 text-sm text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--ink)]"><Icon n="help" className="h-[18px] w-[18px]" /><span className={collapsed ? "sr-only" : ""}>Ayuda</span></a>
         </div>
       </aside>
 
