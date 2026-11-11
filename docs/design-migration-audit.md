@@ -57,3 +57,29 @@ Cifras de ejemplo (60 créditos, puntuaciones, duraciones), los botones que mues
 ## 6. Criterio de «hecho» para la v1
 
 Un usuario nuevo puede: entrar, subir un MP4 grande, recibir clips ordenados con puntuación estimada, editar subtítulos, descargar un MP4 válido y ver el proyecto en Proyectos. Eso debe probarse en `rafaga-studio.vercel.app` con un vídeo real, y solo entonces se marca «beta verificada».
+
+---
+
+## 7. Estado tras el despliegue de la sesión 26 (2026-11-11)
+
+Esta sección corrige y sustituye lo que la tabla del §1 dice donde difiera. La auditoría inicial subestimó lo que ya existía en la app.
+
+**Desplegado en producción (rafaga-studio.vercel.app):**
+- Sistema visual v4: fondo claro, acento azul `#2A55F5`, tipografías Plus Jakarta Sans / Inter / JetBrains Mono, sin brillos ni degradados decorativos. `CLAUDE.md` pedía «monocroma»: la decisión del usuario («Claro, acento azul») prevalece.
+- Navegación nueva: Inicio, Proyectos, Exportados, Calendario, Analítica · Lyric Studio, Style Studio, Brand kit · Entregas, Conexiones, Automatizaciones. Barra superior con búsqueda (⌘K), Director IA e Invitar.
+- Inicio: entrada única por archivo, chips «Di qué buscar», nota honesta sobre YouTube.
+- **YouTube por enlace eliminado** (campo, reconocimiento y ruta `/api/youtube/video`). Conectar la cuenta no permite generar clips: la API de YouTube no entrega el archivo de ningún vídeo. Se conserva «Elegir de mi canal» (solo lectura) con la advertencia de que después hay que subir el archivo.
+- Exportados: página real con todos los MP4 renderizados, filtros, selección y descarga validada.
+- Resultados: «Ver desglose del encaje» con los factores reales del selector (gancho, independencia, relevancia, cierre).
+- Editor en tema oscuro.
+
+**Ya existía y no hacía falta construir:** calendario con vistas mes/semana/lista, formulario de publicación con validaciones y zonas horarias; comparar clips (`/app/p/[id]/comparar`); entregas con ZIP; Style Studio; Brand kit; Automatizaciones; Director IA.
+
+**Decisiones de alcance (no construido en v1):**
+- «Quitar silencios y muletillas»: `packages/composition` no admite cortes internos. Hacerlo toca el render y la garantía de preview = export (≤ 1 frame). Es v1.1. En el Artifact figura como «próximamente».
+- Layouts de composición (dividir, ajustar, pantalla+cámara) y detección de hablantes: requieren diarización. v1.1.
+- Demos de ejemplo: requieren vídeos propios renderizados; no se usan vídeos de terceros. v1.1.
+- Selector de estilo de subtítulos al crear el proyecto: hoy el estilo se aplica desde Brand kit o el editor.
+- Publicación directa y analítica social: requieren aprobación de cada plataforma.
+
+**Pendiente del usuario:** `GROQ_API_KEY` (solo GitHub Actions; la web no la usa), consentimiento de Google para Conectar YouTube.

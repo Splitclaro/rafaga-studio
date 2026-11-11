@@ -248,3 +248,10 @@ Probar Lyric Studio con una canción real (canto + instrumental). Siguiente: Sty
 - **Rediseño V3:** tokens (`--card`, `--night`, `--grad`, `.theme-dark`, `.panel-night`, `.aurora`, `.glass`), menú lateral azul noche con brillo en el activo, barra superior de cristal, botones con degradado, panel de creación oscuro en Inicio, resultados en vista «Detalle» (patrón Vizard) y «Cómo funciona» (patrón NexusClips). Aplicado a todas las pantallas por tokens; **rehecho pantalla a pantalla solo Inicio y Resultados**; pendiente: Biblioteca/Proyectos, Calendario, Analítica, Editor, Automatizaciones (patrón Ssemble), Conexiones, Lyric, Marca.
 - **Borrado (confirmado por el propietario: «todo el contenido»):** base de datos vaciada de proyectos, fuentes, transcripciones, trabajos, canciones, vídeos de Lyric (y por cascada clips, versiones, renders, entregas); se conservan cuenta, marca, estilos, conexiones y registro de consumo. **Archivos en Storage (originals 8, renders 16, proxies 1, ≈364 MB) y objetos de R2: pendientes de borrar a mano** (el entorno bloqueó el borrado masivo en la nube).
 - **Groq:** modelo editorial por defecto `openai/gpt-oss-120b`, Groq por defecto con clave válida, un valor provisional no cuenta como clave; secreto `GROQ_API_KEY` creado en GitHub con valor provisional; formulario de la clave preparado. **Sin clave real no hay IA en la selección.**
+
+
+## Sesión 26 — Despliegue del diseño maestro (sistema v4 claro/azul)
+- Borrado de Storage huérfano (originals, renders, proxies) y del objeto de prueba de R2. Quedan `app-fonts` (2 fuentes).
+- Sistema visual v4, navegación de 11 entradas, Exportados real, desglose de encaje real, editor oscuro. Sin YouTube por enlace.
+- Verificado: typecheck, build y `pnpm test` (228 ok, 2 omitidos). Páginas revisadas en producción con capturas. Prueba de extremo a extremo con un vídeo hablado de 1:42: ver resultado más abajo si se completó.
+- No construido: quitar silencios, layouts, hablantes, demos (v1.1). Detalle en `docs/design-migration-audit.md` §7.
