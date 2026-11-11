@@ -7,7 +7,10 @@ import { createProject } from "../../../lib/projects";
 import { supabase } from "../../../lib/supabase";
 
 const DEMOS = [
-  { id: "emprender", title: "Monólogo: tres errores al emprender", len: "1:42", file: "/demo/ejemplo-emprender.mp4", brief: "Busca consejos concretos y errores que se pueden evitar.", note: "Voz sintética creada por Ráfaga. Sin personas ni contenido de terceros." },
+  { id: "emprender", tag: "Podcast", title: "Monólogo: tres errores al emprender", len: "1:40", file: "/demo/ejemplo-emprender.mp4", brief: "Busca consejos concretos y errores que se pueden evitar.", note: "Voz sintética creada por Ráfaga. Sin personas ni contenido de terceros.", c: "linear-gradient(135deg,#C9D6FF,#7F95E0)" },
+  { id: "entrevista", tag: "Entrevista", title: "Dos voces: empezar un negocio sin dinero", len: "0:36", file: "/demo/ejemplo-entrevista.mp4", brief: "Busca los consejos que da el invitado.", note: "Dos voces sintéticas: sirve para probar los hablantes detectados.", c: "linear-gradient(135deg,#FFE9C7,#E8A94A)" },
+  { id: "tutorial", tag: "Tutorial", title: "Cómo grabar en casa con buen sonido", len: "0:36", file: "/demo/ejemplo-tutorial.mp4", brief: "Busca consejos prácticos y pasos concretos.", note: "Cinco consejos seguidos, ideal para ver clips por tema.", c: "linear-gradient(135deg,#CDEFD9,#5DB383)" },
+  { id: "directo", tag: "Directo", title: "Respondiendo preguntas del chat", len: "0:37", file: "/demo/ejemplo-directo.mp4", brief: "Busca las respuestas más útiles.", note: "Preguntas y respuestas con pausas: sirve para probar «Quitar silencios».", c: "linear-gradient(135deg,#FFD6E4,#E58AB0)" },
 ];
 
 /** Demos: prueba el flujo completo sin subir nada. Crea un proyecto real en tu espacio con un vídeo de ejemplo propio. */
@@ -28,15 +31,15 @@ export default function Demos() {
     } catch (x) { setMsg(x instanceof Error ? x.message : "No se pudo crear el ejemplo."); setBusy(null); }
   }
   return (
-    <main className="mx-auto max-w-[1000px] px-4 pb-20 pt-8 md:px-10">
+    <main className="mx-auto max-w-[1240px] px-4 pb-20 pt-8 md:px-10">
       <h1 className="text-3xl tracking-tight">Demos</h1>
       <p className="mt-1 max-w-2xl text-sm text-[var(--muted)]">Prueba Ráfaga sin subir nada: se crea un proyecto en tu espacio con un vídeo de ejemplo y verás todo el recorrido, de la detección a los clips con subtítulos.</p>
-      <ul className="mt-6 grid gap-4 sm:grid-cols-2">{DEMOS.map((d) => (
-        <li key={d.id} className="card p-5">
-          <span className="mono text-xs text-[var(--muted)]">DEMO · {d.len}</span>
-          <h2 className="mt-1 text-lg">{d.title}</h2>
+      <ul className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{DEMOS.map((d) => (
+        <li key={d.id} className="card overflow-hidden"><span className="block aspect-[16/10]" style={{ background: d.c }} /><div className="p-4">
+          <span className="mono text-xs text-[var(--muted)]">DEMO · {d.len} · {d.tag}</span>
+          <h2 className="mt-1 text-base">{d.title}</h2>
           <p className="mt-2 text-sm text-[var(--muted)]">{d.note}</p>
-          <button onClick={() => use(d)} disabled={!!busy} className="btn btn-primary mt-4">{busy === d.id ? "Creando…" : "Usar este vídeo"}</button>
+          <button onClick={() => use(d)} disabled={!!busy} className="btn btn-primary mt-4">{busy === d.id ? "Creando…" : "Usar este vídeo"}</button></div>
         </li>))}</ul>
       <p role="status" aria-live="polite" className="mt-3 min-h-5 text-sm text-[var(--muted)]">{msg}</p>
       <section className="card mt-8 p-5"><h2 className="text-lg">Cómo funciona</h2>

@@ -343,8 +343,13 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
       </header>
       {err && <p role="alert" className="mb-3 rounded border border-[var(--border)] bg-[var(--surface)] p-2 text-sm">⚠ {err}</p>}
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_400px] xl:grid-cols-[var(--lw)_minmax(0,1fr)_380px]" style={{ ["--lw" as string]: leftOpen ? `${leftW}px` : "44px" }}>
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_400px] xl:grid-cols-[56px_var(--lw)_minmax(0,1fr)_380px]" style={{ ["--lw" as string]: leftOpen ? `${leftW}px` : "44px" }}>
         {/* Transcripción (solo en pantallas anchas; en estrechas es la pestaña «Texto») */}
+        <nav aria-label="Herramientas del editor" className="hidden flex-col gap-1 xl:flex">
+          {([["Texto", "Aa", () => { setLeftOpen(true); document.querySelector<HTMLInputElement>('input[aria-label="Buscar en la transcripción"]')?.focus(); }], ["Estilo", "▤", () => setTab("estilo")], ["Encuadre", "▣", () => setTab("encuadre")], ["Social", "◈", () => setTab("social")], ["B-roll", "▦", () => setTab("broll")], ["Exportar", "⇪", () => setTab("exportar")]] as [string, string, () => void][]).map(([l, g, f]) => (
+            <button key={l} type="button" onClick={f} className="grid min-h-14 place-items-center rounded-xl text-[11px] text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--text)]"><span aria-hidden className="text-lg leading-none">{g}</span>{l}</button>))}
+          <Link href="/app/director" className="mt-auto grid min-h-14 place-items-center rounded-xl text-[11px] text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--text)]"><span aria-hidden className="text-lg leading-none text-[var(--accent)]">✦</span>Director</Link>
+        </nav>
         <section aria-label="Transcripción" className="relative hidden min-h-0 flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 xl:flex">
           <div className="mb-2 flex items-center justify-between"><h2 className={`text-sm font-medium ${leftOpen ? "" : "sr-only"}`}>Transcripción</h2>
             <button onClick={toggleLeft} aria-expanded={leftOpen} aria-label={leftOpen ? "Plegar transcripción" : "Mostrar transcripción"} className="rounded p-1 text-[var(--muted)] hover:bg-[var(--hover)]"><Icon n={leftOpen ? "chevL" : "chevR"} className="h-4 w-4" /></button></div>

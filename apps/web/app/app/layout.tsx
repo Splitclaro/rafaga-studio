@@ -141,6 +141,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
           </button>
           <span className="ml-auto flex items-center gap-2.5">
             {running > 0 && <Link href="/app/proyectos" className="chip" aria-label={`${running} trabajos en curso`}><span className="pulse" aria-hidden /> <span className="tnum">{running}</span> en curso</Link>}
+            {usage && <Link href="/app/ajustes" className="hidden min-h-11 items-center gap-2 rounded-xl border hairline bg-[var(--card)] px-3.5 text-sm font-medium md:inline-flex" aria-label="Consumo del plan"><span aria-hidden className="text-[var(--accent)]">✦</span><span className="tnum">{Math.max(0, Math.round(usage.limit - usage.used))} min restantes</span></Link>}
             <Link href="/app/equipo" className="btn btn-ghost !min-h-11 hidden md:inline-flex"><Icon n="plus" className="h-4 w-4" />Invitar</Link>
             <Link href="/app/conexiones" aria-label="Conexiones" className="card hidden h-11 w-11 place-items-center hover:bg-[var(--hover)] md:grid"><Icon n="link" className="h-[18px] w-[18px]" /></Link>
             <Link href="/app/demos" aria-label="Ayuda" className="card hidden h-11 w-11 place-items-center hover:bg-[var(--hover)] md:grid">?</Link>

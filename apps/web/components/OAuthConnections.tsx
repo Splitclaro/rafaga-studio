@@ -6,9 +6,8 @@ import { pkce, randomState, type Capability, type OAuthProvider } from "@rafaga/
 
 type Conn = { provider: OAuthProvider; account_label: string | null; scopes: string[]; expires_at: string | null; status: string; last_error: string | null; last_checked_at: string | null };
 const CARDS: { capability: Capability; provider: OAuthProvider; name: string; what: string; allowed: string[]; notAllowed: string; list: string }[] = [
-  { capability: "import_youtube", provider: "google", name: "YouTube", what: "Importar tus vídeos subidos para cortarlos.", allowed: ["Ver tus vídeos y listas (solo lectura)"], notAllowed: "Publicar en YouTube requiere el permiso «youtube.upload» y la revisión de Google de la aplicación: no se solicita hasta que esté aprobada.", list: "youtube" },
-  { capability: "import_drive", provider: "google", name: "Google Drive", what: "Importar vídeos guardados en tu Drive.", allowed: ["Leer tus archivos de vídeo (solo lectura)"], notAllowed: "No escribe ni borra nada en Drive.", list: "drive" },
-  { capability: "import_dropbox", provider: "dropbox", name: "Dropbox", what: "Importar vídeos guardados en tu Dropbox.", allowed: ["Buscar y leer tus archivos de vídeo", "Ver el nombre de la cuenta"], notAllowed: "No escribe ni borra nada en Dropbox.", list: "dropbox" },
+  { capability: "import_drive", provider: "google", name: "Google Drive", what: "Conecta tu Drive. La importación de vídeos llegará próximamente.", allowed: ["Leer tus archivos de vídeo (solo lectura)"], notAllowed: "No escribe ni borra nada en Drive.", list: "drive" },
+  { capability: "import_dropbox", provider: "dropbox", name: "Dropbox", what: "Conecta tu Dropbox. La importación de vídeos llegará próximamente.", allowed: ["Buscar y leer tus archivos de vídeo", "Ver el nombre de la cuenta"], notAllowed: "No escribe ni borra nada en Dropbox.", list: "dropbox" },
 ];
 const STATUS: Record<string, string> = { connected: "Conectada", expired: "Caducada: vuelve a conectar", revoked: "Revocada", error: "Con error" };
 const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString("es", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "");
@@ -69,8 +68,7 @@ export default function OAuthConnections() {
                 {!ok && <button onClick={() => connect(c)} disabled={busy === c.capability} className="btn btn-primary !py-1.5 !text-xs">{conn ? "Volver a conectar" : "Conectar"}</button>}
                 {ok && <>
                   <button onClick={() => act(c, "test")} disabled={!!busy} className="btn btn-ghost !py-1.5 !text-xs">Probar</button>
-                  <button onClick={() => act(c, "list")} disabled={!!busy} className="btn btn-ghost !py-1.5 !text-xs">Ver mis vídeos</button>
-                  <button onClick={() => act(c, "disconnect")} disabled={!!busy} className="btn btn-ghost !py-1.5 !text-xs">Desconectar</button>
+                                    <button onClick={() => act(c, "disconnect")} disabled={!!busy} className="btn btn-ghost !py-1.5 !text-xs">Desconectar</button>
                 </>}
               </div>
               {msg[c.capability] && <p role="status" className="mt-2 text-xs text-[var(--muted)]">{msg[c.capability]}</p>}

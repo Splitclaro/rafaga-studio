@@ -60,6 +60,6 @@ import { assetHref, fmtBytes } from "./library.ts";
 test("enlaces por tipo y tamaños legibles", () => {
   assert.equal(assetHref({ ref_table: "songs", ref_id: "s1", kind: "audio" }), "/app/lyric-studio?song=s1");
   assert.equal(assetHref({ ref_table: "brand_kits", ref_id: "k", kind: "logo" }), "/app/brand-kits");
-  assert.equal(assetHref({ ref_table: "renders", ref_id: "r", kind: "export" }), "/app/biblioteca?tab=videos");
+  assert.equal(assetHref({ ref_table: "renders", ref_id: "r", kind: "export" }), "/app/brand-kits?tab=videos");
   assert.equal(fmtBytes(null), "—"); assert.equal(fmtBytes(2097152), "2.0 MB"); assert.equal(fmtBytes(100), "1 KB");
 });

@@ -82,7 +82,7 @@ export default function ReviewRoom({ params }: { params: Promise<{ id: string }>
   }
   const seek = (x: number) => { const el = video.current; if (el) { el.currentTime = x; el.focus(); } };
 
-  if (err) return <main className="mx-auto max-w-xl px-4 py-16 text-center"><p>{err}</p><Link href="/app/biblioteca" className="mt-4 inline-block underline">Volver a la biblioteca</Link></main>;
+  if (err) return <main className="mx-auto max-w-xl px-4 py-16 text-center"><p>{err}</p><Link href="/app/proyectos" className="mt-4 inline-block underline">Volver a la biblioteca</Link></main>;
   if (!clip) return <main className="mx-auto max-w-6xl px-4 py-10"><div className="skeleton h-[60vh]" /></main>;
 
   const panelInfo = (
@@ -120,7 +120,7 @@ export default function ReviewRoom({ params }: { params: Promise<{ id: string }>
 
   return (
     <main className="px-4 pb-10 pt-5 md:px-8">
-      <nav aria-label="Ruta" className="mb-4 flex flex-wrap items-center gap-1.5 text-sm text-[var(--muted)]"><Link href="/app/biblioteca" className="hover:underline">Proyectos</Link><span aria-hidden>/</span><Link href={`/app/p/${clip.project_id}`} className="hover:underline">{projectName || "Proyecto"}</Link><span aria-hidden>/</span><span className="text-[var(--text)]">Revisión</span></nav>
+      <nav aria-label="Ruta" className="mb-4 flex flex-wrap items-center gap-1.5 text-sm text-[var(--muted)]"><Link href="/app/proyectos" className="hover:underline">Proyectos</Link><span aria-hidden>/</span><Link href={`/app/p/${clip.project_id}`} className="hover:underline">{projectName || "Proyecto"}</Link><span aria-hidden>/</span><span className="text-[var(--text)]">Revisión</span></nav>
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
         <section aria-label="Vídeo">
           <div className="flex items-start justify-between gap-3"><h1 className="text-2xl tracking-tight md:text-3xl">{clip.title}</h1>{st && <StatusLabel status={st.status} note={st.note} />}</div>

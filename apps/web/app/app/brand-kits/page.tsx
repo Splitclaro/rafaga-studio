@@ -7,6 +7,8 @@ import { useWorkspaceFonts } from "../../../lib/fonts";
 import { useTextStyles } from "../../../lib/textStyles";
 import LyricSample from "../../../components/LyricSample";
 import { useProjects } from "../../../components/ProjectList";
+import { Suspense } from "react";
+import MediaLibrary from "../../../components/MediaLibrary";
 import BrandTabs from "../../../components/BrandTabs";
 
 type Bumper = { path: string; name: string; kind: "video" | "photo"; dur: number; hasAudio: boolean };
@@ -331,6 +333,7 @@ export default function BrandKits() {
         </div>
       )}
     </main>
+    <section id="medios" aria-label="Biblioteca de medios" className="mx-auto max-w-[1240px] px-4 pb-20 md:px-10"><h2 className="mb-1 mt-4 text-2xl">Biblioteca de medios</h2><p className="mb-2 text-sm text-[var(--muted)]">Logos, imágenes, audio, fuentes y exportaciones del espacio.</p><Suspense fallback={<div className="skeleton h-40" />}><MediaLibrary /></Suspense></section>
     </>
   );
 }

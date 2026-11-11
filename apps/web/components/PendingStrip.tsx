@@ -20,9 +20,9 @@ export default function PendingStrip() {
   })(); }, []);
   if (!c) return null;
   const items: { n: number; label: string; href: string; icon: string }[] = [
-    { n: c.running, label: c.running === 1 ? "proceso en curso" : "procesos en curso", href: "/app/biblioteca", icon: "bolt" },
-    { n: c.review, label: c.review === 1 ? "clip por revisar" : "clips por revisar", href: "/app/biblioteca", icon: "clock" },
-    { n: c.changes, label: c.changes === 1 ? "pieza con cambios solicitados" : "piezas con cambios solicitados", href: "/app/biblioteca", icon: "wand" },
+    { n: c.running, label: c.running === 1 ? "proceso en curso" : "procesos en curso", href: "/app/proyectos", icon: "bolt" },
+    { n: c.review, label: c.review === 1 ? "clip por revisar" : "clips por revisar", href: "/app/proyectos", icon: "clock" },
+    { n: c.changes, label: c.changes === 1 ? "pieza con cambios solicitados" : "piezas con cambios solicitados", href: "/app/proyectos", icon: "wand" },
     { n: c.failed, label: c.failed === 1 ? "incidencia reciente" : "incidencias recientes", href: "/app/analitica", icon: "x" },
   ].filter((x) => x.n > 0);
   if (!items.length) return null;

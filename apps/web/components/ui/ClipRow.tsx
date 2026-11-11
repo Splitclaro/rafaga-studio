@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { memo, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import Icon from "../Icon";
 import { supabase } from "../../lib/supabase";
 import { downloadMp4, fileName } from "../../lib/download";
@@ -18,6 +18,8 @@ function ClipRowBase({ c, index, selected, onSelect, onFavorite, onDiscard, proj
 }) {
   const st = pieceStatus(c);
   const [playing, setPlaying] = useState(false);
+  const [hook, setHook] = useState<string | null>(null);
+  useEffect(() => { let on = true; supabase.from("clip_versions").select("composition").eq("clip_id", c.id).eq("version", c.current_version).single().then(({ data }) => { const w = ((data?.composition as { words?: { text: string }[] } | null)?.words ?? []).map((x) => x.text); if (!on || !w.length) return; const txt = w.join(" "); setHook(txt.match(/^.{12,170}?[.!?]/)?.[0] ?? w.slice(0, 16).join(" ") + "…"); }); return () => { on = false; }; }, [c.id, c.current_version]);
   const [text, setText] = useState<string | null>(null), [open, setOpen] = useState(false), [err, setErr] = useState<string | null>(null), [bd, setBd] = useState(false);
   const F: [string, number | undefined][] = [["Claridad del gancho", c.factors?.hook], ["Independencia (se entiende solo)", c.factors?.standalone], ["Relevancia con tu encargo", c.factors?.relevance], ["Cierre (termina en frase completa)", c.factors?.closure]];
   const hasF = F.some(([, v]) => typeof v === "number");
@@ -76,6 +78,7 @@ function ClipRowBase({ c, index, selected, onSelect, onFavorite, onDiscard, proj
           </div>
           {err && <p role="alert" className="mt-2 text-sm text-[var(--danger)]">{err}</p>}
 
+          {hook && <div className="mt-3 flex flex-wrap items-center gap-2.5 rounded-xl border border-[#DCE4FF] bg-[#F4F7FF] px-3.5 py-2.5 text-sm"><span className="mono text-[var(--accent-ink)]">GANCHO</span><span className="min-w-0 flex-1">«{hook}»</span></div>}
           {hasF && (<>
             <button onClick={() => setBd((b) => !b)} aria-expanded={bd} className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--accent)]"><Icon n={bd ? "chevD" : "chevR"} className="h-3.5 w-3.5" />Ver desglose del encaje</button>
             {bd && <div className="mt-2 rounded-xl border hairline bg-[var(--surface)] p-4">

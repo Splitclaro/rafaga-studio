@@ -20,7 +20,7 @@ export default function Conexiones() {
       <OAuthConnections />
 
       <section aria-label="Resumen" className="mb-6 grid gap-3 sm:grid-cols-4">
-        {([["3", "Conectores de importación", "YouTube (lista), Drive, Dropbox"], [String(PLATFORMS.length), "Plataformas catalogadas", "Requisitos orientativos"], ["0", "Publicación directa", "Pendiente de aprobación de cada red"], [`${verified}/${PLATFORMS.length}`, "Requisitos verificados", "Contra su documentación oficial"]] as const).map(([v, k, d]) => (
+        {([["2", "Cuentas de almacenamiento", "Drive y Dropbox (importación próximamente)"], [String(PLATFORMS.length), "Plataformas catalogadas", "Requisitos orientativos"], ["0", "Publicación directa", "Pendiente de aprobación de cada red"], [`${verified}/${PLATFORMS.length}`, "Requisitos verificados", "Contra su documentación oficial"]] as const).map(([v, k, d]) => (
           <div key={k} className="card p-4"><div className="font-display text-3xl font-bold text-[var(--ink)]">{v}</div><div className="mt-1 text-sm font-medium">{k}</div><div className="text-xs text-[var(--muted)]">{d}</div></div>))}
       </section>
 

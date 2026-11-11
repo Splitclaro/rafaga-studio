@@ -5,13 +5,13 @@ import { supabase } from "../lib/supabase";
 import { STAGE, MODE_LABEL } from "../lib/projects";
 import Icon from "./Icon";
 
-export type Row = { archived_at?: string | null; id: string; name: string; created_at: string; project_brief: string | null; mode: string; status: string | null; clips: number; thumb?: string };
+export type Row = { folder_id?: string | null; archived_at?: string | null; id: string; name: string; created_at: string; project_brief: string | null; mode: string; status: string | null; clips: number; thumb?: string };
 
 export function useProjects() {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const load = useCallback(async () => {
-    const { data, error } = await supabase.from("projects").select("id,name,created_at,project_brief,mode,source_id,archived_at").is("deleted_at", null).order("created_at", { ascending: false });
+    const { data, error } = await supabase.from("projects").select("id,name,created_at,project_brief,mode,source_id,archived_at,folder_id").is("deleted_at", null).order("created_at", { ascending: false });
     if (error) return setErr(error.message);
     const ids = (data ?? []).map((p) => p.id);
     const srcIds = [...new Set((data ?? []).map((p) => p.source_id))];
@@ -30,7 +30,7 @@ export function useProjects() {
     const ctPaths = [...clipThumb.values()];
     const ctSigned = ctPaths.length ? (await supabase.storage.from("renders").createSignedUrls(ctPaths, 3600)).data ?? [] : [];
     const ctUrl = new Map(ctSigned.map((x) => [x.path, x.signedUrl]));
-    setRows((data ?? []).map((p) => ({ id: p.id, name: p.name, created_at: p.created_at, project_brief: p.project_brief, mode: p.mode, archived_at: p.archived_at, thumb: ((thumbBySrc.get(p.source_id) as string | null | undefined) ?? undefined) ?? (clipThumb.get(p.id) ? ctUrl.get(clipThumb.get(p.id)!) ?? undefined : undefined),
+    setRows((data ?? []).map((p) => ({ id: p.id, name: p.name, created_at: p.created_at, project_brief: p.project_brief, mode: p.mode, archived_at: p.archived_at, folder_id: p.folder_id, thumb: ((thumbBySrc.get(p.source_id) as string | null | undefined) ?? undefined) ?? (clipThumb.get(p.id) ? ctUrl.get(clipThumb.get(p.id)!) ?? undefined : undefined),
       status: (jobs.data ?? []).find((j: { project_id: string }) => j.project_id === p.id)?.status ?? null, clips: (clips.data ?? []).filter((c: { project_id: string }) => c.project_id === p.id).length })));
   }, []);
   useEffect(() => { load(); }, [load]);

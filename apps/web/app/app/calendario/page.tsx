@@ -9,7 +9,7 @@ import { PUBLISH_TARGETS } from "../../../lib/platforms";
 type Post = { id: string; title: string; caption: string | null; hashtags: string | null; targets: string[]; clip_id: string | null; lyric_video_id: string | null; scheduled_at: string; timezone: string; status: string };
 type Asset = { id: string; label: string; kind: "clip" | "lyric" };
 type Form = { id?: string; title: string; caption: string; hashtags: string; targets: string[]; date: string; time: string; tz: string; asset: string; status: "draft" | "planned" };
-type View = "month" | "week" | "list";
+type View = "month" | "week" | "list" | "draft" | "done";
 const STATUS: Record<string, string> = { draft: "Borrador", planned: "Planificada", done: "Publicada", cancelled: "Cancelada" };
 const LIMITS: Record<string, number> = { X: 280, TikTok: 2200, Instagram: 2200, YouTube: 100, LinkedIn: 3000, Facebook: 63206 };
 const DOW = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
@@ -82,7 +82,7 @@ export default function Calendario() {
   const days = view === "week" ? Array.from({ length: 7 }, (_, i) => { const d = startOfWeek(cursor); d.setDate(d.getDate() + i); return d; }) : Array.from({ length: 42 }, (_, i) => { const d = new Date(gridStart); d.setDate(d.getDate() + i); return d; });
   const shift = (n: number) => { const d = new Date(cursor); if (view === "week") d.setDate(d.getDate() + 7 * n); else d.setMonth(d.getMonth() + n); setCursor(d); };
   const title = view === "week" ? `Semana del ${days[0].toLocaleDateString("es", { day: "numeric", month: "long" })}` : cursor.toLocaleDateString("es", { month: "long", year: "numeric" });
-  const upcoming = (posts ?? []).filter((p) => p.status !== "cancelled");
+  const upcoming = (posts ?? []).filter((p) => view === "draft" ? p.status === "draft" : view === "done" ? p.status === "done" : p.status !== "cancelled");
 
   return (
     <main className="mx-auto max-w-[1240px] px-4 pb-20 pt-8 md:px-10">
@@ -100,12 +100,12 @@ export default function Calendario() {
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div role="tablist" aria-label="Vista" className="inline-flex rounded-xl border hairline bg-[var(--surface)] p-1 text-sm">
-          {([["month", "Mes"], ["week", "Semana"], ["list", "Lista"]] as const).map(([k, l]) => <button key={k} role="tab" aria-selected={view === k} onClick={() => setView(k)} className={`rounded-lg px-3 py-1 ${view === k ? "bg-white shadow-[var(--shadow-1)] ring-1 ring-[var(--border)]" : "text-[var(--muted)]"}`}>{l}</button>)}</div>
-        {view !== "list" && (<div className="flex items-center gap-1"><button onClick={() => shift(-1)} className="btn btn-ghost !px-2.5 !py-1.5" aria-label="Anterior"><Icon n="chevL" className="h-4 w-4" /></button><button onClick={() => setCursor(new Date())} className="btn btn-ghost !py-1.5">Hoy</button><button onClick={() => shift(1)} className="btn btn-ghost !px-2.5 !py-1.5" aria-label="Siguiente"><Icon n="chevR" className="h-4 w-4" /></button><span className="ml-2 text-lg capitalize">{title}</span></div>)}
+          {([["month", "Calendario"], ["week", "Semana"], ["list", "Lista"], ["draft", "Borradores"], ["done", "Publicadas"]] as const).map(([k, l]) => <button key={k} role="tab" aria-selected={view === k} onClick={() => setView(k)} className={`rounded-lg px-3 py-1 ${view === k ? "bg-white shadow-[var(--shadow-1)] ring-1 ring-[var(--border)]" : "text-[var(--muted)]"}`}>{l}</button>)}</div>
+        {(view === "month" || view === "week") && (<div className="flex items-center gap-1"><button onClick={() => shift(-1)} className="btn btn-ghost !px-2.5 !py-1.5" aria-label="Anterior"><Icon n="chevL" className="h-4 w-4" /></button><button onClick={() => setCursor(new Date())} className="btn btn-ghost !py-1.5">Hoy</button><button onClick={() => shift(1)} className="btn btn-ghost !px-2.5 !py-1.5" aria-label="Siguiente"><Icon n="chevR" className="h-4 w-4" /></button><span className="ml-2 text-lg capitalize">{title}</span></div>)}
         <span className="mono ml-auto text-xs text-[var(--muted)]">Horas en {viewTz}</span>
       </div>
 
-      {posts === null ? <div className="skeleton h-96" /> : view === "list" ? (
+      {posts === null ? <div className="skeleton h-96" /> : (view === "list" || view === "draft" || view === "done") ? (
         upcoming.length ? (
           <ul className="divide-y hairline rounded-2xl border hairline bg-white">{upcoming.map((p) => (
             <li key={p.id} className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm">

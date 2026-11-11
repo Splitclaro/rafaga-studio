@@ -79,10 +79,10 @@ export function countByKind(all: Asset[]): Record<AssetKind | "all", number> {
 export function assetHref(a: Pick<Asset, "ref_table" | "ref_id" | "kind">): string {
   switch (a.ref_table) {
     case "songs": return `/app/lyric-studio?song=${a.ref_id}`;
-    case "media_items": return "/app/biblioteca?tab=collections";
+    case "media_items": return "/app/brand-kits?tab=collections";
     case "workspace_fonts": case "brand_kits": return "/app/brand-kits";
-    case "lyric_videos": return "/app/biblioteca?tab=lyrics";
-    default: return "/app/biblioteca?tab=videos";
+    case "lyric_videos": return "/app/brand-kits?tab=lyrics";
+    default: return "/app/brand-kits?tab=videos";
   }
 }
 export const fmtBytes = (n: number | null) => (n == null ? "—" : n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);

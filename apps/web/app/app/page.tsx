@@ -5,8 +5,6 @@ import { useRouter } from "next/navigation";
 import BriefFields, { EMPTY_BRIEF, briefText } from "../../components/BriefFields";
 import { normalizeBrief, type BriefData } from "@rafaga/selection/brief";
 import HomeOverview from "../../components/HomeOverview";
-import YouTubeLink from "../../components/YouTubeLink";
-import type { YtItem } from "@rafaga/providers/youtube";
 import Icon from "../../components/Icon";
 import { ProjectCard, isActive, useProjects } from "../../components/ProjectList";
 import { createProject, uploadSong, validateFile, probeDuration, MIN_SOURCE_SECONDS, WHOLE_VIDEO_MAX_SECONDS, STAGE, type ProjectMode } from "../../lib/projects";
@@ -42,8 +40,6 @@ export default function Dashboard() {
   const fileInput = useRef<HTMLInputElement>(null);
   const audioInput = useRef<HTMLInputElement>(null);
   const [tab, setTab] = useState<Tab>("clips");
-  const [yt, setYt] = useState<YtItem | null>(null);
-  const [ytProject, setYtProject] = useState<string | null>(null);   // proyecto con original autorizado ya vinculado a este vídeo
   const [mode, setMode] = useState<ProjectMode>("clips");
   const [file, setFile] = useState<File | null>(null);
   const [dur, setDur] = useState<number | null>(null);
@@ -52,7 +48,6 @@ export default function Dashboard() {
   const [count, setCount] = useState(5);
   const [maxLen, setMaxLen] = useState("");
   const [from, setFrom] = useState(""), [to, setTo] = useState("");
-  const [chan, setChan] = useState(false);
   const [drag, setDrag] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -90,22 +85,13 @@ export default function Dashboard() {
     if (b != null && dur !== null && b > dur + 0.5) return setMsg("El tramo termina después del final del vídeo.");
     setBusy(true); setMsg(null);
     try {
-      const id = await createProject({ file, name: yt?.title ?? "", brief, briefData: normalizeBrief(bd), count, mode, maxSeconds: maxLen ? Number(maxLen) : undefined, rangeStart: a ?? 0, rangeEnd: b ?? undefined, youtubeId: yt?.id, onStep: setMsg });
+      const id = await createProject({ file, name: "", brief, briefData: normalizeBrief(bd), count, mode, maxSeconds: maxLen ? Number(maxLen) : undefined, rangeStart: a ?? 0, rangeEnd: b ?? undefined, onStep: setMsg });
       // Un solo paso: tras subir se encola la detección y se despierta al worker (sin segundo clic en el proyecto).
       setMsg("Encolando la detección…");
       const { error: de } = await supabase.rpc("request_detection", { p_project: id, p_key: crypto.randomUUID() });
       if (!de) { const { data: ss } = await supabase.auth.getSession(); fetch("/api/wake", { method: "POST", headers: { Authorization: `Bearer ${ss.session?.access_token ?? ""}` } }).catch(() => {}); }
       router.push(`/app/p/${id}`);
     } catch (x) { setMsg(x instanceof Error ? x.message : "Error inesperado"); setBusy(false); }
-  }
-  /** Selección en el buscador: se conserva (con el brief) aunque aún no haya fuente, y se averigua qué se puede hacer con ella. */
-  async function onYtPick(it: YtItem) {
-    setYt(it); setMsg(null); setYtProject(null);
-    const { data: s } = await supabase.auth.getSession(); const uid = s.session?.user.id;
-    const { data: ws } = await supabase.from("workspaces").select("id").limit(1).single();
-    if (uid && ws) await supabase.from("youtube_picks").upsert({ workspace_id: ws.id, video_id: it.id, title: it.title, channel: it.channel, thumb: it.thumb, status: it.status, duration_sec: it.durationSec ?? null, scheduled_at: it.scheduledAt ?? null, brief: brief || null, clip_count: Math.min(20, count), created_by: uid, updated_at: new Date().toISOString() }, { onConflict: "workspace_id,video_id,created_by" });
-    const { data: pj } = await supabase.from("projects").select("id").eq("youtube_id", it.id).is("deleted_at", null).order("created_at", { ascending: false }).limit(1);
-    if (pj?.[0]) setYtProject(pj[0].id);
   }
   async function pickAudio(f: File | undefined) {
     if (!f || busy) return;
@@ -139,14 +125,11 @@ export default function Dashboard() {
             </div>
             <div className="flex flex-wrap justify-center gap-3">
               <button type="button" onClick={() => fileInput.current?.click()} className={pill}><Icon n="upload" className="h-4 w-4 text-[var(--accent)]" />Subir archivo</button>
-              <button type="button" onClick={() => setChan((c) => !c)} aria-expanded={chan} className={pill}><Icon n="film" className="h-4 w-4 text-[var(--accent)]" />Elegir de mi canal</button>
               <Link href="/app/lyric-studio" className={pill}><Icon n="music" className="h-4 w-4 text-[#0F7B4F]" />Crear vídeo con letra</Link>
+              <Link href="/app/nuevo" className={pill}><Icon n="layers" className="h-4 w-4 text-[var(--accent)]" />Paso a paso</Link>
             </div>
             {mode !== "clips" && <p className="chip">Herramienta: <b>{toolLabel}</b><button type="button" aria-label="Quitar herramienta" onClick={() => { setMode("clips"); setFile(null); }} className="ml-1 text-[var(--muted)]">✕</button></p>}
             <p role="status" aria-live="polite" className="min-h-5 text-center text-sm text-[var(--muted)]">{msg ?? (file ? (mode === "clips" && !brief ? "Sin encargo: Ráfaga elige los mejores momentos por sí sola." : "") : "")}</p>
-            {chan && <div className="w-full max-w-[640px] text-left">{!yt ? <YouTubeLink onPick={onYtPick} /> : (
-              <div className="rounded-2xl border hairline bg-white p-3"><div className="flex items-center gap-3">{/* eslint-disable-next-line @next/next/no-img-element */}<img src={yt.thumb} alt="" className="h-14 w-24 shrink-0 rounded-lg object-cover" /><div className="min-w-0 flex-1"><div className="line-clamp-2 text-sm font-medium">{yt.title}</div><div className="truncate text-xs text-[var(--muted)]">{yt.channel}</div></div><button type="button" onClick={() => { setYt(null); setYtProject(null); }} className="btn btn-ghost !min-h-8 !px-3 !py-1 !text-xs">Cambiar</button></div>
-                {ytProject ? <div className="mt-3 flex flex-wrap items-center gap-3"><p className="text-sm text-[var(--muted)]">Ya tienes un proyecto con este vídeo.</p><Link href={`/app/p/${ytProject}`} className="btn btn-primary">Abrir proyecto</Link></div> : <p className="mt-3 text-sm text-[var(--muted)]">YouTube no entrega el archivo, ni conectando tu cuenta: descárgalo en YouTube Studio → Contenido → ⋮ → Descargar, súbelo arriba y pulsa «Obtener clips».</p>}</div>)}</div>}
           </form>
           <div className="flex w-full max-w-[560px] items-center gap-3.5 rounded-xl border border-[#EEEEF4] bg-white px-3.5 py-2"><span aria-hidden className="text-[var(--accent)]">✦</span><span className="flex-1 text-sm text-[var(--muted)]">Cuéntalo con tus palabras. El Director IA lo prepara.</span><Link href="/app/director" className="inline-flex min-h-11 items-center whitespace-nowrap text-sm font-semibold text-[var(--accent-ink)]">Probar Director IA →</Link></div>
         </section>
@@ -165,7 +148,7 @@ export default function Dashboard() {
               <div className="mt-3 grid gap-3 sm:grid-cols-2"><label>Tramo desde<input value={from} onChange={(e) => setFrom(e.target.value)} placeholder="0:00" className="input mono mt-1" inputMode="numeric" /></label><label>Tramo hasta<input value={to} onChange={(e) => setTo(e.target.value)} placeholder="fin del vídeo" className="input mono mt-1" inputMode="numeric" /></label></div></details>
           </div>
           <div className="flex flex-col gap-2.5">
-            <Link href="/app/conexiones" className="card flex items-center gap-3 px-4 py-3.5"><span aria-hidden className="grid h-10 w-10 place-items-center rounded-[10px] bg-[#FDECEA] text-[#B42318]">▶</span><span className="flex-1"><b className="text-sm">Conectar YouTube</b><br /><span className="text-[13px] text-[var(--muted)]">Elige uno de tus vídeos.</span></span><span aria-hidden>›</span></Link>
+            <div className="flex items-center gap-3 rounded-[14px] border border-dashed border-[#D5D6E2] bg-white px-4 py-3.5"><span aria-hidden className="grid h-10 w-10 place-items-center rounded-[10px] bg-[#E3EAFF] text-[#2A55F5]">☁</span><span className="flex-1"><b className="text-sm">Importar desde Drive o Dropbox</b><br /><span className="text-[13px] text-[var(--muted)]">Elige un vídeo guardado en tu nube.</span></span><span className="rounded-md bg-[#F0F1F7] px-2 py-0.5 text-[11px] font-semibold text-[var(--muted)]">Próximamente</span></div>
             <div className="flex items-center gap-3 rounded-[14px] border border-dashed border-[#D5D6E2] bg-white px-4 py-3.5"><span aria-hidden className="grid h-10 w-10 place-items-center rounded-[10px] bg-[#F1E4FF] text-[#7A3FD1]">◉</span><span className="flex-1"><b className="text-sm">Conectar Twitch</b><br /><span className="text-[13px] text-[var(--muted)]">Elige una de tus emisiones.</span></span><span className="rounded-md bg-[#F0F1F7] px-2 py-0.5 text-[11px] font-semibold text-[var(--muted)]">Próximamente</span></div>
           </div>
         </section>
@@ -173,7 +156,7 @@ export default function Dashboard() {
         {/* Demos */}
         <section aria-labelledby="dm" className="flex flex-col gap-3">
           <div className="flex flex-wrap items-baseline justify-between gap-2"><h2 id="dm" className="text-[19px]">Demos</h2><span className="text-[13px] text-[var(--muted)]">Mira qué hace Ráfaga con un vídeo de ejemplo. Sin subir nada.</span></div>
-          <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4"><Link href="/app/demos" className="card block overflow-hidden"><span className="block aspect-[16/10] bg-[linear-gradient(135deg,#C9D6FF,#7F95E0)]" /><span className="block px-3 py-2.5"><span className="mono text-xs text-[var(--muted)]">DEMO · 1:40</span><br /><b className="text-sm">Monólogo: tres errores al emprender</b></span></Link></div>
+          <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4">{[["1:40", "Podcast", "linear-gradient(135deg,#C9D6FF,#7F95E0)"], ["0:36", "Entrevista", "linear-gradient(135deg,#FFE9C7,#E8A94A)"], ["0:36", "Tutorial", "linear-gradient(135deg,#CDEFD9,#5DB383)"], ["0:37", "Directo", "linear-gradient(135deg,#FFD6E4,#E58AB0)"]].map(([d, t, g]) => <Link key={t} href="/app/demos" className="card block overflow-hidden"><span className="block aspect-[16/10]" style={{ background: g }} /><span className="block px-3 py-2.5"><span className="mono text-xs text-[var(--muted)]">DEMO · {d}</span><br /><b className="text-sm">{t}</b></span></Link>)}</div>
         </section>
 
         {/* Herramientas */}
