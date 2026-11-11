@@ -36,8 +36,8 @@ async function sniffAudio(f: File): Promise<"audio/wav" | "audio/mpeg" | null> {
 
 function Step({ n: k, title, children }: { n: number; title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-3xl border border-[var(--border)] bg-white p-5">
-      <h2 className="mb-3 flex items-baseline gap-3 text-xl"><span className="font-display grid h-7 w-7 place-items-center rounded-full bg-[var(--ink)] text-sm text-white">{k}</span>{title}</h2>
+    <section className="card p-5">
+      <h2 className="mb-3 flex items-baseline gap-3 text-xl"><span className="font-display grid h-7 w-7 place-items-center rounded-full bg-[var(--accent-soft)] text-sm font-semibold text-[var(--accent-ink)]">{k}</span>{title}</h2>
       {children}
     </section>
   );
@@ -227,7 +227,7 @@ export default function LyricStudio() {
   return (
     <main className="mx-auto max-w-7xl px-4 pb-16 pt-8 md:px-8">
       <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
-        <div><h1 className="text-[2.6rem] leading-none">Lyric Studio</h1><p className="mt-2 text-[var(--muted)]">Tu canción, con la letra sincronizada, en tantas versiones como necesites.</p></div>
+        <div><h1 className="text-3xl leading-tight md:text-4xl">Lyric Studio</h1><p className="mt-2 text-[var(--muted)]">Tu canción, con la letra sincronizada, en tantas versiones como necesites.</p></div>
       </header>
 
       <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)_300px]">
@@ -260,11 +260,11 @@ export default function LyricStudio() {
               <div className="grid gap-3 sm:grid-cols-3">
                 {[["Canciones", songs?.length ?? "·"], ["Vídeos listos", recent?.length ?? "·"], ["Formatos", LYRIC_STYLES.length + (myStyles?.length ?? 0)]].map(([l, v]) => <div key={l as string} className="rounded-3xl bg-[var(--surface)] p-4"><div className="font-display text-3xl tnum">{v}</div><div className="text-sm text-[var(--muted)]">{l}</div></div>)}
               </div>
-              <section aria-labelledby="fm" className="rounded-3xl border border-[var(--border)] bg-white p-5">
+              <section aria-labelledby="fm" className="card p-5">
                 <h2 id="fm" className="text-xl">Formatos más usados</h2><p className="mb-3 text-sm text-[var(--muted)]">Letra sobre una banda de vídeo centrada. Elige uno al abrir una canción.</p>
                 <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">{LYRIC_STYLES.slice(0, 3).map((k) => <li key={k} className="overflow-hidden rounded-2xl bg-black"><div className="relative mx-auto aspect-[9/16] max-h-56 overflow-hidden"><div className="absolute inset-x-0 top-1/2 aspect-video -translate-y-1/2 bg-[#4d6b8a]" /><div className="absolute inset-x-0 top-1/2 -translate-y-1/2"><LyricSample style={PRESETS[k]} text="still do" scale={0.2} step={step} /></div></div><p className="bg-white px-3 py-2 text-sm">{k}</p></li>)}</ul>
               </section>
-              <section aria-labelledby="rv" className="rounded-3xl border border-[var(--border)] bg-white p-5">
+              <section aria-labelledby="rv" className="card p-5">
                 <div className="mb-3 flex items-center justify-between"><h2 id="rv" className="text-xl">Vídeos recientes</h2><a href="/app/biblioteca" className="text-sm text-[var(--muted)] underline">Ver todos</a></div>
                 {!recent ? <div className="skeleton h-40" /> : !recent.length ? <p className="rounded-2xl border border-dashed border-[var(--border)] p-6 text-center text-sm text-[var(--muted)]">Aún no has generado vídeos. Sube una canción para empezar.</p> : <ul className="grid grid-cols-2 gap-3 sm:grid-cols-4">{recent.map((v) => <li key={v.id}>{v.url && <video src={v.url} controls preload="metadata" className="aspect-[9/16] w-full rounded-xl bg-black object-cover" />}<p className="mt-1 truncate text-xs">{v.song} · #{v.variant}</p></li>)}</ul>}
               </section>
@@ -412,7 +412,7 @@ export default function LyricStudio() {
         </aside>
       </div>
       {song && (
-        <section aria-labelledby="res-h" className="mt-8 rounded-3xl border border-[var(--border)] bg-white p-5">
+        <section aria-labelledby="res-h" className="mt-8 card p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 id="res-h" className="text-2xl">Resultados</h2>
             {openBatch && videos.some((v) => v.status === "ready" && v.url) && <button onClick={async () => { for (const v of videos.filter((x) => x.status === "ready" && x.storage_path)) { await download(v); await new Promise((r) => setTimeout(r, 900)); } }} className="btn btn-primary !py-1.5 !text-xs">Descargar todos</button>}

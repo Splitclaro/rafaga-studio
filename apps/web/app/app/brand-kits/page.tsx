@@ -191,9 +191,17 @@ export default function BrandKits() {
   return (
     <>
     <BrandTabs />
+    <section aria-label="Presentación del Brand kit" className="mx-auto mt-6 max-w-[1240px] px-4 md:px-10">
+      <div className="hero-soft flex flex-wrap items-center justify-between gap-6 p-6 md:p-8">
+        <div className="max-w-xl"><h1 className="text-3xl">Brand kit</h1><p className="mt-2 text-lg font-semibold text-[var(--ink)]">Mantén tus vídeos con tu marca</p>
+          <ul className="mt-3 space-y-1.5 text-sm text-[var(--muted)]"><li>✓ Gestiona tu marca en un solo sitio: logo, colores, fuentes, intro/outro y estilo de subtítulos.</li><li>✓ Aplica un kit desde el editor, en los resultados de un proyecto y en Lyric Studio.</li></ul>
+          <Link href="/app" className="btn btn-primary mt-4">Probar con un vídeo</Link></div>
+        <div aria-hidden className="grid h-32 w-56 place-items-center rounded-2xl bg-white font-display text-2xl font-extrabold tracking-tight text-[var(--accent)] shadow-[var(--shadow-1)]">TU LOGO</div>
+      </div>
+    </section>
 <main className="mx-auto max-w-6xl px-4 pb-20 pt-8 md:px-8">
       <header className="flex flex-wrap items-end justify-between gap-3">
-        <div><h1 className="text-3xl">Brand kit</h1><p className="mt-1 max-w-2xl text-sm text-[var(--muted)]">Logo, colores, estilo de subtítulos, intro/outro y fuentes, guardados como versiones. Aplica un kit a un proyecto y tus exports salen con tu marca sin tocar clip por clip.</p></div>
+        <div><h2 className="text-2xl">Tus kits</h2><p className="mt-1 max-w-2xl text-sm text-[var(--muted)]">Logo, colores, estilo de subtítulos, intro/outro y fuentes, guardados como versiones. Aplica un kit a un proyecto y tus exports salen con tu marca sin tocar clip por clip.</p></div>
         <div role="tablist" className="inline-flex rounded-full bg-[var(--hover)] p-1 text-sm">{([["kit", "Kits"], ["fonts", "Fuentes"]] as const).map(([k, l]) => <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={`rounded-full px-4 py-1.5 ${tab === k ? "bg-[var(--ink)] text-white" : "text-[var(--muted)]"}`}>{l}</button>)}</div>
       </header>
       {msg && <p role="status" className="card mt-4 p-3 text-sm">{msg}</p>}
