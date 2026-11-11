@@ -253,5 +253,5 @@ Probar Lyric Studio con una canción real (canto + instrumental). Siguiente: Sty
 ## Sesión 26 — Despliegue del diseño maestro (sistema v4 claro/azul)
 - Borrado de Storage huérfano (originals, renders, proxies) y del objeto de prueba de R2. Quedan `app-fonts` (2 fuentes).
 - Sistema visual v4, navegación de 11 entradas, Exportados real, desglose de encaje real, editor oscuro. Sin YouTube por enlace.
-- Verificado: typecheck, build y `pnpm test` (228 ok, 2 omitidos). Páginas revisadas en producción con capturas. Prueba de extremo a extremo con un vídeo hablado de 1:42: ver resultado más abajo si se completó.
+- Verificado: typecheck, build y `pnpm test` (228 ok, 2 omitidos). Páginas revisadas en producción con capturas. Prueba de extremo a extremo en producción con un vídeo hablado sintético de 1:42 (MP4 de 2,3 MB): subida → worker (lanzado a mano con `gh workflow run worker.yml`) → 3 clips con subtítulos y puntuación → desglose de encaje → editor oscuro. Sin `GROQ_API_KEY` la selección usó el camino actual (reglas/IA de reserva). El proyecto de prueba se llama «e2e-small» y sigue en Proyectos. No verificadas: descarga de MP4 en el equipo del usuario, Exportados con datos, Conectar YouTube/Drive/Dropbox.
 - No construido: quitar silencios, layouts, hablantes, demos (v1.1). Detalle en `docs/design-migration-audit.md` §7.
