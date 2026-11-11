@@ -5,6 +5,7 @@ import {
   activeWordAt, groupWords, editText, splitWord, mergeWithNext, setTiming, offsetAll, styleForRatio, toSRT, toVTT, toTranscript,
   PRESETS, RATIO_SIZE, caseOf, trimClip, xAt, type ReframePath, type Composition, type BrollItem, type Ratio, type SubtitleStyle, type Word,
 } from "@rafaga/composition";
+import { r2Signed } from "../../../../lib/projects";
 import { supabase } from "../../../../lib/supabase";
 import { useWorkspaceFonts } from "../../../../lib/fonts";
 import { useCollections } from "../../../../components/Collections";
@@ -80,9 +81,10 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
       if (!v || !p) return setErr("No se pudo cargar la versión del clip.");
       const comp = v.composition as Composition & { preset?: string };
       // Original por partes: el navegador reproduce la vista previa (tramo del clip ± 90 s) que genera el worker, con su desfase.
-      const { data: sr } = await supabase.from("sources").select("parts").eq("id", p.source_id).single();
+      const { data: sr } = await supabase.from("sources").select("parts,storage_backend").eq("id", p.source_id).single();
       const usePreview = !!sr?.parts && !!c.preview_path;
-      const signed = usePreview ? await supabase.storage.from("proxies").createSignedUrl(c.preview_path!, 3600) : await supabase.storage.from("originals").createSignedUrl(`${c.workspace_id}/${p.source_id}/original`, 3600);
+      const signed = sr?.storage_backend === "r2" ? { data: { signedUrl: await r2Signed("get", p.source_id).catch(() => "") } }
+        : usePreview ? await supabase.storage.from("proxies").createSignedUrl(c.preview_path!, 3600) : await supabase.storage.from("originals").createSignedUrl(`${c.workspace_id}/${p.source_id}/original`, 3600);
       setOff(usePreview ? Number(c.preview_offset ?? 0) : 0);
       versionRef.current = c.current_version;
       setMeta({ title: c.title, ws: c.workspace_id, projectId: c.project_id, sourceId: p.source_id, version: c.current_version, base: comp, src: signed.data?.signedUrl ?? "" });

@@ -33,3 +33,14 @@ test("fetchOriginal une las partes byte a byte y reproduce el archivo original",
   assert.ok(Math.abs(Number(p.stdout) - 4) < 0.2);
   assert.ok(PART_BYTES < 50 * 1024 * 1024);
 });
+
+test("R2: descarga en streaming con URL firmada y caché por fuente", async () => {
+  const { downloadR2 } = await import("./source.ts");
+  const d = mkdtempSync(join(tmpdir(), "r2-"));
+  const data = Buffer.alloc(3 * 1024 * 1024, 7);
+  let asked = "";
+  await downloadR2({ accountId: "acc", accessKeyId: "K", secretAccessKey: "S", bucket: "b" }, "w/s/original", join(d, "x"), (async (u: string) => { asked = u; return new Response(data); }) as unknown as typeof fetch);
+  assert.equal(statSync(join(d, "x")).size, data.length);
+  assert.match(asked, /^https:\/\/acc\.r2\.cloudflarestorage\.com\/b\/w\/s\/original\?/);
+  assert.match(asked, /X-Amz-Signature=[0-9a-f]{64}/);
+});

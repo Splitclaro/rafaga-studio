@@ -16,7 +16,8 @@ Estado real a 2026-11-10. «Implementado» significa código y pruebas en el rep
 | Publicar en YouTube / TikTok / Instagram | Subir vídeos | **No** | No | Permisos de escritura y revisión de la app por cada plataforma (Google: `youtube.upload` + verificación; TikTok Content Posting API: revisión; Instagram Graph API: cuenta profesional + revisión) |
 | Señal de directo | Lista HLS autorizada | Sí (captura, ventanas con contexto) | Sí para HLS público; **no** para RTMP | Servidor de ingesta RTMP (coste) |
 | GitHub (arranque del worker) | `workflow_dispatch` al encolar | Sí | No | `GH_DISPATCH_TOKEN` en Vercel (Actions: write) |
-| Supabase | Base de datos, Storage, Auth | Sí | **Sí** | Pro para archivos >50 MB |
+| Supabase | Base de datos, Storage, Auth | Sí | **Sí** | 1 GB total en Free (portadas, renders, canciones; originales si no hay R2) |
+| Cloudflare R2 (originales) | Vídeos fuente de hasta 4 GB, 10 GB gratis, sin coste de salida | Sí (SigV4 probado con el vector oficial de AWS, migración 32) | No | Activar R2, crear bucket, CORS y token (abajo); variables `R2_*` en Vercel y GitHub |
 
 ## OAuth: cómo está hecho y qué configurar
 
@@ -43,3 +44,21 @@ Sin estas variables, el botón «Conectar» explica exactamente qué falta; no s
 
 ## Importar desde una conexión (siguiente paso)
 Las acciones «Ver mis vídeos» ya listan contenido real. Falta el botón «Importar» que descargue el archivo al worker (necesita el token en el worker: lo lee con la clave de servicio) y cree la fuente. Pendiente hasta tener credenciales con las que probarlo.
+
+## Cloudflare R2: configuración
+
+**Diseño:** los originales de vídeo se suben del navegador directamente a R2 con una URL PUT firmada (2 h) que emite `/api/storage` tras comprobar con el JWT del usuario que la fuente es suya y está pendiente. El editor lee con una URL GET firmada (1 h, admite saltos). El worker descarga en streaming con URL firmada. La clave secreta vive solo en Vercel y en GitHub Actions. Sin las variables, todo sigue en Supabase (por partes).
+
+**Pasos (persona responsable):**
+1. Cloudflare → R2 → «Add R2 subscription to my account» (plan gratuito; acepta las condiciones y la facturación por exceso).
+2. Crear el bucket `rafaga-originals` (ubicación automática, clase Standard).
+3. Bucket → Settings → CORS policy:
+```json
+[{"AllowedOrigins":["https://rafaga-studio.vercel.app","http://localhost:3000"],"AllowedMethods":["GET","PUT","HEAD"],"AllowedHeaders":["content-type","range"],"ExposeHeaders":["ETag","Content-Length","Content-Range"],"MaxAgeSeconds":3600}]
+```
+4. R2 → Manage API tokens → Create **Account API token** con permiso «Object Read & Write» limitado al bucket `rafaga-originals`. Copiar Access Key ID y Secret Access Key (se muestran una vez).
+5. Vercel (proyecto `rafaga-studio`) → Environment Variables (Production): `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET=rafaga-originals`. Redeploy.
+6. GitHub → Splitclaro/rafaga-studio → Settings → Secrets and variables → Actions: los mismos cuatro secretos.
+7. Prueba: subir un vídeo en Inicio → «Obtener clips» → el proyecto se procesa → el editor reproduce el original.
+
+**Pendiente:** borrar de R2 el original al eliminar definitivamente un proyecto (hoy el borrado es lógico y el objeto se conserva).

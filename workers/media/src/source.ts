@@ -6,6 +6,17 @@ import { existsSync, mkdirSync, openSync, writeSync, closeSync, renameSync, link
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { createWriteStream } from "node:fs";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
+import { r2FromEnv, r2Url, type R2Config } from "@rafaga/providers/r2";
+
+/** Descarga en streaming (sin cargar el vídeo en memoria) un original guardado en Cloudflare R2. */
+export async function downloadR2(cfg: R2Config, key: string, dest: string, fetchImpl: typeof fetch = fetch) {
+  const r = await fetchImpl(await r2Url(cfg, "GET", key, 900));
+  if (!r.ok || !r.body) throw new Error(`descarga desde R2: HTTP ${r.status}`);
+  await pipeline(Readable.fromWeb(r.body as never), createWriteStream(dest));
+}
 
 export const PART_BYTES = 45 * 1024 * 1024;
 export const partName = (base: string, i: number) => `${base}.part${String(i).padStart(3, "0")}`;
@@ -27,10 +38,14 @@ export async function fetchOriginal(sb: SupabaseClient, path: string, dest: stri
   mkdirSync(CACHE, { recursive: true });
   const cached = join(CACHE, srcId);
   if (existsSync(cached)) { place(cached, dest); return; }
-  const { data: src } = await sb.from("sources").select("parts").eq("id", srcId).maybeSingle();
+  const { data: src } = await sb.from("sources").select("parts,storage_backend").eq("id", srcId).maybeSingle();
   const tmp = `${cached}.tmp`;
   rmSync(tmp, { force: true });
-  if (src?.parts && src.parts > 0) {
+  if (src?.storage_backend === "r2") {
+    const cfg = r2FromEnv();
+    if (!cfg) throw new Error("El original está en Cloudflare R2 pero el worker no tiene las variables R2_*.");
+    await downloadR2(cfg, path, tmp);
+  } else if (src?.parts && src.parts > 0) {
     const fd = openSync(tmp, "w");
     try {
       for (let i = 0; i < src.parts; i++) {

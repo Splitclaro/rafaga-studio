@@ -51,6 +51,32 @@ export function makeThumb(f: File): Promise<Blob | null> {
 
 export type CreateArgs = { file: File; name: string; brief: string; briefData?: unknown; count: number; mode?: ProjectMode; maxSeconds?: number; rangeStart?: number; rangeEnd?: number; youtubeId?: string; onStep: (s: string) => void };
 
+/** ¿Está conectado Cloudflare R2? (lo decide el servidor; se consulta una vez por sesión). */
+let r2Mode: Promise<boolean> | null = null;
+async function authHeader() { const { data } = await supabase.auth.getSession(); return { Authorization: `Bearer ${data.session?.access_token ?? ""}` }; }
+export function storageR2(): Promise<boolean> {
+  r2Mode ??= authHeader().then((h) => fetch("/api/storage", { headers: h })).then((r) => (r.ok ? r.json() : { r2: false })).then((j) => !!j.r2).catch(() => false);
+  return r2Mode;
+}
+/** URL firmada de vida corta para subir o leer el original de una fuente en R2. */
+export async function r2Signed(op: "put" | "get", source: string): Promise<string> {
+  const r = await fetch("/api/storage", { method: "POST", headers: { ...(await authHeader()), "Content-Type": "application/json" }, body: JSON.stringify({ op, source }) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || !j.url) throw new Error(j.message ?? `No se pudo preparar el almacenamiento (${r.status}).`);
+  return j.url;
+}
+/** Sube el archivo entero a R2 con PUT firmado (hasta 5 GB) mostrando el progreso. */
+function putWithProgress(url: string, f: File, mime: string, onStep: (s: string) => void): Promise<void> {
+  return new Promise((res, rej) => {
+    const x = new XMLHttpRequest();
+    x.open("PUT", url); x.setRequestHeader("Content-Type", mime);
+    x.upload.onprogress = (e) => { if (e.lengthComputable) onStep(`Subiendo vídeo: ${mb(e.loaded)} de ${mb(e.total)} MB (${Math.round((e.loaded / e.total) * 100)} %)…`); };
+    x.onload = () => (x.status >= 200 && x.status < 300 ? res() : rej(new Error(`Subida fallida (HTTP ${x.status}).`)));
+    x.onerror = () => rej(new Error("Subida interrumpida: revisa tu conexión e inténtalo de nuevo."));
+    x.send(f);
+  });
+}
+
 const mb = (b: number) => (b / 1048576).toFixed(b > 104857600 ? 0 : 1);
 /** Sube el vídeo entero o, si supera el límite por archivo, en partes de 45 MB (3 a la vez, con reintentos). El worker las une. */
 export async function uploadVideo(path: string, f: File, mime: string, parts: number, onStep: (s: string) => void) {
@@ -88,13 +114,15 @@ export async function createProject(a: CreateArgs): Promise<string> {
   const thumb = await makeThumb(a.file);
   const thumbPath = thumb ? `${ws.id}/${srcId}/thumb.jpg` : null;
   const mime = OK_MIME.includes(a.file.type) ? a.file.type : /\.mov$/i.test(a.file.name) ? "video/quicktime" : /\.webm$/i.test(a.file.name) ? "video/webm" : "video/mp4";
-  const parts = a.file.size > MAX_UPLOAD_BYTES ? Math.ceil(a.file.size / PART_BYTES) : 0;
+  const r2 = await storageR2();
+  const parts = !r2 && a.file.size > MAX_UPLOAD_BYTES ? Math.ceil(a.file.size / PART_BYTES) : 0;
   const { error: e2 } = await supabase.from("sources").insert({
-    id: srcId, workspace_id: ws.id, kind: "upload", mime, bytes: a.file.size, created_by: uid, thumb_path: thumbPath, ...(parts ? { parts } : {}),
+    id: srcId, workspace_id: ws.id, kind: "upload", mime, bytes: a.file.size, created_by: uid, thumb_path: thumbPath, ...(parts ? { parts } : {}), ...(r2 ? { storage_backend: "r2" } : {}),
     range_start_ms: a.rangeStart != null && a.rangeEnd ? Math.round(a.rangeStart * 1000) : null, range_end_ms: a.rangeStart != null && a.rangeEnd ? Math.round(a.rangeEnd * 1000) : null,
   });
   if (e2) throw new Error(e2.message ?? "No se pudo crear la fuente.");
-  await uploadVideo(`${ws.id}/${srcId}/original`, a.file, mime, parts, a.onStep);
+  if (r2) { a.onStep(`Subiendo vídeo (${mb(a.file.size)} MB)…`); await putWithProgress(await r2Signed("put", srcId), a.file, mime, a.onStep); }
+  else await uploadVideo(`${ws.id}/${srcId}/original`, a.file, mime, parts, a.onStep);
   if (thumb && thumbPath) await supabase.storage.from("originals").upload(thumbPath, thumb, { contentType: "image/jpeg", upsert: true });
   a.onStep("Creando proyecto…");
   const { data: prj, error: e4 } = await supabase.from("projects").insert({

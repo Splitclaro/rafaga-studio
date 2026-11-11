@@ -119,7 +119,7 @@ async function processJob(job: Job) {
   try {
     const project = ok(await sb.from("projects").select("id,name,workspace_id,source_id,project_brief,brief_data,language,clip_count,target_seconds,max_seconds,deleted_at,mode").eq("id", job.project_id!).single(), "proyecto");
     if (project.deleted_at) return void (await setStatus(job.id, "cancelled"));
-    const src = ok(await sb.from("sources").select("id,mime,range_start_ms,range_end_ms,kind,thumb_path,parts").eq("id", project.source_id).single(), "fuente");
+    const src = ok(await sb.from("sources").select("id,mime,range_start_ms,range_end_ms,kind,thumb_path,parts,storage_backend").eq("id", project.source_id).single(), "fuente");
     const path = `${project.workspace_id}/${src.id}/original`;
 
     if (project.mode === "reframe") return await processWhole(job, project, src, dir, path, [], t0, m);
