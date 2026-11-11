@@ -58,11 +58,14 @@ before(async () => {
   await db.exec(readFileSync(new URL("../migrations/20261110000020_privilege_hardening.sql", import.meta.url), "utf8"));
   await db.exec(readFileSync(new URL("../migrations/20261110000021_review_deliveries.sql", import.meta.url), "utf8"));
   await db.exec(readFileSync(new URL("../migrations/20261110000022_share_links_packages.sql", import.meta.url), "utf8"));
+  await db.exec(readFileSync(new URL("../migrations/20261110000023_brief_data.sql", import.meta.url), "utf8"));
   await db.exec("alter table storage.objects add column if not exists metadata jsonb;");   // Storage real guarda size/eTag aquí
   await db.exec(readFileSync(new URL("../migrations/20261110000024_library.sql", import.meta.url), "utf8"));
   await db.exec(readFileSync(new URL("../migrations/20261110000025_reframe.sql", import.meta.url), "utf8"));
   await db.exec(readFileSync(new URL("../migrations/20261110000026_youtube_picks.sql", import.meta.url), "utf8"));
   await db.exec(readFileSync(new URL("../migrations/20261110000027_ai_usage.sql", import.meta.url), "utf8"));
+  await db.exec(readFileSync(new URL("../migrations/20261110000029_oauth_connections.sql", import.meta.url), "utf8"));
+  await db.exec(readFileSync(new URL("../migrations/20261110000030_project_lifecycle.sql", import.meta.url), "utf8"));
   await db.exec("grant execute on function public.share_view(text), public.share_comment(text, uuid, numeric, text, text), public.share_decide(text, uuid, text, text, text), public.share_path_ok(text) to anon;");
   await db.exec("grant select, insert, delete on public.songs to authenticated; grant select on public.song_alignments, public.lyric_videos to authenticated; grant execute on function public.request_lyrics(uuid, jsonb, text) to authenticated;");
   await db.exec("grant execute on function public.request_detection(uuid, text) to authenticated; grant execute on function public.request_render(uuid, int, text, boolean) to authenticated;");
@@ -685,4 +688,53 @@ test("coste y límites de IA: solo responsables ven costes y editan límites; el
     assert.equal(sb.week_source_minutes, 0); assert.equal(sb.month_cost_usd, 0, "B es responsable de SU espacio: ve su coste (0), nunca el de A");
   });
   await asUser(null, async () => { await rejects(`select public.ai_usage_summary()`); await rejects(`select public.set_ai_limits('{}')`); });
+});
+
+test("conexiones OAuth: tokens invisibles desde el navegador, solo responsables conectan, aisladas por workspace", async () => {
+  await asUser(A, async () => {
+    const r = (await db.query<{ r: { provider: string; status: string } }>(`select public.oauth_save('google','ana@ejemplo.com','{youtube.readonly}','ACCESS-TOKEN-1234','REFRESH-1', now() + interval '1 hour') r`)).rows[0].r;
+    assert.equal(r.status, "connected");
+    await rejects(`select * from oauth_connections`);                                   // sin SELECT directo ni con RLS
+    await rejects(`insert into oauth_connections(workspace_id,provider,access_token,created_by) values ('${wsA}','google','x','${A}')`);
+    await rejects(`select public.oauth_save('twitter','x','{}','ACCESS-TOKEN-1234',null,null)`);
+    await rejects(`select public.oauth_save('google','x','{}','corto',null,null)`);
+    const st = (await db.query<{ s: { provider: string; account_label: string; status: string }[] }>(`select public.oauth_status() s`)).rows[0].s;
+    assert.equal(st.length, 1); assert.equal(st[0].account_label, "ana@ejemplo.com"); assert.ok(!JSON.stringify(st).includes("ACCESS-TOKEN"), "el estado no lleva tokens");
+    const tok = (await db.query<{ t: { access_token: string; refresh_token: string } }>(`select public.oauth_token('google') t`)).rows[0].t;
+    assert.equal(tok.access_token, "ACCESS-TOKEN-1234");
+    await db.query(`select public.oauth_save('google','ana@ejemplo.com','{youtube.readonly}','ACCESS-TOKEN-5678',null, now() + interval '1 hour')`);   // reconexión sin refresh nuevo
+    assert.equal((await db.query<{ t: { refresh_token: string } }>(`select public.oauth_token('google') t`)).rows[0].t.refresh_token, "REFRESH-1", "conserva el refresh anterior");
+    await db.query(`select public.oauth_touch('google', null, null, 'expired', 'invalid_grant')`);
+    assert.equal((await db.query<{ s: { status: string }[] }>(`select public.oauth_status() s`)).rows[0].s[0].status, "expired");
+    await rejects(`select public.oauth_touch('google', null, null, 'raro', null)`);
+    await rejects(`select public.oauth_token('dropbox')`);
+  });
+  await asUser(B, async () => {
+    assert.deepEqual((await db.query<{ s: unknown[] }>(`select public.oauth_status() s`)).rows[0].s, [], "otro workspace no ve la conexión");
+    await rejects(`select public.oauth_token('google')`);
+  });
+  await asUser(null, async () => { await rejects(`select public.oauth_status()`); await rejects(`select public.oauth_token('google')`); });
+  await asUser(A, async () => {
+    assert.equal((await db.query<{ ok: boolean }>(`select public.oauth_disconnect('google') ok`)).rows[0].ok, true);
+    assert.equal((await db.query<{ ok: boolean }>(`select public.oauth_disconnect('google') ok`)).rows[0].ok, false);
+    assert.equal((await db.query<{ n: number }>(`select count(*)::int n from audit_events where action in ('oauth.connect','oauth.disconnect')`)).rows[0].n, 3);
+  });
+});
+
+test("proyectos: archivar y duplicar solo con permiso de edición y dentro del workspace", async () => {
+  const pid = (await db.query<{ id: string }>(`select id from projects where workspace_id='${wsA}' and deleted_at is null limit 1`)).rows[0].id;
+  let copy = "";
+  await asUser(A, async () => {
+    copy = (await db.query<{ c: string }>(`select public.duplicate_project('${pid}', null) c`)).rows[0].c;
+    const r = (await db.query<{ name: string; source_id: string; clip_count: number }>(`select name, source_id, clip_count from projects where id='${copy}'`)).rows[0];
+    assert.match(r.name, /\(copia\)$/); assert.equal(r.source_id, (await db.query<{ s: string }>(`select source_id s from projects where id='${pid}'`)).rows[0].s);
+    assert.equal((await db.query(`select 1 from clips where project_id='${copy}'`)).rows.length, 0, "la copia no arrastra clips");
+    await db.query(`select public.archive_project('${copy}', true)`);
+    assert.ok((await db.query<{ a: string | null }>(`select archived_at a from projects where id='${copy}'`)).rows[0].a);
+    await db.query(`select public.archive_project('${copy}', false)`);
+    assert.equal((await db.query<{ a: string | null }>(`select archived_at a from projects where id='${copy}'`)).rows[0].a, null);
+    await rejects(`select public.duplicate_project('00000000-0000-0000-0000-000000000000', null)`);
+  });
+  await asUser(B, async () => { await rejects(`select public.duplicate_project('${pid}', null)`); await rejects(`select public.archive_project('${pid}', true)`); });
+  await asUser(null, async () => { await rejects(`select public.archive_project('${pid}', true)`); });
 });

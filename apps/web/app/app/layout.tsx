@@ -8,7 +8,6 @@ import CommandPalette, { type NavItem } from "../../components/CommandPalette";
 
 const NAV: NavItem[] = [
   { href: "/app", label: "Inicio", icon: "home", ready: true, group: "Crear" },
-  { href: "/app/director", label: "Director IA", icon: "wand", ready: true, group: "Crear" },
   { href: "/app/lyric-studio", label: "Lyric Studio", icon: "music", ready: true, group: "Crear" },
   { href: "/app/style-studio", label: "Style Studio", icon: "type", ready: true, group: "Crear" },
   { href: "/app/biblioteca", label: "Biblioteca", icon: "folder", ready: true, group: "Crear" },

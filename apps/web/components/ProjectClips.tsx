@@ -11,7 +11,7 @@ const dur = (ms: number) => { const s = Math.round(ms / 1000); return s >= 60 ? 
 const safe = (t: string) => t.replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "").slice(0, 60) || "clip";
 
 /** Un proyecto con todos sus clips visibles, descarga individual y «Descargar todos». */
-export default function ProjectClips({ p, onDelete }: { p: Row; onDelete: (id: string, name: string) => void }) {
+export default function ProjectClips({ p, onDelete, onChanged }: { p: Row; onDelete: (id: string, name: string) => void; onChanged?: () => void }) {
   const [open, setOpen] = useState(false);
   const [clips, setClips] = useState<ClipRow[] | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -57,9 +57,11 @@ export default function ProjectClips({ p, onDelete }: { p: Row; onDelete: (id: s
         </Link>
         <div className="min-w-0 flex-1">
           <Link href={`/app/p/${p.id}`} className="block truncate font-medium hover:underline">{p.name}</Link>
-          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]"><Chip status={p.status} /><span className="tnum">{new Date(p.created_at).toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric" })}</span><span className="tnum">{p.clips} clip{p.clips === 1 ? "" : "s"}</span></div>
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]"><Chip status={p.status} />{p.archived_at && <span className="chip !py-0.5">Archivado</span>}<span className="tnum">{new Date(p.created_at).toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric" })}</span><span className="tnum">{p.clips} clip{p.clips === 1 ? "" : "s"}</span></div>
         </div>
         <div className="flex shrink-0 items-center gap-1">
+          <button className="btn btn-ghost !px-3 !py-1.5 !text-xs" onClick={async () => { const { error } = await supabase.rpc("duplicate_project", { p_project: p.id, p_name: null }); setNote(error ? error.message : "Proyecto duplicado (misma fuente y encargo; los clips se detectan de nuevo)."); onChanged?.(); }}>Duplicar</button>
+          <button className="btn btn-ghost !px-3 !py-1.5 !text-xs" onClick={async () => { const { error } = await supabase.rpc("archive_project", { p_project: p.id, p_archived: !p.archived_at }); setNote(error ? error.message : p.archived_at ? "Proyecto restaurado." : "Proyecto archivado."); onChanged?.(); }}>{p.archived_at ? "Restaurar" : "Archivar"}</button>
           <button className="btn btn-ghost !px-3 !py-1.5 !text-xs" onClick={() => onDelete(p.id, p.name)}>Borrar</button>
           <button className="btn btn-primary !px-3 !py-1.5 !text-xs" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? "Ocultar clips" : `Ver clips (${p.clips})`}</button>
         </div>

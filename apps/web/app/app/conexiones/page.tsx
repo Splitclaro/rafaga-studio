@@ -2,6 +2,7 @@
 import { useMemo, useState } from "react";
 import Icon from "../../../components/Icon";
 import { PLATFORMS, CAPS, METHOD, type Cap, type Platform } from "../../../lib/platforms";
+import OAuthConnections from "../../../components/OAuthConnections";
 
 const GROUPS: Platform["group"][] = ["Redes de vídeo", "Directos", "Protocolos y propios", "Mensajería", "Otros"];
 
@@ -16,8 +17,10 @@ export default function Conexiones() {
     <main className="mx-auto max-w-6xl px-4 pb-20 pt-8 md:px-8">
       <header className="mb-6"><h1 className="text-3xl">Conexiones</h1><p className="mt-1 max-w-3xl text-[var(--muted)]">Aquí verás a qué redes y servicios puedes conectar tu cuenta y qué podrás hacer con cada uno. Hoy publicas descargando tus clips; la publicación directa llegará cuando cada conector esté implementado y aprobado por su plataforma.</p></header>
 
+      <OAuthConnections />
+
       <section aria-label="Resumen" className="mb-6 grid gap-3 sm:grid-cols-4">
-        {[["Conectadas", "0"], ["Catalogadas", String(PLATFORMS.length)], ["Conectores implementados", "0"], ["Requisitos verificados", `${verified}/${PLATFORMS.length}`]].map(([k, v]) => (
+        {[["Conectores implementados", "3 (YouTube, Drive, Dropbox: importar)"], ["Catalogadas", String(PLATFORMS.length)], ["Publicación en redes", "pendiente de aprobación"], ["Requisitos verificados", `${verified}/${PLATFORMS.length}`]].map(([k, v]) => (
           <div key={k} className="card p-4"><div className="mono text-2xl">{v}</div><div className="text-sm text-[var(--muted)]">{k}</div></div>))}
       </section>
 

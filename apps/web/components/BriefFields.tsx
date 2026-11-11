@@ -1,6 +1,7 @@
 "use client";
 import { useId } from "react";
 import { BRIEF_LIMITS, BRIEF_EFFECT, TONES, composeBrief, normalizeBrief, type BriefData } from "@rafaga/selection/brief";
+import BriefUnderstanding from "./BriefUnderstanding";
 
 export const EMPTY_BRIEF: BriefData = { objective: "" };
 
@@ -16,6 +17,7 @@ export default function BriefFields({ value, onChange, compact = false }: { valu
       <label htmlFor={`${id}-o`} className="text-sm font-medium">¿Qué momentos quieres encontrar?</label>
       <textarea id={`${id}-o`} rows={compact ? 2 : 3} maxLength={BRIEF_LIMITS.objective} value={value.objective} onChange={(e) => set("objective", e.target.value)} className="input mt-1.5 resize-y"
         placeholder="Ej.: cinco cortes para gente que no conoce al artista. Prioriza las historias detrás de sus canciones, evita su vida privada y deja que se escuche el remate." />
+      <BriefUnderstanding text={value.objective} compact={compact} />
       <details className="mt-2 text-sm" open={filled > 0 ? undefined : undefined}>
         <summary className="cursor-pointer text-[var(--muted)]">Más detalles (opcional){filled ? ` · ${filled} rellenados` : ""}</summary>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">

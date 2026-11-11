@@ -25,6 +25,7 @@ export default function Biblioteca() {
   const sp = useSearchParams();
   const [tab, setTab] = useState<Tab>(() => (["all", "videos", "lyrics", "songs", "collections", "fonts", "styles"].includes(sp.get("tab") ?? "") ? (sp.get("tab") as Tab) : "all"));
   const [q, setQ] = useState("");
+  const [showArchived, setShowArchived] = useState(false);
   const { rows: projects, reload: reloadProjects } = useProjects();
   const { saved: styles, reload: reloadStyles } = useTextStyles();
   const { fonts, reload: reloadFonts } = useWorkspaceFonts();
@@ -91,8 +92,9 @@ export default function Biblioteca() {
 
       {list === "all" && <LibraryAll q={q} onChanged={() => { reloadCols(); loadLyrics(); }} />}
 
-      {list === "videos" && (!projects ? <Skel /> : !projects.filter((p) => match(p.name)).length ? <Empty text={q ? "Nada coincide con tu búsqueda." : "Aún no tienes proyectos. Sube un vídeo y aquí verás sus clips."} href="/app" cta="Crear un proyecto" /> : (
-        <ul className="space-y-3">{projects.filter((p) => match(p.name)).map((p) => <ProjectClips key={p.id} p={p} onDelete={delProject} />)}</ul>))}
+      {list === "videos" && <div className="mb-3 flex justify-end"><button className="chip" aria-pressed={showArchived} onClick={() => setShowArchived(!showArchived)}>Archivados <span className="mono text-xs opacity-70">{projects?.filter((p) => p.archived_at).length ?? "·"}</span></button></div>}
+      {list === "videos" && (!projects ? <Skel /> : !projects.filter((p) => match(p.name) && !!p.archived_at === showArchived).length ? <Empty text={q ? "Nada coincide con tu búsqueda." : showArchived ? "No hay proyectos archivados." : "Aún no tienes proyectos. Sube un vídeo y aquí verás sus clips."} href="/app" cta="Crear un proyecto" /> : (
+        <ul className="space-y-3">{projects.filter((p) => match(p.name) && !!p.archived_at === showArchived).map((p) => <ProjectClips key={p.id} p={p} onDelete={delProject} onChanged={reloadProjects} />)}</ul>))}
 
       {list === "lyrics" && !!lyrics?.length && <div className="mb-3 flex justify-end"><button className="btn btn-primary !px-3 !py-1.5 !text-xs" onClick={async () => { const l = lyrics.filter((v) => match(v.song) && v.path); setMsg(`Descargando ${l.length} vídeos… acepta las descargas múltiples si el navegador lo pide.`); for (const v of l) { await dl("renders", v.path, `${v.song}-${v.variant}.mp4`); await new Promise((r) => setTimeout(r, 900)); } }}><Icon n="download" className="h-3.5 w-3.5" />Descargar todos</button></div>}
       {list === "lyrics" && (!lyrics ? <Skel /> : !lyrics.filter((v) => match(v.song)).length ? <Empty text={q ? "Nada coincide con tu búsqueda." : "Aún no has generado vídeos con letra."} href="/app/lyric-studio" cta="Abrir Lyric Studio" /> : (

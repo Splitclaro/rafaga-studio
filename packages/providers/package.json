@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./youtube": "./src/youtube.ts"
+    "./youtube": "./src/youtube.ts",
+    "./oauth": "./src/oauth.ts"
   },
   "dependencies": {
     "@rafaga/selection": "workspace:*"
