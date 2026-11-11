@@ -262,3 +262,5 @@ Probar Lyric Studio con una canción real (canto + instrumental). Siguiente: Sty
 - Incidencia: un run del worker quedó colgado en «in_progress» con todos los pasos completados y bloqueó los siguientes (concurrencia). Se resolvió lanzando otro run cuando el anterior terminó.
 - **No portado al detalle** (conservan su estructura anterior con el sistema visual nuevo): Resultados, Editor, Lyric Studio, Conexiones, Brand kit, Calendario, Analítica, Automatizaciones, Procesamiento. Siguiente paso: reconstruirlas una a una contra su tablero.
 - Pendiente v1.1: quitar silencios y muletillas, hablantes, más demos.
+- Resultados (barra de selección en línea, encargo plegable, rail «V1 CLIPS IA») y Conexiones (resumen claro) alineadas con el Artifact y verificadas en producción. Inicio del flujo OAuth de YouTube verificado: `/api/oauth/start` devuelve la URL de Google con el permiso `youtube.readonly` (sin completar el consentimiento, que es del usuario).
+- Sin reconstruir contra su tablero: Editor, Lyric Studio, Brand kit, Calendario, Analítica, Automatizaciones, Procesamiento (funcionan con el estilo nuevo).
