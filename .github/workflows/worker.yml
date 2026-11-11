@@ -8,7 +8,7 @@ concurrency: { group: media-worker, cancel-in-progress: false }
 permissions: { contents: read, actions: read }
 jobs:
   process:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
@@ -21,7 +21,7 @@ jobs:
       - if: steps.gate.outputs.ready == 'true'
         timeout-minutes: 10
         run: |
-          # `apt-get update` en ubuntu-24.04 se colgó >1 h el 2026-11-11. Aquí: imagen 22.04, tiempos máximos y reintentos.
+          # `apt-get update` en ubuntu-24.04 se colgó >1 h el 2026-11-11. Aquí: tiempos máximos y reintentos (probado también en 22.04: mismo fallo, los runners no alcanzan los repositorios de Ubuntu).
           for i in 1 2 3; do
             sudo timeout 90 apt-get -o Acquire::Retries=1 -o Acquire::http::Timeout=15 update -qq \
               && sudo timeout 300 apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=20 install -y -qq ffmpeg fonts-liberation fontconfig espeak-ng && break
