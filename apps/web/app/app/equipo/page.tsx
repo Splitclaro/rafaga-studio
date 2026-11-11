@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../../../lib/supabase";
+import BrandTabs from "../../../components/BrandTabs";
 
 type Person = { user_id: string; email: string; display_name: string | null; role: string; joined_at: string; is_me: boolean };
 type Invite = { id: string; email: string; role: string; expires_at: string; accepted_at: string | null; revoked_at: string | null; created_at: string };
@@ -47,7 +48,9 @@ export default function Equipo() {
   const who = (id: string | null) => people.find((p) => p.user_id === id)?.email ?? "otra persona";
 
   return (
-    <main className="mx-auto max-w-4xl px-4 pb-16 pt-8 md:px-8">
+    <>
+    <BrandTabs />
+<main className="mx-auto max-w-4xl px-4 pb-16 pt-8 md:px-8">
       <h1 className="text-3xl">Equipo y permisos</h1>
       <p className="mt-1 text-sm text-[var(--muted)]">Espacio activo: <strong>{me?.name ?? "…"}</strong>{me ? ` · tu rol: ${ROLE[me.role]}` : ""}. Cada espacio separa proyectos, canciones, medios, estilos y automatizaciones; los permisos se comprueban en el servidor.</p>
       {msg && <p role="alert" className="card mt-4 p-3 text-sm">{msg}</p>}
@@ -91,5 +94,6 @@ export default function Equipo() {
         </section>
       </>) : <p className="mt-6 text-sm text-[var(--muted)]">Solo propietarios y administradores pueden invitar y gestionar permisos.</p>}
     </main>
+    </>
   );
 }

@@ -8,7 +8,7 @@ import CommandPalette, { type NavItem } from "../../components/CommandPalette";
 
 const NAV: NavItem[] = [
   { href: "/app", label: "Inicio", icon: "home", ready: true, group: "Trabajo" },
-  { href: "/app/biblioteca", label: "Proyectos", icon: "folder", ready: true, group: "Trabajo" },
+  { href: "/app/proyectos", label: "Proyectos", icon: "folder", ready: true, group: "Trabajo" },
   { href: "/app/exports", label: "Exportados", icon: "download", ready: true, group: "Trabajo" },
   { href: "/app/calendario", label: "Calendario", icon: "calendar", ready: true, group: "Trabajo" },
   { href: "/app/analitica", label: "Analítica", icon: "chart", ready: true, group: "Trabajo" },
@@ -155,7 +155,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
           </button>
           <Link href="/app/director" className="btn btn-ghost !min-h-9 !py-1.5 hidden md:inline-flex"><Icon n="wand" className="h-4 w-4 text-[var(--accent)]" />Director IA</Link>
           <Link href="/app/equipo" className="btn btn-ghost !min-h-9 !py-1.5 hidden lg:inline-flex">Invitar</Link>
-          {running > 0 && <Link href="/app/biblioteca" className="chip" aria-label={`${running} trabajos en curso`}><span className="pulse" aria-hidden /> <span className="tnum">{running}</span> en curso</Link>}
+          {running > 0 && <Link href="/app/proyectos" className="chip" aria-label={`${running} trabajos en curso`}><span className="pulse" aria-hidden /> <span className="tnum">{running}</span> en curso</Link>}
           <div className="relative">
             <button onClick={openBell} aria-label={`Notificaciones${unread ? `, ${unread} nuevas` : ""}`} aria-expanded={bell} className="card relative grid h-9 w-9 place-items-center hover:bg-[var(--hover)]">
               <Icon n="bell" className="h-4 w-4" />{unread > 0 && <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-[var(--ink)] px-1 text-[10px] font-medium text-white">{unread}</span>}

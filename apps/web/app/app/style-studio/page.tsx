@@ -6,6 +6,7 @@ import { useTextStyles, type SavedStyle } from "../../../lib/textStyles";
 import { useWorkspaceFonts } from "../../../lib/fonts";
 import LyricSample from "../../../components/LyricSample";
 import Icon from "../../../components/Icon";
+import BrandTabs from "../../../components/BrandTabs";
 
 const SAMPLES = ["bajo la luna de abril caminamos", "no me digas que no", "y si el mañana nos espera ya"];
 type Draft = { id: string | null; name: string; style: SubtitleStyle };
@@ -70,7 +71,9 @@ export default function StyleStudio() {
   );
 
   return (
-    <main className="mx-auto max-w-7xl px-4 pb-20 pt-8 md:px-8">
+    <>
+    <BrandTabs />
+<main className="mx-auto max-w-7xl px-4 pb-20 pt-8 md:px-8">
       <header className="mb-6"><h1 className="text-3xl">Style Studio</h1><p className="mt-1 text-[var(--muted)]">Crea el estilo de texto de tus clips y vídeos con letra. Lo que ves en la vista previa es lo que sale en el MP4.</p></header>
 
       <div className="grid gap-5 lg:grid-cols-[260px_minmax(0,1fr)_340px]">
@@ -163,5 +166,6 @@ export default function StyleStudio() {
         </aside>
       </div>
     </main>
+    </>
   );
 }

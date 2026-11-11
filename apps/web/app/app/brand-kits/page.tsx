@@ -7,6 +7,7 @@ import { useWorkspaceFonts } from "../../../lib/fonts";
 import { useTextStyles } from "../../../lib/textStyles";
 import LyricSample from "../../../components/LyricSample";
 import { useProjects } from "../../../components/ProjectList";
+import BrandTabs from "../../../components/BrandTabs";
 
 type Bumper = { path: string; name: string; kind: "video" | "photo"; dur: number; hasAudio: boolean };
 type Config = { template?: string; layout?: string; montage?: string; lyric?: { look: string | null; style: string | null }; logo?: Partial<BrandLogo>; intro?: Bumper | null; outro?: Bumper | null; export?: { ratios: string[]; res: 1080 | 720 }; broll_collection?: string | null; notes?: string };
@@ -188,7 +189,9 @@ export default function BrandKits() {
   const targetProj = projects?.find((p) => p.id === target);
 
   return (
-    <main className="mx-auto max-w-6xl px-4 pb-20 pt-8 md:px-8">
+    <>
+    <BrandTabs />
+<main className="mx-auto max-w-6xl px-4 pb-20 pt-8 md:px-8">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div><h1 className="text-3xl">Brand kit</h1><p className="mt-1 max-w-2xl text-sm text-[var(--muted)]">Logo, colores, estilo de subtítulos, intro/outro y fuentes, guardados como versiones. Aplica un kit a un proyecto y tus exports salen con tu marca sin tocar clip por clip.</p></div>
         <div role="tablist" className="inline-flex rounded-full bg-[var(--hover)] p-1 text-sm">{([["kit", "Kits"], ["fonts", "Fuentes"]] as const).map(([k, l]) => <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={`rounded-full px-4 py-1.5 ${tab === k ? "bg-[var(--ink)] text-white" : "text-[var(--muted)]"}`}>{l}</button>)}</div>
@@ -320,5 +323,6 @@ export default function BrandKits() {
         </div>
       )}
     </main>
+    </>
   );
 }

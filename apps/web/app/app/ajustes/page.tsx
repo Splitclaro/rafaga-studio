@@ -3,13 +3,16 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase, MAX_UPLOAD_BYTES, MAX_VIDEO_BYTES } from "../../../lib/supabase";
 import AiUsage from "../../../components/AiUsage";
+import BrandTabs from "../../../components/BrandTabs";
 
 export default function Ajustes() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   useEffect(() => { supabase.auth.getSession().then(({ data }) => setEmail(data.session?.user.email ?? "")); }, []);
   return (
-    <main className="mx-auto max-w-3xl px-4 py-10">
+    <>
+    <BrandTabs />
+<main className="mx-auto max-w-3xl px-4 py-10">
       <h1 className="mb-6 text-2xl font-semibold">Ajustes</h1>
       <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
         <h2 className="font-medium">Cuenta</h2>
@@ -26,5 +29,6 @@ export default function Ajustes() {
         </ul>
       </section>
     </main>
+    </>
   );
 }
