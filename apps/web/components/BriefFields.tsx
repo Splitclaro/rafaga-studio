@@ -15,6 +15,9 @@ export default function BriefFields({ value, onChange, compact = false }: { valu
   return (
     <div>
       <label htmlFor={`${id}-o`} className="text-sm font-medium">¿Qué momentos quieres encontrar?</label>
+      <div className="mt-2 flex flex-wrap gap-1.5" role="group" aria-label="Ideas para tu encargo">
+        {["Momentos graciosos", "Consejos", "Polémicas", "Historias", "Citas"].map((t) => <button key={t} type="button" className="chip" onClick={() => { const low = value.objective.toLowerCase(); if (!low.includes(t.toLowerCase())) set("objective", (value.objective ? value.objective.replace(/[\s.]+$/, "") + ". " : "") + "Busca " + t.toLowerCase() + ".") }}>{t}</button>)}
+      </div>
       <textarea id={`${id}-o`} rows={compact ? 2 : 3} maxLength={BRIEF_LIMITS.objective} value={value.objective} onChange={(e) => set("objective", e.target.value)} className="input mt-1.5 resize-y"
         placeholder="Ej.: cinco cortes para gente que no conoce al artista. Prioriza las historias detrás de sus canciones, evita su vida privada y deja que se escuche el remate." />
       <BriefUnderstanding text={value.objective} compact={compact} />
