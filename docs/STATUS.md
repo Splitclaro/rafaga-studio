@@ -264,3 +264,5 @@ Probar Lyric Studio con una canción real (canto + instrumental). Siguiente: Sty
 - Pendiente v1.1: quitar silencios y muletillas, hablantes, más demos.
 - Resultados (barra de selección en línea, encargo plegable, rail «V1 CLIPS IA») y Conexiones (resumen claro) alineadas con el Artifact y verificadas en producción. Inicio del flujo OAuth de YouTube verificado: `/api/oauth/start` devuelve la URL de Google con el permiso `youtube.readonly` (sin completar el consentimiento, que es del usuario).
 - Sin reconstruir contra su tablero: Editor, Lyric Studio, Brand kit, Calendario, Analítica, Automatizaciones, Procesamiento (funcionan con el estilo nuevo).
+- Brand kit (presentación «Mantén tus vídeos con tu marca» sobre las pestañas de Marca) y Lyric Studio (tarjetas del sistema, pasos numerados con acento) alineados con sus tableros y verificados en producción con capturas. Lyric no se ha reprobado con una canción real tras esta tanda.
+- Siguen sin reconstruir contra su tablero: Editor, Calendario, Analítica, Automatizaciones, Procesamiento.
