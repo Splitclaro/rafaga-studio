@@ -62,3 +62,14 @@ Las acciones «Ver mis vídeos» ya listan contenido real. Falta el botón «Imp
 7. Prueba: subir un vídeo en Inicio → «Obtener clips» → el proyecto se procesa → el editor reproduce el original.
 
 **Pendiente:** borrar de R2 el original al eliminar definitivamente un proyecto (hoy el borrado es lógico y el objeto se conserva).
+
+## Conectar YouTube (elegir uno de mis vídeos): pasos de Google
+
+Ráfaga usa un proyecto propio de Google Cloud (no el de otras apps). Con YouTube conectado, en Inicio → «Enlace de YouTube» aparece **«Elegir uno de mis vídeos»** (lista de solo lectura de tu canal). YouTube no entrega el archivo: tras elegirlo se pide subir el original (YouTube Studio → Contenido → Descargar).
+
+1. Google Cloud → proyecto nuevo «Rafaga Studio» (formulario preparado en la pestaña).
+2. APIs y servicios → Biblioteca → habilitar **YouTube Data API v3**.
+3. Google Auth Platform → Branding (nombre «Ráfaga Studio», correo de soporte) → Público: **Externo**, en pruebas, y añadir como usuario de prueba el correo con el que se conecta el canal. Alcance: `youtube.readonly`.
+4. Clientes → Crear cliente → **Aplicación web**; URI de redirección autorizado: `https://rafaga-studio.vercel.app/app/conexiones/callback`.
+5. Copiar ID de cliente y secreto: pegarlos en Vercel (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, ya creadas con `PEGAR_AQUI_LA_CLAVE`) → Redeploy.
+6. Ráfaga → Conexiones → YouTube → Conectar → Probar. Con la app en modo pruebas Google caduca el permiso a los 7 días; para uso continuo hay que publicar la app (para `youtube.readonly` Google exige verificación).
