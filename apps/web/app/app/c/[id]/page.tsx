@@ -7,6 +7,7 @@ import {
 } from "@rafaga/composition";
 import { r2Signed } from "../../../../lib/projects";
 import { supabase } from "../../../../lib/supabase";
+import { downloadMp4 } from "../../../../lib/download";
 import { useWorkspaceFonts } from "../../../../lib/fonts";
 import { useCollections } from "../../../../components/Collections";
 import { useTextStyles } from "../../../../lib/textStyles";
@@ -239,8 +240,7 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
   }
   async function download(r: Render) {
     const name = `${(meta?.title ?? "clip").replace(/[^\w\-áéíóúñ ]/gi, "").slice(0, 40)}-v${r.clip_version}-${r.ratio.replace(":", "x")}.mp4`;
-    const { data } = await supabase.storage.from("renders").createSignedUrl(r.storage_path, 300, { download: name });
-    if (data?.signedUrl) window.location.href = data.signedUrl;
+    const res = await downloadMp4("renders", r.storage_path, name); if (!res.ok) alert(res.error);
   }
   function saveText(name: string, text: string, type: string) {
     const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; a.click(); URL.revokeObjectURL(a.href);

@@ -2,6 +2,7 @@
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { supabase } from "../../../../lib/supabase";
+import { downloadMp4 } from "../../../../lib/download";
 import Icon from "../../../../components/Icon";
 import { StatusLabel, pieceStatus, fmtDur } from "../../../../components/ui/status";
 
@@ -77,8 +78,7 @@ export default function ReviewRoom({ params }: { params: Promise<{ id: string }>
   async function download() {
     if (!render || !clip) return;
     const name = `${safe(projectName)}_${safe(clip.title)}_${render.ratio.replace(":", "x")}_v${render.clip_version}.mp4`;
-    const { data } = await supabase.storage.from("renders").createSignedUrl(render.storage_path, 300, { download: name });
-    if (data?.signedUrl) window.location.href = data.signedUrl;
+    const r = await downloadMp4("renders", render.storage_path, name); if (!r.ok) alert(r.error);
   }
   const seek = (x: number) => { const el = video.current; if (el) { el.currentTime = x; el.focus(); } };
 

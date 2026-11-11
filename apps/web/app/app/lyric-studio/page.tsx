@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { parseLyrics, planVariants, moreIsCopy, type MoreLock, DEFAULT_BG, LOOKS, resolveLook, type BgSettings, type FilterName, type LyricLook, type DeepPartial } from "@rafaga/lyrics";
 import { PRESETS, type SubtitleStyle } from "@rafaga/composition";
 import { supabase, MAX_UPLOAD_BYTES } from "../../../lib/supabase";
+import { downloadMp4 } from "../../../lib/download";
 import { STAGE } from "../../../lib/projects";
 import CollectionsPicker, { Thumb, useCollections } from "../../../components/Collections";
 import { useTextStyles } from "../../../lib/textStyles";
@@ -217,8 +218,7 @@ export default function LyricStudio() {
   }, [song, activeBatch?.id, openBatch, loadBatches, loadVideos]); // eslint-disable-line react-hooks/exhaustive-deps
   async function importLyrics(f: File | undefined) { if (f) setLyrics(parseLyrics(await f.text()).map((l) => l.text).join("\n")); }
   async function download(v: LV) {
-    const { data } = await supabase.storage.from("renders").createSignedUrl(v.storage_path!, 300, { download: `${song?.title ?? "letra"}-${v.variant}.mp4` });
-    if (data?.signedUrl) window.location.href = data.signedUrl;
+    const r = await downloadMp4("renders", v.storage_path!, `${song?.title ?? "letra"}-${v.variant}.mp4`); if (!r.ok) alert(r.error);
   }
   const set = (p: Partial<BgSettings>) => setSettings((s) => ({ ...s, ...p }));
   const banded = settings.frame === "band" && bgMode === "collection" && ratio !== "16:9";

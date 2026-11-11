@@ -3,6 +3,7 @@ import { use, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../../../lib/supabase";
+import { downloadMp4 } from "../../../../lib/download";
 import Icon from "../../../../components/Icon";
 import ShareLinks from "../../../../components/ui/ShareLinks";
 import PackagePanel from "../../../../components/ui/PackagePanel";
@@ -56,8 +57,7 @@ export default function Entrega({ params }: { params: Promise<{ id: string }> })
 
   const nameOf = (r: (typeof rows)[number], i: number) => `${safe(brand ?? project)}_${safe(project)}_${String(i + 1).padStart(2, "0")}-${safe(r.x.clip.title)}_${(r.x.render?.ratio ?? "9:16").replace(":", "x")}_v${r.x.version}.mp4`;
   async function downloadOne(r: (typeof rows)[number], i: number) {
-    if (!r.x.render) return; const { data } = await supabase.storage.from("renders").createSignedUrl(r.x.render.storage_path, 300, { download: nameOf(r, i) });
-    if (data?.signedUrl) { const a = document.createElement("a"); a.href = data.signedUrl; a.download = nameOf(r, i); document.body.appendChild(a); a.click(); a.remove(); }
+    if (!r.x.render) return; const res = await downloadMp4("renders", r.x.render.storage_path, nameOf(r, i)); if (!res.ok) alert(res.error);
   }
   async function downloadAll() {
     if (!withFile.length) return setMsg("Ninguna pieza de esta selección tiene MP4 de la versión entregada.");

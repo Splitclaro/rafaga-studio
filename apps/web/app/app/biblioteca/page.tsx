@@ -4,6 +4,7 @@ import Link from "next/link";
 import Icon from "../../../components/Icon";
 import LyricSample from "../../../components/LyricSample";
 import { supabase } from "../../../lib/supabase";
+import { downloadMp4 } from "../../../lib/download";
 import { useProjects } from "../../../components/ProjectList";
 import { useTextStyles } from "../../../lib/textStyles";
 import { useWorkspaceFonts } from "../../../lib/fonts";
@@ -47,8 +48,7 @@ export default function Biblioteca() {
 
   const match = (s: string) => !q.trim() || s.toLowerCase().includes(q.trim().toLowerCase());
   async function dl(bucket: string, path: string, name: string) {
-    const { data } = await supabase.storage.from(bucket).createSignedUrl(path, 300, { download: name });
-    if (data?.signedUrl) window.location.href = data.signedUrl; else setMsg("No se pudo generar el enlace de descarga.");
+    const r = await downloadMp4(bucket, path, name); if (!r.ok) setMsg(r.error);
   }
   async function delProject(id: string, name: string) {
     if (!confirm(`¿Borrar el proyecto «${name}»? Dejará de aparecer con sus clips.`)) return;

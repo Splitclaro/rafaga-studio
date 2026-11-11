@@ -1,6 +1,7 @@
 "use client";
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "../../../lib/supabase";
+import { downloadMp4 } from "../../../lib/download";
 import { StatusLabel, pieceStatus, fmtDur } from "../../../components/ui/status";
 
 type Item = { clip_id: string; version: number; title: string; review_status: string; approved_version: number | null; current_version: number; thumb_path: string | null; render_path: string | null; ratio: string | null; duration: string | null; size: string | null };
@@ -60,8 +61,7 @@ export default function Revision({ params }: { params: Promise<{ token: string }
   async function download(i: Item) {
     if (!i.render_path || !v) return;
     const f = `${safe(v.delivery.project)}_${safe(i.title)}_${(i.ratio ?? "9:16").replace(":", "x")}_v${i.version}.mp4`;
-    const { data } = await supabase.storage.from("renders").createSignedUrl(i.render_path, 300, { download: f });
-    if (data?.signedUrl) window.location.href = data.signedUrl;
+    const r = await downloadMp4("renders", i.render_path, f); if (!r.ok) alert(r.error);
   }
 
   if (err) return <main className="mx-auto grid min-h-screen max-w-md place-items-center px-6 text-center"><div><h1 className="text-2xl tracking-tight">Revisión no disponible</h1><p className="mt-3 text-[var(--muted)]">{err}</p></div></main>;

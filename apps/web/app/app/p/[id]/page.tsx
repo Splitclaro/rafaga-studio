@@ -9,6 +9,7 @@ import { parseDirective } from "@rafaga/selection/intent";
 import ClipWall from "../../../../components/ui/ClipWall";
 import type { WallClip } from "../../../../components/ui/ClipCard";
 import { supabase, BRIEF_MAX } from "../../../../lib/supabase";
+import { downloadMp4 } from "../../../../lib/download";
 import { STAGE, MODE_LABEL } from "../../../../lib/projects";
 
 type Project = { brief_data: unknown; id: string; name: string; project_brief: string | null; clip_count: number; mode: string; source_id: string };
@@ -139,8 +140,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   }
   async function download(c: Clip) {
     if (!c.path) return;
-    const { data } = await supabase.storage.from("renders").createSignedUrl(c.path, 300, { download: `${c.title.replace(/[^\w\-áéíóúñ ]/gi, "").slice(0, 40) || "clip"}.mp4` });
-    if (data?.signedUrl) window.location.href = data.signedUrl;
+    const r = await downloadMp4("renders", c.path, `${c.title.replace(/[^\w\-áéíóúñ ]/gi, "").slice(0, 40) || "clip"}.mp4`); if (!r.ok) alert(r.error);
   }
 
   const genModel = (c: Clip) => gens.find((g) => g.id === c.generation_id)?.model ?? "desconocido";

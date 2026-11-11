@@ -20,14 +20,30 @@ jobs:
           if [ -z "$S" ] || { [ -z "$D" ] && [ -z "$G" ]; }; then echo "ready=false" >> "$GITHUB_OUTPUT"; echo "::notice::Faltan secretos (SUPABASE_SECRET_KEY y DEEPGRAM_API_KEY o GROQ_API_KEY): el worker no procesa."; else echo "ready=true" >> "$GITHUB_OUTPUT"; fi
       - if: steps.gate.outputs.ready == 'true'
         timeout-minutes: 10
+        env:
+          FF_TAG: autobuild-2026-11-10-12-39
+          FF_FILE: ffmpeg-n9.0.2-48-gd4070a14ce-linux64-gpl-9.0.tar.xz
+          FF_SHA256: 8206a48ce342b5075d0e0293e468a61198a55b3ef479bec3f7e83b04a18667d4
         run: |
-          # `apt-get update` en ubuntu-24.04 se colgó >1 h el 2026-11-11. Aquí: tiempos máximos y reintentos (probado también en 22.04: mismo fallo, los runners no alcanzan los repositorios de Ubuntu).
-          for i in 1 2 3; do
-            sudo timeout 90 apt-get -o Acquire::Retries=1 -o Acquire::http::Timeout=15 update -qq \
-              && sudo timeout 300 apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=20 install -y -qq ffmpeg fonts-liberation fontconfig espeak-ng && break
-            echo "::warning::apt intento $i fallido o lento"; sleep 5
-          done
-          command -v ffmpeg >/dev/null && ffmpeg -hide_banner -version | head -1
+          # `apt-get update` no responde desde los runners (2026-11-11: >1 h; probado en ubuntu-22.04 y 24.04 y con otros espejos).
+          # ffmpeg 9.0.2 (la versión con la que se prueba en local) se descarga fijado a una versión de BtbN/FFmpeg-Builds, se verifica su
+          # SHA-256 antes de usarlo y se instala en el directorio del usuario (sin sudo).
+          mkdir -p "$HOME/ffbin" /tmp/ffdl
+          curl -fsSL --retry 4 --retry-delay 3 --max-time 420 -o "/tmp/ffdl/$FF_FILE" "https://github.com/BtbN/FFmpeg-Builds/releases/download/$FF_TAG/$FF_FILE"
+          echo "$FF_SHA256  /tmp/ffdl/$FF_FILE" | sha256sum -c -
+          tar -xJf "/tmp/ffdl/$FF_FILE" -C /tmp/ffdl --strip-components=2 --wildcards '*/bin/ffmpeg' '*/bin/ffprobe'
+          install -m 755 /tmp/ffdl/ffmpeg /tmp/ffdl/ffprobe "$HOME/ffbin/"
+          echo "$HOME/ffbin" >> "$GITHUB_PATH"; export PATH="$HOME/ffbin:$PATH"
+          ffmpeg -hide_banner -version | head -1
+          ffprobe -version | head -1
+          ffmpeg -hide_banner -filters | grep -E " (subtitles|ass) " | head -2
+          ffmpeg -hide_banner -encoders | grep -E " libx264 | aac " | head -2
+      - if: steps.gate.outputs.ready == 'true'
+        continue-on-error: true
+        timeout-minutes: 3
+        run: |
+          # Solo las autopruebas usan espeak-ng y las fuentes Liberation: intento opcional, sin bloquear el procesador.
+          sudo timeout 60 apt-get -o Acquire::http::Timeout=15 update -qq && sudo timeout 90 apt-get install -y -qq fonts-liberation espeak-ng || echo "::notice::apt no disponible: se omiten espeak-ng y Liberation (solo autopruebas)"
       - if: steps.gate.outputs.ready == 'true'
         run: python3 -m pip install --quiet --break-system-packages "opencv-python-headless==4.10.0.84" "numpy<2.1" && python3 -c "import cv2; print('opencv', cv2.__version__)"   # reencuadre automático (detección de caras)
       - if: steps.gate.outputs.ready == 'true'
