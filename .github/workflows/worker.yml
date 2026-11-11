@@ -19,7 +19,15 @@ jobs:
           # Imprescindible: Supabase y al menos un proveedor de transcripción (Deepgram o Groq). Anthropic es opcional: sin él la selección es léxica y etiquetada.
           if [ -z "$S" ] || { [ -z "$D" ] && [ -z "$G" ]; }; then echo "ready=false" >> "$GITHUB_OUTPUT"; echo "::notice::Faltan secretos (SUPABASE_SECRET_KEY y DEEPGRAM_API_KEY o GROQ_API_KEY): el worker no procesa."; else echo "ready=true" >> "$GITHUB_OUTPUT"; fi
       - if: steps.gate.outputs.ready == 'true'
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-liberation fontconfig espeak-ng
+        timeout-minutes: 10
+        run: |
+          # Los espejos de apt de GitHub a veces se cuelgan: tiempos máximos y reintentos en vez de esperar 30 min.
+          for i in 1 2 3; do
+            sudo timeout 120 apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 update -qq \
+              && sudo timeout 300 apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=20 install -y -qq ffmpeg fonts-liberation fontconfig espeak-ng && break
+            echo "::warning::apt intento $i fallido o lento; reintentando"; sleep 5
+          done
+          command -v ffmpeg >/dev/null
       - if: steps.gate.outputs.ready == 'true'
         run: python3 -m pip install --quiet --break-system-packages "opencv-python-headless==4.10.0.84" "numpy<2.1" && python3 -c "import cv2; print('opencv', cv2.__version__)"   # reencuadre automático (detección de caras)
       - if: steps.gate.outputs.ready == 'true'
