@@ -6,21 +6,23 @@ import { supabase } from "../../lib/supabase";
 import Icon from "../../components/Icon";
 import CommandPalette, { type NavItem } from "../../components/CommandPalette";
 
-const NAV: NavItem[] = [
-  { href: "/app", label: "Inicio", icon: "home", ready: true, group: "Trabajo" },
-  { href: "/app/proyectos", label: "Proyectos", icon: "folder", ready: true, group: "Trabajo" },
-  { href: "/app/exports", label: "Exportados", icon: "download", ready: true, group: "Trabajo" },
-  { href: "/app/calendario", label: "Calendario", icon: "calendar", ready: true, group: "Trabajo" },
-  { href: "/app/analitica", label: "Analítica", icon: "chart", ready: true, group: "Trabajo" },
-  { href: "/app/lyric-studio", label: "Lyric Studio", icon: "music", ready: true, group: "Crear" },
-  { href: "/app/style-studio", label: "Style Studio", icon: "type", ready: true, group: "Crear" },
-  { href: "/app/brand-kits", label: "Brand kit", icon: "brand", ready: true, group: "Crear" },
-  { href: "/app/entregas", label: "Entregas", icon: "share", ready: true, group: "Compartir" },
-  { href: "/app/conexiones", label: "Conexiones", icon: "link", ready: true, group: "Compartir" },
-  { href: "/app/automatizaciones", label: "Automatizaciones", icon: "bolt", ready: true, group: "Compartir" },
-  { href: "/app/demos", label: "Demos", icon: "play", ready: true, group: "Compartir" },
+const NAV: (NavItem & { glyph: string })[] = [
+  { href: "/app", label: "Inicio", icon: "home", glyph: "⌂", ready: true, group: "" },
+  { href: "/app/proyectos", label: "Proyectos", icon: "folder", glyph: "▤", ready: true, group: "" },
+  { href: "/app/exports", label: "Exportados", icon: "download", glyph: "⇪", ready: true, group: "" },
+  { href: "/app/calendario", label: "Calendario", icon: "calendar", glyph: "▦", ready: true, group: "" },
+  { href: "/app/analitica", label: "Analítica", icon: "chart", glyph: "▥", ready: true, group: "" },
+  { href: "/app/brand-kits", label: "Brand kit", icon: "brand", glyph: "◈", ready: true, group: "" },
+  { href: "/app/entregas", label: "Compartidos conmigo", icon: "share", glyph: "⇩", ready: true, group: "" },
+  { href: "/app/lyric-studio", label: "Lyric Studio", icon: "music", glyph: "♪", ready: true, group: "" },
+  { href: "/app/conexiones", label: "Conexiones", icon: "link", glyph: "⚭", ready: true, group: "" },
 ];
-const GROUPS = ["Trabajo", "Crear", "Compartir"];
+const OTHER: NavItem[] = [
+  { href: "/app/style-studio", label: "Style Studio", icon: "type", ready: true, group: "Marca" },
+  { href: "/app/automatizaciones", label: "Automatizaciones", icon: "bolt", ready: true, group: "Publicar" },
+  { href: "/app/demos", label: "Demos", icon: "play", ready: true, group: "Ayuda" },
+  { href: "/app/director", label: "Director IA", icon: "wand", ready: true, group: "Ayuda" },
+];
 type Ws = { id: string; name: string; role: string; personal: boolean; active: boolean; members: number };
 const ROLE: Record<string, string> = { owner: "Propietario", admin: "Admin", editor: "Editor", reviewer: "Revisor", viewer: "Lector", member: "Editor" };
 type Note = { id: string; status: string; kind: string; updated_at: string; error_message: string | null };
@@ -87,97 +89,83 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const active = (h: string) => (h === "/app" ? path === "/app" : path.startsWith(h));
   const current = NAV.find((n) => active(n.href))?.label ?? (path.startsWith("/app/c/") ? "Editor de clip" : path.startsWith("/app/r/") ? "Revisión" : path.startsWith("/app/director") ? "Director IA" : path.startsWith("/app/p/") ? "Proyecto" : path.startsWith("/app/ajustes") ? "Uso y ajustes" : "");
 
+  const initials = ((email.split("@")[0] ?? "").slice(0, 2) || "?").toUpperCase();
+  const act = spaces.find((x) => x.active);
+  const itm = "flex shrink-0 items-center gap-3 rounded-[10px] px-3 py-2 text-sm min-h-11";
   return (
-    <div className="min-h-screen md:flex">
-      <aside className={`z-20 border-b border-[var(--border)] bg-[var(--card)] md:sticky md:top-0 md:flex md:h-screen md:shrink-0 md:flex-col md:border-b-0 md:border-r ${collapsed ? "md:w-[68px]" : "md:w-64"}`}>
-        <div className="flex items-center justify-between gap-2 px-4 py-3 md:px-4 md:py-4">
-          <Link href="/app" className="flex min-w-0 items-center gap-2.5 font-semibold" aria-label="Ráfaga Studio, inicio">
-            <span aria-hidden className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] bg-[var(--accent)] text-white"><Icon n="bolt" className="h-4 w-4" /></span>
-            <span className={`font-display text-[17px] tracking-tight text-[var(--ink)] ${collapsed ? "md:sr-only" : ""}`}>ráfaga</span>
-          </Link>
-          <button onClick={toggle} aria-label={collapsed ? "Expandir menú" : "Plegar menú"} aria-expanded={!collapsed} className="hidden rounded-lg p-1.5 text-[var(--muted)] hover:bg-[var(--hover)] md:block"><Icon n={collapsed ? "chevR" : "chevL"} className="h-4 w-4" /></button>
+    <div className="min-h-screen bg-[var(--bg)] md:flex">
+      <nav aria-label="Principal" className="z-20 flex shrink-0 flex-col gap-3.5 border-b border-[#ECECF1] bg-[var(--bg)] px-3 py-3 md:sticky md:top-0 md:h-screen md:w-64 md:border-b-0 md:border-r md:py-[18px]">
+        <Link href="/app" className="flex items-center gap-2 px-2 pb-1" aria-label="Ráfaga, inicio">
+          <span aria-hidden className="grid h-7 w-7 place-items-center rounded-[9px] bg-[linear-gradient(135deg,#2A55F5,#5B8CFF)]"><Icon n="bolt" className="h-[15px] w-[15px] text-white" /></span>
+          <span className="font-display text-2xl font-extrabold tracking-[-0.03em] text-[#22254A]">ráfaga</span>
+        </Link>
+        <div className="relative hidden md:block">
+          <button onClick={() => setMenu(!menu)} aria-expanded={menu} aria-label="Cambiar de espacio de trabajo" className="flex w-full items-center gap-2.5 rounded-xl p-2 text-left hover:bg-[var(--hover)]">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[9px] bg-[#C1274F] text-lg font-bold text-white">{(ws[0] ?? "A").toUpperCase()}</span>
+            <span className="min-w-0 flex-1 leading-tight"><b className="block truncate text-sm font-semibold text-[var(--ink)]">{ws}</b><span className="text-xs text-[var(--muted)]">{ROLE[role] ?? "Gratis"} · {act?.members ?? 1} miembro{(act?.members ?? 1) === 1 ? "" : "s"}</span></span>
+            <Icon n="chevR" className="h-3.5 w-3.5 text-[var(--muted)]" />
+          </button>
+          {menu && (
+            <div role="menu" className="card-raised absolute z-10 mt-1 w-full p-1 text-sm">
+              <div className="px-3 pb-1 pt-2 text-xs font-medium text-[var(--muted)]">Espacios</div>
+              <ul className="max-h-56 overflow-auto">{spaces.map((x) => (
+                <li key={x.id}><button role="menuitemradio" aria-checked={x.active} onClick={() => !x.active && switchTo(x.id)} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left hover:bg-[var(--hover)] ${x.active ? "font-medium" : ""}`}>
+                  <span className="grid h-5 w-5 shrink-0 place-items-center rounded-md bg-[var(--accent)] text-[10px] text-white">{x.name[0]?.toUpperCase()}</span>
+                  <span className="min-w-0 flex-1 truncate">{x.name}</span><span className="text-[11px] text-[var(--muted)]">{ROLE[x.role]}</span>{x.active && <Icon n="check" className="h-3.5 w-3.5" />}</button></li>))}</ul>
+              <button role="menuitem" onClick={newSpace} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left hover:bg-[var(--hover)]"><Icon n="plus" className="h-4 w-4" />Nuevo espacio</button>
+              <div className="my-1 border-t hairline" />
+              <Link role="menuitem" href="/app/equipo" onClick={() => setMenu(false)} className="block rounded-lg px-3 py-2 hover:bg-[var(--hover)]">Equipo y permisos</Link>
+              <Link role="menuitem" href="/app/ajustes" onClick={() => setMenu(false)} className="block rounded-lg px-3 py-2 hover:bg-[var(--hover)]">Uso y ajustes</Link>
+              <button role="menuitem" className="block w-full rounded-lg px-3 py-2 text-left hover:bg-[var(--hover)]" onClick={async () => { await supabase.auth.signOut(); router.replace("/login"); }}>Cerrar sesión</button>
+            </div>)}
         </div>
-
-        {!collapsed && (
-          <div className="relative mx-3 mb-2 hidden md:block">
-            <button onClick={() => setMenu(!menu)} aria-expanded={menu} className="card flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm hover:bg-[var(--hover)]">
-              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] bg-[#FFD9E2] text-sm font-semibold text-[#8A1538]">{(ws[0] ?? email[0] ?? "?").toUpperCase()}</span>
-              <span className="min-w-0 flex-1"><span className="block truncate font-medium leading-tight">{ws}</span><span className="block truncate text-xs text-[var(--muted)]">{ROLE[role] ?? ""}{role ? " · " : ""}{spaces.find((x) => x.active)?.members ?? 1} miembro{(spaces.find((x) => x.active)?.members ?? 1) === 1 ? "" : "s"}</span></span>
-              <Icon n="chevD" className="h-4 w-4 text-[var(--muted)]" />
-            </button>
-            {menu && (
-              <div role="menu" className="card-raised absolute z-10 mt-1 w-full p-1 text-sm">
-                <div className="px-3 pb-1 pt-2 text-xs font-medium text-[var(--muted)]">Espacios</div>
-                <ul className="max-h-56 overflow-auto">{spaces.map((x) => (
-                  <li key={x.id}><button role="menuitemradio" aria-checked={x.active} onClick={() => !x.active && switchTo(x.id)} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left hover:bg-[var(--hover)] ${x.active ? "font-medium" : ""}`}>
-                    <span className="grid h-5 w-5 shrink-0 place-items-center rounded-md bg-[var(--accent)] text-[10px] text-white">{x.name[0]?.toUpperCase()}</span>
-                    <span className="min-w-0 flex-1 truncate">{x.name}</span><span className="text-[11px] text-[var(--muted)]">{ROLE[x.role]}</span>{x.active && <Icon n="check" className="h-3.5 w-3.5" />}</button></li>))}</ul>
-                <button role="menuitem" onClick={newSpace} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left hover:bg-[var(--hover)]"><Icon n="plus" className="h-4 w-4" />Nuevo espacio</button>
-                <div className="my-1 border-t hairline" />
-                <Link role="menuitem" href="/app/equipo" onClick={() => setMenu(false)} className="block rounded-lg px-3 py-2 hover:bg-[var(--hover)]">Equipo y permisos</Link>
-                <Link role="menuitem" href="/app/ajustes" onClick={() => setMenu(false)} className="block rounded-lg px-3 py-2 hover:bg-[var(--hover)]">Uso y ajustes</Link>
-                <button role="menuitem" className="block w-full rounded-lg px-3 py-2 text-left hover:bg-[var(--hover)]" onClick={async () => { await supabase.auth.signOut(); router.replace("/login"); }}>Cerrar sesión</button>
-              </div>
-            )}
-          </div>
-        )}
-
-        <nav aria-label="Principal" className="flex gap-1 overflow-x-auto px-3 pb-3 md:block md:flex-1 md:overflow-y-auto md:pb-4">
-          {GROUPS.map((g) => (
-            <div key={g} className="flex gap-1 md:mt-3 md:block md:space-y-0.5 md:first:mt-0">
-              {!collapsed && <div className="hidden px-3 pb-0.5 text-xs font-medium text-[var(--muted)] md:block">{g}</div>}
-              {NAV.filter((n) => n.group === g).map((n) => (
-                <Link key={n.href} href={n.href} title={collapsed ? n.label : undefined} aria-current={active(n.href) ? "page" : undefined}
-                  className={`flex shrink-0 items-center gap-3 rounded-[10px] px-3 py-1.5 text-sm transition-colors ${active(n.href) ? "bg-[var(--accent-soft)] font-semibold text-[var(--accent-ink)]" : "text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--ink)]"}`}>
-                  <Icon n={n.icon} className="h-[18px] w-[18px] shrink-0" /><span className={collapsed ? "md:sr-only" : ""}>{n.label}</span>
-                </Link>
-              ))}
-            </div>
-          ))}
-        </nav>
-
-        {usage && !collapsed && (
-          <Link href="/app/ajustes" className="mx-3 mb-2 hidden rounded-[10px] border hairline px-3 py-1.5 hover:bg-[var(--hover)] md:block" aria-label={`Consumo esta semana: ${usage.used} de ${usage.limit} minutos`}>
-            <span className="tnum flex items-baseline justify-between text-xs"><span className="text-[var(--muted)]">Esta semana</span><span className="font-semibold">{Math.round(usage.used)} / {usage.limit} min</span></span>
-            <span className="mt-1 block h-1 overflow-hidden rounded-full bg-[var(--border)]"><span className="block h-full rounded-full bg-[var(--accent)]" style={{ width: `${Math.min(100, (usage.used / usage.limit) * 100)}%` }} /></span>
-          </Link>
-        )}
-        <div className="hidden border-t hairline p-2 md:block">
-          <Link href="/app/ajustes" aria-current={path.startsWith("/app/ajustes") ? "page" : undefined} className="flex items-center gap-3 rounded-[10px] px-3 py-1.5 text-sm text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--ink)]"><Icon n="gear" className="h-[18px] w-[18px]" /><span className={collapsed ? "sr-only" : ""}>Uso y ajustes</span></Link>
-          <a href="https://github.com/Splitclaro/rafaga-studio#readme" target="_blank" rel="noreferrer" className="flex items-center gap-3 rounded-[10px] px-3 py-1.5 text-sm text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--ink)]"><Icon n="help" className="h-[18px] w-[18px]" /><span className={collapsed ? "sr-only" : ""}>Ayuda</span></a>
+        <div className="flex gap-1 overflow-x-auto md:flex-col md:gap-0.5 md:overflow-visible">
+          {NAV.map((n) => (
+            <Link key={n.href} href={n.href} aria-current={active(n.href) ? "page" : undefined} className={`${itm} ${active(n.href) ? "bg-[var(--accent-soft)] font-semibold text-[var(--accent-ink)]" : "text-[var(--ink)] hover:bg-[var(--hover)]"}`}>
+              <span aria-hidden className={`w-[18px] text-center ${active(n.href) ? "" : "text-[#4A4F66]"}`}>{n.glyph}</span>{n.label}
+            </Link>))}
         </div>
-      </aside>
+        <div className="hidden flex-col gap-0.5 md:mt-auto md:flex">
+          {usage && <Link href="/app/ajustes" className="mb-2 rounded-xl border hairline bg-[var(--card)] px-3 py-2 hover:bg-[var(--hover)]" aria-label={`Consumo esta semana: ${usage.used} de ${usage.limit} minutos`}><span className="tnum flex justify-between text-xs"><span className="text-[var(--muted)]">Esta semana</span><b>{Math.round(usage.used)} / {usage.limit} min</b></span><span className="mt-1 block h-1 overflow-hidden rounded-full bg-[var(--border)]"><span className="block h-full rounded-full bg-[var(--accent)]" style={{ width: `${Math.min(100, (usage.used / usage.limit) * 100)}%` }} /></span></Link>}
+          <Link href="/app/style-studio" className={`${itm} text-[var(--ink)] hover:bg-[var(--hover)]`}><span aria-hidden className="w-[18px] text-center">Aa</span>Style Studio</Link>
+          <Link href="/app/automatizaciones" className={`${itm} text-[var(--ink)] hover:bg-[var(--hover)]`}><span aria-hidden className="w-[18px] text-center">⟳</span>Automatizaciones</Link>
+          <Link href="/app/demos" className={`${itm} text-[var(--ink)] hover:bg-[var(--hover)]`}><span aria-hidden className="w-[18px] text-center">▣</span>Demos y tutoriales</Link>
+          <Link href="/app/director" className="mt-2 flex items-center justify-between gap-2 rounded-[14px] border hairline bg-[var(--card)] px-3.5 py-3"><span className="flex items-center gap-2"><span aria-hidden className="text-[var(--accent)]">✦</span><span className="font-display text-base font-bold text-[#22254A]">director IA</span><span className="rounded-md bg-[#F0F1F7] px-1.5 text-[10px] font-semibold text-[var(--muted)]">Beta</span></span><span aria-hidden>→</span></Link>
+        </div>
+      </nav>
 
       <div className="min-w-0 flex-1">
-        <header className="glass sticky top-0 z-10 flex items-center gap-3 border-b hairline px-4 py-2.5 md:px-8">
-          <span className="hidden text-sm text-[var(--muted)] md:block">{current}</span>
-          <button onClick={() => setPalette(true)} className="card ml-auto flex min-w-0 items-center gap-2 px-3 py-1.5 text-sm text-[var(--muted)] hover:bg-[var(--hover)] md:ml-6 md:w-72" aria-label="Buscar o ir a (Cmd+K)">
-            <Icon n="search" className="h-4 w-4 shrink-0" /><span className="min-w-0 flex-1 truncate text-left">Buscar o ir a…</span><span className="kbd hidden md:inline">⌘K</span>
+        <header className="sticky top-0 z-10 flex flex-wrap items-center gap-3 bg-[var(--bg)]/95 px-4 py-3 backdrop-blur md:px-8">
+          <button onClick={() => setPalette(true)} className="flex min-h-11 min-w-0 flex-1 items-center gap-2.5 rounded-xl border hairline bg-[var(--card)] px-3.5 text-sm text-[var(--muted)] md:w-[360px] md:flex-none" aria-label="Buscar (Cmd+K)">
+            <Icon n="search" className="h-4 w-4 shrink-0" /><span className="min-w-0 flex-1 truncate text-left">Buscar</span><span className="kbd hidden md:inline">⌘ K</span>
           </button>
-          <Link href="/app/director" className="btn btn-ghost !min-h-9 !py-1.5 hidden md:inline-flex"><Icon n="wand" className="h-4 w-4 text-[var(--accent)]" />Director IA</Link>
-          <Link href="/app/equipo" className="btn btn-ghost !min-h-9 !py-1.5 hidden lg:inline-flex">Invitar</Link>
-          {running > 0 && <Link href="/app/proyectos" className="chip" aria-label={`${running} trabajos en curso`}><span className="pulse" aria-hidden /> <span className="tnum">{running}</span> en curso</Link>}
-          <div className="relative">
-            <button onClick={openBell} aria-label={`Notificaciones${unread ? `, ${unread} nuevas` : ""}`} aria-expanded={bell} className="card relative grid h-9 w-9 place-items-center hover:bg-[var(--hover)]">
-              <Icon n="bell" className="h-4 w-4" />{unread > 0 && <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-[var(--ink)] px-1 text-[10px] font-medium text-white">{unread}</span>}
-            </button>
-            {bell && (
-              <div role="region" aria-label="Notificaciones" className="card-raised absolute right-0 z-20 mt-2 w-80 p-2">
-                <div className="px-2 py-1.5 text-sm font-medium">Actividad reciente</div>
-                {!notes.length && <p className="px-2 py-4 text-sm text-[var(--muted)]">Todavía no hay actividad terminada.</p>}
-                <ul>{notes.map((n) => (
-                  <li key={n.id} className="flex items-start gap-2 rounded-lg px-2 py-2 text-sm">
-                    <Icon n={n.status === "done" ? "check" : "x"} className="mt-0.5 h-4 w-4 shrink-0" />
-                    <span className="min-w-0"><span className="block font-medium">{n.kind === "lyrics" ? "Vídeos con letra" : n.kind === "render" ? "Exportación" : "Detección de momentos"} {n.status === "done" ? "listo" : "fallido"}</span>
-                      <span className="block truncate text-xs text-[var(--muted)]">{n.error_message ?? new Date(n.updated_at).toLocaleString("es", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span></span>
-                  </li>))}</ul>
-              </div>
-            )}
-          </div>
+          <span className="ml-auto flex items-center gap-2.5">
+            {running > 0 && <Link href="/app/proyectos" className="chip" aria-label={`${running} trabajos en curso`}><span className="pulse" aria-hidden /> <span className="tnum">{running}</span> en curso</Link>}
+            <Link href="/app/equipo" className="btn btn-ghost !min-h-11 hidden md:inline-flex"><Icon n="plus" className="h-4 w-4" />Invitar</Link>
+            <Link href="/app/conexiones" aria-label="Conexiones" className="card hidden h-11 w-11 place-items-center hover:bg-[var(--hover)] md:grid"><Icon n="link" className="h-[18px] w-[18px]" /></Link>
+            <Link href="/app/demos" aria-label="Ayuda" className="card hidden h-11 w-11 place-items-center hover:bg-[var(--hover)] md:grid">?</Link>
+            <div className="relative">
+              <button onClick={openBell} aria-label={`Notificaciones${unread ? `, ${unread} nuevas` : ""}`} aria-expanded={bell} className="card relative grid h-11 w-11 place-items-center hover:bg-[var(--hover)]">
+                <Icon n="bell" className="h-[18px] w-[18px]" />{unread > 0 && <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-[var(--accent)] px-1 text-[10px] font-medium text-white">{unread}</span>}
+              </button>
+              {bell && (
+                <div role="region" aria-label="Notificaciones" className="card-raised absolute right-0 z-20 mt-2 w-80 p-2">
+                  <div className="px-2 py-1.5 text-sm font-medium">Actividad reciente</div>
+                  {!notes.length && <p className="px-2 py-4 text-sm text-[var(--muted)]">Todavía no hay actividad terminada.</p>}
+                  <ul>{notes.map((n) => (
+                    <li key={n.id} className="flex items-start gap-2 rounded-lg px-2 py-2 text-sm">
+                      <Icon n={n.status === "done" ? "check" : "x"} className="mt-0.5 h-4 w-4 shrink-0" />
+                      <span className="min-w-0"><span className="block font-medium">{n.kind === "lyrics" ? "Vídeos con letra" : n.kind === "render" ? "Exportación" : "Detección de momentos"} {n.status === "done" ? "listo" : "fallido"}</span>
+                        <span className="block truncate text-xs text-[var(--muted)]">{n.error_message ?? new Date(n.updated_at).toLocaleString("es", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span></span>
+                    </li>))}</ul>
+                </div>)}
+            </div>
+            <Link href="/app/ajustes" aria-label="Cuenta y uso" className="grid h-10 w-10 place-items-center rounded-full bg-[#22254A] text-sm font-semibold text-white">{initials}</Link>
+          </span>
         </header>
         {children}
       </div>
-      <CommandPalette nav={NAV} open={palette} onClose={() => setPalette(false)} />
+      <CommandPalette nav={[...NAV, ...OTHER]} open={palette} onClose={() => setPalette(false)} />
     </div>
   );
 }
