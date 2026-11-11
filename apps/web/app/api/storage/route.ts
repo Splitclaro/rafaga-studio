@@ -9,7 +9,9 @@ const KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "sb_publishable_
 /** GET /api/storage — ¿está conectado Cloudflare R2? (la web decide dónde subir los originales). */
 export async function GET(req: Request) {
   if (!(await userFrom(req))) return NextResponse.json({ error: "no_session" }, { status: 401 });
-  return NextResponse.json({ r2: !!r2FromEnv() });
+  // Diagnóstico sin revelar valores: qué variables llegan y si alguna sigue siendo un marcador.
+  const st = (k: string) => { const v = process.env[k]; return !v ? "falta" : v.trim().toUpperCase().startsWith("PEGAR") ? "marcador" : "ok"; };
+  return NextResponse.json({ r2: !!r2FromEnv(), vars: Object.fromEntries(["R2_ACCOUNT_ID", "R2_BUCKET", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY"].map((k) => [k, st(k)])) });
 }
 
 /** POST /api/storage {op: "put"|"get", source} — URL firmada de vida corta para el original de UNA fuente.
