@@ -2,8 +2,11 @@
 // Solo servidor y worker: necesita la clave secreta. El navegador recibe únicamente URLs firmadas de vida corta para un objeto concreto.
 export interface R2Config { accountId: string; accessKeyId: string; secretAccessKey: string; bucket: string }
 
+/** Valor de marcador («PEGAR_AQUI…»): la variable existe pero aún no tiene la clave real; cuenta como no configurada. */
+export const PLACEHOLDER = "PEGAR_AQUI_LA_CLAVE";
+const real = (v: string | undefined) => (v && v.trim() && !v.trim().toUpperCase().startsWith("PEGAR") ? v.trim() : undefined);
 export function r2FromEnv(env: Record<string, string | undefined> = process.env): R2Config | null {
-  const accountId = env.R2_ACCOUNT_ID, accessKeyId = env.R2_ACCESS_KEY_ID, secretAccessKey = env.R2_SECRET_ACCESS_KEY, bucket = env.R2_BUCKET;
+  const accountId = real(env.R2_ACCOUNT_ID), accessKeyId = real(env.R2_ACCESS_KEY_ID), secretAccessKey = real(env.R2_SECRET_ACCESS_KEY), bucket = real(env.R2_BUCKET);
   return accountId && accessKeyId && secretAccessKey && bucket ? { accountId, accessKeyId, secretAccessKey, bucket } : null;
 }
 

@@ -22,4 +22,5 @@ test("sin las cuatro variables no hay configuración", () => {
   assert.equal(r2FromEnv({ R2_ACCOUNT_ID: "a", R2_ACCESS_KEY_ID: "b", R2_SECRET_ACCESS_KEY: "c" }), null);
   assert.ok(r2FromEnv({ R2_ACCOUNT_ID: "a", R2_ACCESS_KEY_ID: "b", R2_SECRET_ACCESS_KEY: "c", R2_BUCKET: "d" }));
   assert.equal(uriEncode("a b/ñ", false), "a%20b/%C3%B1");
+  assert.equal(r2FromEnv({ R2_ACCOUNT_ID: "a", R2_ACCESS_KEY_ID: "PEGAR_AQUI_LA_CLAVE", R2_SECRET_ACCESS_KEY: "c", R2_BUCKET: "d" }), null, "un marcador no activa R2");
 });
