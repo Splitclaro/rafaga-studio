@@ -22,11 +22,15 @@ jobs:
         timeout-minutes: 10
         run: |
           # Los espejos de apt de GitHub a veces se cuelgan: tiempos máximos y reintentos en vez de esperar 30 min.
-          # El espejo de Azure de los runners se cuelga a veces: se cambia al espejo oficial antes de actualizar.
-          for f in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do [ -f "$f" ] && sudo sed -i 's#http://azure.archive.ubuntu.com#http://archive.ubuntu.com#g; s#https://azure.archive.ubuntu.com#http://archive.ubuntu.com#g' "$f"; done
+          # Los runners traen repositorios de terceros (Microsoft, Azure CLI, etc.) que a veces no responden y cuelgan `apt-get update`.
+          # Solo hace falta el de Ubuntu: se apartan los demás y se usa el espejo oficial.
+          sudo mkdir -p /tmp/apt-off
+          for f in /etc/apt/sources.list.d/*; do case "$f" in */ubuntu.sources) ;; *) sudo mv "$f" /tmp/apt-off/ 2>/dev/null || true ;; esac; done
+          for f in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do [ -f "$f" ] && sudo sed -i 's#https\?://azure.archive.ubuntu.com#http://archive.ubuntu.com#g' "$f"; done
+          ls /etc/apt/sources.list.d/ || true
           for i in 1 2 3; do
-            sudo timeout 120 apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 update -qq \
-              && sudo timeout 300 apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=20 install -y -qq ffmpeg fonts-liberation fontconfig espeak-ng && break
+            sudo timeout 90 apt-get -o Acquire::Retries=1 -o Acquire::http::Timeout=15 update 2>&1 | tail -15
+            sudo timeout 300 apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=20 install -y -qq ffmpeg fonts-liberation fontconfig espeak-ng && break
             echo "::warning::apt intento $i fallido o lento; reintentando"; sleep 5
           done
           command -v ffmpeg >/dev/null
