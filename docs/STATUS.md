@@ -271,3 +271,10 @@ Probar Lyric Studio con una canción real (canto + instrumental). Siguiente: Sty
 - Lyric Studio recompuesto como el tablero: canciones arriba, pasos 1–3 en la columna principal y tarjeta de vista previa/exportación fija a la derecha. Verificado en producción subiendo un MP3 de prueba (forma de onda, tramo, detección de 3 momentos, letra con modos, estilos). No se generó un vídeo con letra en esta comprobación. La canción de prueba «e2e-song» queda en Biblioteca de medios.
 - Procesamiento: lista vertical de las 7 fases reales del worker (en cola, validando, audio, transcripción, selección, reencuadre, render) con su estado; el tablero muestra 10 fases, que no existen como estados reales. Verificado en producción con la demo terminada.
 - Editor: ya tenía la estructura del tablero (transcripción a la izquierda, vista previa central, inspector a la derecha, línea de tiempo) y tema oscuro. No tiene el carril de herramientas lateral del tablero ni «Quitar silencios»/hablantes (v1.1).
+
+### Sesión 26 — «Quitar silencios y muletillas» (construido)
+- `packages/composition/src/cuts.ts` (+ pruebas): `Composition.cuts` (relativos al clip, línea de la fuente), `detectCuts` (pausas ≥ umbral con margen de 0,15 s y hesitaciones «eh/em/mmm»), `retimeWords`, `keepExpr`. `ffmpegArgs` aplica `select/aselect` + `setpts`, remapea el reencuadre y el B-roll. Test de render real con ffmpeg (blur/fill/fit): duración y audio coinciden.
+- Editor: botón con resumen («Se quitarán N silencios y M muletillas (X s). El clip durará Y s»), selector de sensibilidad (0,45 / 0,8 / 1,5 s), Restaurar, vista previa que salta los cortes, SRT/VTT/transcripción retimados. El worker retima los subtítulos del render y del ZIP.
+- Verificado en producción: clip de 25,3 s con 4 silencios → el editor anunció 17,0 s → el MP4 exportado dura 0:17.
+- Límites: detecta pausas por huecos entre palabras de la transcripción (si el motor de voz rellena el hueco, no hay corte); recortar el tramo después borra los cortes; las muletillas cubren solo hesitaciones sin significado.
+- Siguen sin construir: hablantes detectados y layouts de pantalla+cámara.
