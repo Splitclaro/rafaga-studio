@@ -225,15 +225,15 @@ export default function LyricStudio() {
   const cssFilter = FILTERS.find((f) => f[0] === settings.filter)?.[2] ?? "none";
 
   return (
-    <main className="mx-auto max-w-7xl px-4 pb-16 pt-8 md:px-8">
+    <main className="mx-auto max-w-[1240px] px-4 pb-16 pt-8 md:px-10">
       <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div><h1 className="text-3xl leading-tight md:text-4xl">Lyric Studio</h1><p className="mt-2 text-[var(--muted)]">Tu canción, con la letra sincronizada, en tantas versiones como necesites.</p></div>
       </header>
 
-      <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)_300px]">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px]">
         {/* Canciones */}
-        <aside className="space-y-3 lg:sticky lg:top-6 lg:self-start">
-          <div className="rounded-3xl bg-[var(--surface)] p-4">
+        <aside className="space-y-3 lg:col-start-1 lg:row-start-1">
+          <div className="card p-4">
             <h2 className="text-lg">Canciones</h2>
             <div className="mt-3 grid gap-2 text-sm">
               <input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="Título (opcional)" className="rounded-full border border-[var(--border)] bg-white px-3 py-1.5" />
@@ -242,10 +242,10 @@ export default function LyricStudio() {
                 <input type="file" accept="audio/*,.mp3,.wav" className="sr-only" disabled={busy} onChange={(e) => { upload(e.target.files?.[0]); e.target.value = ""; }} /></label>
             </div>
             {msg && !song && <p role="status" aria-live="polite" className="mt-2 text-sm">{msg}</p>}
-            <ul className="mt-3 space-y-1">
+            <ul className="mt-3 flex flex-wrap gap-2">
               {songs?.map((s) => (
-                <li key={s.id}><button onClick={() => choose(s)} aria-current={song?.id === s.id} className={`w-full rounded-2xl px-3 py-2 text-left ${song?.id === s.id ? "bg-[var(--ink)] text-white" : "hover:bg-[var(--hover)]"}`}>
-                  <span className="block truncate font-medium">{s.title}</span><span className={`block truncate text-xs ${song?.id === s.id ? "text-white/70" : "text-[var(--muted)]"}`}>{s.artist ?? "Sin artista"}{s.lyrics_text ? ", con letra" : ""}</span>
+                <li key={s.id}><button onClick={() => choose(s)} aria-current={song?.id === s.id} className={`max-w-56 rounded-xl border px-3 py-2 text-left ${song?.id === s.id ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent-ink)]" : "hairline hover:bg-[var(--hover)]"}`}>
+                  <span className="block truncate font-medium">{s.title}</span><span className={`block truncate text-xs ${song?.id === s.id ? "text-[var(--accent-ink)]/70" : "text-[var(--muted)]"}`}>{s.artist ?? "Sin artista"}{s.lyrics_text ? ", con letra" : ""}</span>
                 </button></li>
               ))}
             </ul>
@@ -254,7 +254,7 @@ export default function LyricStudio() {
         </aside>
 
         {/* Pasos */}
-        <div className="space-y-5">
+        <div className="space-y-5 lg:col-start-1 lg:row-start-2">
           {!song ? (
             <div className="space-y-6">
               <div className="grid gap-3 sm:grid-cols-3">
@@ -394,7 +394,7 @@ export default function LyricStudio() {
         </div>
 
         {/* Vista previa y resultados */}
-        <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
+        <aside aria-label="Previsualización y exportación" className="card space-y-4 p-5 lg:sticky lg:top-24 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-start">
           {activeLook ? (
             <div className="mx-auto w-full max-w-[300px] overflow-hidden rounded-[22px] bg-black"><LookPreview look={activeLook} ratio={native ? activeLook.canvas.ratio : ratio} words={sampleWords(lyricLines.slice(0, 3).map((l) => l.text).join(" ") || undefined)} len={8} media={bgMode === "collection" && selectedCol?.items[0]?.url ? { url: selectedCol.items[0].url!, kind: selectedCol.items[0].kind } : null} label={`Vista previa del vídeo: ${activeLook.name}`} /></div>
           ) : (
