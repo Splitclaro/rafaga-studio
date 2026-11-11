@@ -20,8 +20,8 @@ export default function Conexiones() {
       <OAuthConnections />
 
       <section aria-label="Resumen" className="mb-6 grid gap-3 sm:grid-cols-4">
-        {[["Conectores implementados", "3 (YouTube, Drive, Dropbox: importar)"], ["Catalogadas", String(PLATFORMS.length)], ["Publicación en redes", "pendiente de aprobación"], ["Requisitos verificados", `${verified}/${PLATFORMS.length}`]].map(([k, v]) => (
-          <div key={k} className="card p-4"><div className="mono text-2xl">{v}</div><div className="text-sm text-[var(--muted)]">{k}</div></div>))}
+        {([["3", "Conectores de importación", "YouTube (lista), Drive, Dropbox"], [String(PLATFORMS.length), "Plataformas catalogadas", "Requisitos orientativos"], ["0", "Publicación directa", "Pendiente de aprobación de cada red"], [`${verified}/${PLATFORMS.length}`, "Requisitos verificados", "Contra su documentación oficial"]] as const).map(([v, k, d]) => (
+          <div key={k} className="card p-4"><div className="font-display text-3xl font-bold text-[var(--ink)]">{v}</div><div className="mt-1 text-sm font-medium">{k}</div><div className="text-xs text-[var(--muted)]">{d}</div></div>))}
       </section>
 
       <div className="card mb-6 flex gap-3 p-4 text-sm"><Icon n="help" className="mt-0.5 h-4 w-4 shrink-0" /><p>Los requisitos son <strong>orientativos</strong>: se resumen de las plataformas y se marcan «por verificar» mientras no se comprueben contra su documentación oficial vigente. La existencia de un destino en el catálogo no implica que tenga API abierta ni que acepte vídeos cortos. «Probar conexión» nunca publicará ni emitirá nada.</p></div>

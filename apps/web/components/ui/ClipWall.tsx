@@ -143,6 +143,23 @@ export default function ClipWall({ projectId, projectName, clips, onFavorite, on
         {FILTERS.map(([k, l]) => <button key={k} role="tab" aria-selected={filter === k} onClick={() => setFilter(k)} className="chip shrink-0">{l}<span className="tnum text-xs opacity-70">{counts[k]}</span></button>)}
       </div>
 
+      <div role="region" aria-label="Acciones de selección" className="mt-4 flex flex-wrap items-center gap-2 rounded-2xl border hairline bg-[var(--card)] px-3 py-2.5">
+        <label className="flex min-h-10 cursor-pointer items-center gap-2 text-sm"><input type="checkbox" checked={sel.size > 0 && sel.size === shown.length} onChange={() => setSel(sel.size === shown.length ? new Set() : new Set(shown.map((c) => c.id)))} className="h-[18px] w-[18px]" />Seleccionar todo{sel.size > 0 && <span className="tnum text-[var(--muted)]">· {sel.size}</span>}</label>
+        <div className={`ml-auto flex flex-wrap items-center gap-1.5 ${sel.size ? "" : "pointer-events-none opacity-45"}`}>
+          <button onClick={() => { setDName(projectName); setDeliver(true); }} className="btn btn-primary !min-h-10">Publicar</button>
+          <button onClick={download} disabled={!!busy} className="btn btn-ghost !min-h-10">Descargar</button>
+          <button disabled={!canCompare} title={canCompare ? "" : "Selecciona exactamente 2 para comparar"} onClick={() => router.push(`/app/p/${projectId}/comparar?a=${selected[0].id}&b=${selected[1].id}`)} className="btn btn-ghost !min-h-10 disabled:opacity-50">Comparar</button>
+          <button onClick={openStyle} className="btn btn-ghost !min-h-10">Aplicar estilo</button>
+          <button onClick={approve} disabled={!!busy} className="btn btn-ghost !min-h-10">Aprobar</button>
+          <details className="relative"><summary className="btn btn-ghost !min-h-10 cursor-pointer list-none">Más</summary>
+            <div className="absolute right-0 top-full z-20 mt-1 w-52 rounded-xl border hairline bg-white p-1 text-sm shadow-xl">
+              <button className="block w-full rounded-lg px-3 py-2 text-left hover:bg-[var(--hover)]" onClick={() => { setDName(projectName); setDeliver(true); }}>Añadir a entrega</button>
+              <button className="block w-full rounded-lg px-3 py-2 text-left hover:bg-[var(--hover)]" onClick={async () => { for (const c of selected) await onFavorite(c.id, !c.favorite); }}>Alternar favorito</button>
+              <button className="block w-full rounded-lg px-3 py-2 text-left text-[var(--danger)] hover:bg-[var(--hover)]" onClick={async () => { if (confirm(`¿Descartar ${selected.length} clip${selected.length === 1 ? "" : "s"}? Dejan de aparecer en el proyecto (los exports hechos se conservan).`)) { for (const c of selected) await onDiscard(c.id); setSel(new Set()); } }}>Descartar</button>
+            </div></details>
+        </div>
+      </div>
+
       <div className="min-h-6 pt-2 text-sm" role="status" aria-live="polite">{busy ?? msg}</div>
 
       {!shown.length ? (
@@ -151,6 +168,7 @@ export default function ClipWall({ projectId, projectName, clips, onFavorite, on
         <div className="mt-4 grid gap-6 lg:grid-cols-[230px_minmax(0,1fr)]">
           <nav aria-label="Clips del proyecto" className="hidden lg:block">
             <div className="sticky top-20 max-h-[calc(100vh-7rem)] overflow-auto pr-1">
+              <div className="mb-3 flex items-center gap-2"><span className="mono rounded-md bg-[var(--accent-soft)] px-2 py-0.5 text-[var(--accent-ink)]">V1</span><b className="text-[13px] tracking-wide">CLIPS IA</b></div>
               <button onClick={() => setSel(sel.size === shown.length ? new Set() : new Set(shown.map((c) => c.id)))} className="mb-2 flex items-center gap-2 text-sm text-[var(--muted)] hover:text-[var(--text)]"><input type="checkbox" readOnly checked={sel.size > 0 && sel.size === shown.length} aria-hidden tabIndex={-1} className="h-4 w-4 accent-[var(--accent)]" />Seleccionar todo</button>
               <ol className="space-y-1">{shown.map((c, i) => (
                 <li key={c.id}><a href={`#clip-${c.id}`} className="flex items-center gap-2.5 rounded-xl p-1.5 text-sm hover:bg-[var(--hover)]">
@@ -167,27 +185,6 @@ export default function ClipWall({ projectId, projectName, clips, onFavorite, on
         </ul>
       ) : (
         <ul className="mt-4 space-y-1">{shown.map((c) => <ClipCard key={c.id} c={c} selected={sel.has(c.id)} previewing={false} onSelect={onSelect} onPreview={setPreview} view="list" />)}</ul>
-      )}
-
-      {sel.size > 0 && (
-        <div role="region" aria-label="Acciones de selección" className="fixed inset-x-3 bottom-3 z-30 mx-auto max-w-3xl rounded-2xl bg-[var(--ink)] p-2.5 text-white shadow-xl md:bottom-6">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="tnum px-2 text-sm font-medium">{sel.size} clip{sel.size === 1 ? "" : "s"} seleccionado{sel.size === 1 ? "" : "s"}</span>
-            <div className="ml-auto flex flex-wrap gap-1.5">
-              <button disabled={!canCompare} title={canCompare ? "" : "Selecciona exactamente 2 para comparar"} onClick={() => router.push(`/app/p/${projectId}/comparar?a=${selected[0].id}&b=${selected[1].id}`)} className="rounded-xl bg-white/10 px-3 py-2 text-sm hover:bg-white/20 disabled:opacity-40">Comparar</button>
-              <button onClick={openStyle} className="rounded-xl bg-white/10 px-3 py-2 text-sm hover:bg-white/20">Aplicar estilo</button>
-              <button onClick={approve} disabled={!!busy} className="rounded-xl bg-white/10 px-3 py-2 text-sm hover:bg-white/20 disabled:opacity-40">Aprobar</button>
-              <button onClick={() => { setDName(projectName); setDeliver(true); }} className="rounded-xl bg-white/10 px-3 py-2 text-sm hover:bg-white/20">Añadir a entrega</button>
-              <button onClick={download} disabled={!!busy} className="rounded-xl bg-white px-3 py-2 text-sm font-medium text-[#111] disabled:opacity-40">Descargar</button>
-              <details className="relative"><summary className="cursor-pointer list-none rounded-xl bg-white/10 px-3 py-2 text-sm hover:bg-white/20">Más</summary>
-                <div className="absolute bottom-full right-0 mb-2 w-48 rounded-xl bg-white p-1 text-sm text-[#111] shadow-xl">
-                  <button className="block w-full rounded-lg px-3 py-2 text-left hover:bg-[var(--hover)]" onClick={async () => { for (const c of selected) await onFavorite(c.id, !c.favorite); }}>Alternar favorito</button>
-                  <button className="block w-full rounded-lg px-3 py-2 text-left hover:bg-[var(--hover)]" onClick={async () => { if (confirm(`¿Descartar ${selected.length} clip${selected.length === 1 ? "" : "s"}? Dejan de aparecer en el proyecto (los exports hechos se conservan).`)) { for (const c of selected) await onDiscard(c.id); setSel(new Set()); } }}>Descartar…</button>
-                </div></details>
-              <button onClick={() => setSel(new Set())} aria-label="Limpiar selección" className="rounded-xl px-2 py-2 hover:bg-white/10"><Icon n="x" className="h-4 w-4" /></button>
-            </div>
-          </div>
-        </div>
       )}
 
       {styleDlg && (

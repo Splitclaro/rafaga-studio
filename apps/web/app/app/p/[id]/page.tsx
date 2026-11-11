@@ -169,13 +169,15 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
 
   return (
     <main className="mx-auto max-w-6xl px-4 pb-20 pt-6 md:px-8">
-      <Link href="/app/biblioteca" className="text-sm text-[var(--muted)] hover:text-[var(--text)]">← Biblioteca</Link>
+      <Link href="/app/proyectos" className="text-sm text-[var(--muted)] hover:text-[var(--text)]">← Proyectos</Link>
       <header className="mt-3 flex flex-wrap items-center gap-4">
         <div className="relative h-16 w-28 shrink-0 overflow-hidden rounded-xl bg-[var(--ink)]">{thumb ? <img src={thumb} alt="" className="h-full w-full object-cover" /> : <div className="dots-dark grid h-full place-items-center text-white/60"><Icon n="film" /></div>}</div>
         <div className="min-w-0 flex-1"><h1 className="truncate text-2xl">{p.name}</h1><div className="mt-1 flex flex-wrap gap-2 text-xs"><span className="chip !py-0.5">{MODE_LABEL[p.mode] ?? p.mode}</span>{latestGen && <span className="chip !py-0.5">{latestGen.model === "lexical-v1" ? "Selección sin IA" : latestGen.model.startsWith("herramienta") ? "Herramienta" : "Selección con IA"}</span>}</div></div>
       </header>
 
-      <section className="card mt-6 p-5">
+      <details className="card mt-6 p-5" open={!hasRun}>
+        <summary className="cursor-pointer text-[15px] font-semibold">Encargo y enfoque <span className="ml-2 text-xs font-normal text-[var(--muted)]">{hasRun ? "Cambia lo que buscas y vuelve a detectar" : "Cuéntanos qué momentos buscas"}</span></summary>
+        <div className="mt-4">
         {!tool ? (<>
           <BriefFields value={bd} onChange={setBd} />
           <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -190,8 +192,9 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
           <div className="flex flex-wrap items-center gap-3"><Icon n="wand" className="h-5 w-5" /><span className="text-sm">Herramienta <strong>{MODE_LABEL[p.mode]}</strong>: cuando termine el proceso, abre el clip en el editor para ajustarlo.</span>
             {!active && !clips.length && <button onClick={detect} disabled={busy} className="btn btn-primary ml-auto">Procesar vídeo</button>}</div>
         )}
-        <p role="status" aria-live="polite" className="mt-2 text-sm text-[var(--muted)]">{msg}</p>
-      </section>
+        </div>
+      </details>
+      <p role="status" aria-live="polite" className="mt-2 min-h-5 text-sm text-[var(--muted)]">{msg}</p>
 
       {job && (
         <section aria-live="polite" aria-label="Estado del proceso" className="card mt-4 p-5">
