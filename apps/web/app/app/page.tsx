@@ -112,7 +112,7 @@ export default function Dashboard() {
       <div className="mx-auto max-w-[1240px]">
         <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="text-[34px] leading-[1.1] tracking-tight [text-wrap:balance]">Tu próximo gran momento.</h1>
+            <h1 className="text-[40px] leading-[1.05] tracking-tight [text-wrap:balance] md:text-[46px]">Tu próximo <span className="text-grad">gran momento</span>.</h1>
             <p className="mt-2 text-base text-[var(--muted)]">Elige una fuente, cuéntanos qué buscas y Ráfaga corta por ti.</p>
           </div>
           <Link href="/app/biblioteca" className="flex items-center gap-2 text-sm font-semibold text-[var(--accent)]"><Icon n="grid" className="h-4 w-4" />Todos los proyectos</Link>
@@ -120,11 +120,11 @@ export default function Dashboard() {
 
         <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
           {/* Crear */}
-          <section aria-label="Crear" className="card p-5 md:p-6">
+          <section aria-label="Crear" className="panel-night theme-dark p-5 md:p-7">
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
               <div role="tablist" aria-label="Qué quieres crear" className="inline-flex rounded-xl border hairline bg-[var(--surface)] p-[3px]">
                 {([["clips", "Clips de vídeo largo", "scissors"], ["lyrics", "Vídeo con letra", "music"]] as const).map(([k, l, i]) => (
-                  <button key={k} role="tab" aria-selected={tab === k} onClick={() => { setTab(k); setMsg(null); }} className={`flex items-center gap-2 rounded-[10px] px-4 py-2 text-sm ${tab === k ? "bg-white font-semibold text-[var(--text)] shadow-[0_0_0_1px_var(--border)]" : "text-[var(--muted)] hover:text-[var(--text)]"}`}><Icon n={i} className="h-4 w-4" />{l}</button>
+                  <button key={k} role="tab" aria-selected={tab === k} onClick={() => { setTab(k); setMsg(null); }} className={`flex items-center gap-2 rounded-[10px] px-4 py-2 text-sm ${tab === k ? "bg-[var(--card)]/[.12] font-semibold text-white shadow-[0_0_0_1px_rgba(255,255,255,.14)]" : "text-[var(--muted)] hover:text-[var(--text)]"}`}><Icon n={i} className="h-4 w-4" />{l}</button>
                 ))}
               </div>
               {tab === "clips" && (
@@ -140,13 +140,13 @@ export default function Dashboard() {
               <input ref={fileInput} id="file" type="file" accept="video/*,.mp4,.mov,.webm,.m4v,.mkv" className="sr-only" onChange={(e) => pick(e.target.files?.[0] ?? null)} />
               
               {mode === "clips" && (!yt ? <YouTubeLink onPick={onYtPick} /> : (
-                <div className="rounded-2xl border hairline bg-white p-3">
+                <div className="rounded-2xl border hairline bg-[var(--card)] p-3">
                   <div className="flex items-center gap-3">{/* eslint-disable-next-line @next/next/no-img-element */}<img src={yt.thumb} alt="" className="h-14 w-24 shrink-0 rounded-lg object-cover" /><div className="min-w-0 flex-1"><div className="line-clamp-2 text-sm font-medium">{yt.title}</div><div className="truncate text-xs text-[var(--muted)]">{yt.channel}{yt.durationSec ? ` · ${Math.floor(yt.durationSec / 60)} min` : ""}</div></div><button type="button" onClick={() => { setYt(null); setYtProject(null); setFile(null); }} className="btn btn-ghost !px-3 !py-1.5 !text-xs">Cambiar</button></div>
                   {ytProject ? <div className="mt-3 flex flex-wrap items-center gap-3"><p className="text-sm text-[var(--muted)]">Ya tienes un proyecto con este vídeo.</p><Link href={`/app/p/${ytProject}`} className="btn btn-primary">Abrir proyecto</Link></div>
                     : <p className="mt-3 text-sm text-[var(--muted)]">Vídeo reconocido. YouTube no permite que nuestro servidor descargue el vídeo, así que hace falta su archivo: elígelo abajo y pulsa «Obtener clips». Si el vídeo es tuyo, lo descargas en YouTube Studio → Contenido → ⋮ → Descargar. El título y tu encargo se conservan.</p>}
                 </div>))}
               {(mode !== "clips" || !yt || !ytProject) && <><p className="my-3 text-center text-xs text-[var(--muted)]">{mode === "clips" ? "o sube el archivo" : ""}</p><label htmlFor="file" onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)} onDrop={(e) => { e.preventDefault(); setDrag(false); pick(e.dataTransfer.files?.[0] ?? null); }}
-                className={`flex cursor-pointer items-center gap-4 rounded-2xl border-[1.5px] border-dashed px-5 py-7 transition-colors focus-within:shadow-[var(--ring)] ${drag ? "border-[var(--accent)] bg-[#EEF2FF]" : "border-[#9FB3FF] bg-[var(--surface)] hover:border-[var(--accent)]"}`}>
+                className={`flex cursor-pointer items-center gap-4 rounded-2xl border-[1.5px] border-dashed px-5 py-7 transition-colors focus-within:shadow-[var(--ring)] ${drag ? "border-[#7FA0FF] bg-[var(--card)]/10" : "border-white/25 bg-[var(--card)]/[.04] hover:border-[#7FA0FF] hover:bg-[var(--card)]/[.07]"}`}>
                 <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[linear-gradient(135deg,#1D4FFF_0%,#4F7BFF_60%,#22D3EE_130%)] text-white"><Icon n="upload" /></span>
                 {file ? <span className="min-w-0 flex-1"><span className="block truncate font-medium">{file.name}</span><span className="mono text-xs text-[var(--muted)]">{(file.size / 1048576).toFixed(1)} MB{dur ? ` · ${Math.floor(dur / 60)}:${String(Math.round(dur % 60)).padStart(2, "0")}` : ""}</span></span>
                   : <span className="min-w-0 flex-1"><span className="block font-medium">Suelta tu vídeo aquí o elige un archivo</span><span className="text-sm text-[var(--muted)]">MP4, MOV, M4V, MKV o WebM, hasta {MAX_VIDEO_BYTES / 1073741824} GB</span></span>}
@@ -156,7 +156,7 @@ export default function Dashboard() {
               {mode === "clips" ? (
                 <div className="mt-4"><BriefFields value={bd} onChange={setBd} compact /></div>
               ) : (
-                <div className="mt-4 flex items-start gap-3 rounded-xl border hairline bg-white p-3 text-sm"><Icon n={recipe.icon} className="mt-0.5 h-4 w-4 shrink-0" /><span><span className="font-medium">{recipe.label}.</span> {recipe.what}</span></div>
+                <div className="mt-4 flex items-start gap-3 rounded-xl border hairline bg-[var(--card)] p-3 text-sm"><Icon n={recipe.icon} className="mt-0.5 h-4 w-4 shrink-0" /><span><span className="font-medium">{recipe.label}.</span> {recipe.what}</span></div>
               )}
 
               <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -165,7 +165,7 @@ export default function Dashboard() {
                 <button disabled={busy || !file} className="btn btn-primary ml-auto !px-7 !py-3 !text-[15px]">{busy ? "Subiendo…" : mode === "clips" ? "Obtener clips" : `Crear con ${recipe.label}`}</button>
               </div>
               {adv && (
-                <div className="mt-3 grid gap-3 rounded-2xl border hairline bg-white p-4 text-sm sm:grid-cols-2">
+                <div className="mt-3 grid gap-3 rounded-2xl border hairline bg-[var(--card)] p-4 text-sm sm:grid-cols-2">
                   {mode === "clips" && <label>Número de clips · <span className="mono">{count}</span><input type="range" min={3} max={10} value={count} onChange={(e) => setCount(Number(e.target.value))} className="mt-2 w-full" /></label>}
                   {mode === "clips" && <label>Duración de cada clip<select value={maxLen} onChange={(e) => setMaxLen(e.target.value)} className="input mt-1">{DURATIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>}
                   <label>Tramo desde<input value={from} onChange={(e) => setFrom(e.target.value)} placeholder="0:00" className="input mono mt-1" inputMode="numeric" /></label>
@@ -177,7 +177,7 @@ export default function Dashboard() {
             ) : (
             <div>
               <input ref={audioInput} type="file" accept="audio/*,.mp3,.wav" className="sr-only" id="audio" onChange={(e) => { pickAudio(e.target.files?.[0]); e.target.value = ""; }} />
-              <label htmlFor="audio" className="flex cursor-pointer items-center gap-4 rounded-2xl border border-dashed hairline bg-white px-5 py-5 hover:border-[#bdbdbd]">
+              <label htmlFor="audio" className="flex cursor-pointer items-center gap-4 rounded-2xl border border-dashed hairline bg-[var(--card)] px-5 py-5 hover:border-[#bdbdbd]">
                 <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[var(--hover)] text-[var(--accent)]"><Icon n="music" /></span>
                 <span className="min-w-0 flex-1"><span className="block font-medium">Sube tu canción (MP3 o WAV)</span><span className="text-sm text-[var(--muted)]">Después eliges el tramo, la letra, el estilo y cuántos vídeos quieres.</span></span>
                 <span className="btn btn-ghost hidden sm:inline-flex">{busy ? "Subiendo…" : "Subir canción"}</span>

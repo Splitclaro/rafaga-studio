@@ -36,7 +36,7 @@ export default function YouTubeLink({ onPick }: { onPick: (item: YtItem) => void
     finally { setBusy(false); }
   }
   return (
-    <form onSubmit={(e) => { e.preventDefault(); look(v); }} className="rounded-2xl border hairline bg-white p-3">
+    <form onSubmit={(e) => { e.preventDefault(); look(v); }} className="rounded-2xl border hairline bg-[var(--card)] p-3">
       <label htmlFor="yt-link" className="mb-2 block text-sm font-medium">Enlace del vídeo de YouTube</label>
       <div className="flex gap-2">
         <div className="relative min-w-0 flex-1">

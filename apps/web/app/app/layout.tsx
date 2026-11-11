@@ -87,10 +87,10 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen md:flex">
-      <aside className={`z-20 border-b hairline bg-[var(--surface)] md:sticky md:top-0 md:flex md:h-screen md:shrink-0 md:flex-col md:border-b-0 md:border-r ${collapsed ? "md:w-[68px]" : "md:w-64"}`}>
+      <aside className={`theme-dark z-20 bg-[var(--night)] text-[var(--text)] md:sticky md:top-0 md:flex md:h-screen md:shrink-0 md:flex-col md:border-r md:border-white/5 ${collapsed ? "md:w-[68px]" : "md:w-64"}`}>
         <div className="flex items-center justify-between gap-2 px-4 py-3 md:px-3 md:py-4">
           <Link href="/app" className="flex min-w-0 items-center gap-2.5 font-semibold" aria-label="Ráfaga Studio, inicio">
-            <span aria-hidden className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] bg-[#1D4FFF] text-white"><Icon n="bolt" className="h-4 w-4" /></span>
+            <span aria-hidden className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] bg-[image:var(--grad)] text-white shadow-[0_0_20px_-2px_var(--glow),inset_0_1px_0_rgba(255,255,255,.35)]"><Icon n="bolt" className="h-4 w-4" /></span>
             <span className={`text-[15px] tracking-tight ${collapsed ? "md:sr-only" : ""}`}>Ráfaga Studio</span>
           </Link>
           <button onClick={toggle} aria-label={collapsed ? "Expandir menú" : "Plegar menú"} aria-expanded={!collapsed} className="hidden rounded-lg p-1.5 text-[var(--muted)] hover:bg-[var(--hover)] md:block"><Icon n={collapsed ? "chevR" : "chevL"} className="h-4 w-4" /></button>
@@ -127,7 +127,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
               <div className="flex gap-1 md:block md:space-y-0.5">
                 {NAV.filter((n) => n.group === g).map((n) => (
                   <Link key={n.href} href={n.href} title={collapsed ? n.label : undefined} aria-current={active(n.href) ? "page" : undefined}
-                    className={`group relative flex shrink-0 items-center gap-3 rounded-[10px] px-3 py-2 text-sm transition-colors ${active(n.href) ? "bg-white font-semibold text-[var(--accent)] ring-1 ring-[var(--border)]" : "text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--text)]"}`}>
+                    className={`group relative flex shrink-0 items-center gap-3 rounded-[10px] px-3 py-2 text-sm transition-colors ${active(n.href) ? "bg-white/[.09] font-semibold text-white ring-1 ring-white/15 shadow-[0_0_24px_-8px_var(--glow)]" : "text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--text)]"}`}>
                                         <Icon n={n.icon} className="h-[18px] w-[18px] shrink-0" /><span className={collapsed ? "md:sr-only" : ""}>{n.label}</span>
                     {!n.ready && !collapsed && <span className="ml-auto hidden rounded-md border hairline px-1.5 text-[10px] text-[var(--muted)] md:inline">Pronto</span>}
                   </Link>
@@ -141,7 +141,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
           <Link href="/app/ajustes" className="mx-3 mb-2 hidden rounded-[10px] px-3 py-2 hover:bg-[var(--hover)] md:block" aria-label={`Consumo esta semana: ${usage.used} de ${usage.limit} minutos`}>
             <span className="block text-xs text-[var(--muted)]">Esta semana</span>
             <span className="tnum mb-2 mt-0.5 block text-sm font-semibold">{Math.round(usage.used)} de {usage.limit} min</span>
-            <span className="block h-1 overflow-hidden rounded-full bg-[var(--border)]"><span className="block h-full rounded-full bg-[var(--accent)]" style={{ width: `${Math.min(100, (usage.used / usage.limit) * 100)}%` }} /></span>
+            <span className="block h-1 overflow-hidden rounded-full bg-[var(--border)]"><span className="block h-full rounded-full bg-[image:var(--grad)] shadow-[0_0_10px_var(--glow)]" style={{ width: `${Math.min(100, (usage.used / usage.limit) * 100)}%` }} /></span>
           </Link>
         )}
         <div className="hidden border-t hairline p-3 md:block">
@@ -150,8 +150,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      <div className="min-w-0 flex-1">
-        <header className="sticky top-0 z-10 flex items-center gap-3 border-b hairline bg-white/90 px-4 py-2.5 backdrop-blur md:px-8">
+      <div className="aurora min-w-0 flex-1">
+        <header className="glass sticky top-0 z-10 flex items-center gap-3 border-b hairline px-4 py-2.5 md:px-8">
           <span className="hidden text-sm text-[var(--muted)] md:block">{current}</span>
           <button onClick={() => setPalette(true)} className="card ml-auto flex min-w-0 items-center gap-2 px-3 py-1.5 text-sm text-[var(--muted)] hover:bg-[var(--hover)] md:ml-6 md:w-72" aria-label="Buscar o ir a (Cmd+K)">
             <Icon n="search" className="h-4 w-4 shrink-0" /><span className="min-w-0 flex-1 truncate text-left">Buscar o ir a…</span><span className="kbd hidden md:inline">⌘K</span>
