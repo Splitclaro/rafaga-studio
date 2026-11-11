@@ -82,7 +82,10 @@ export default function Dashboard() {
     setBusy(true); setMsg(null);
     try {
       const id = await createProject({ file, name: yt?.title ?? "", brief, briefData: normalizeBrief(bd), count, mode, maxSeconds: maxLen ? Number(maxLen) : undefined, rangeStart: a ?? 0, rangeEnd: b ?? undefined, youtubeId: yt?.id, onStep: setMsg });
-      if (yt) await supabase.from("youtube_picks").update({ project_id: id, source_kind: "original", updated_at: new Date().toISOString() }).eq("video_id", yt.id);
+      // Un solo paso: tras subir se encola la detección y se despierta al worker (sin segundo clic en el proyecto).
+      setMsg("Encolando la detección…");
+      const { error: de } = await supabase.rpc("request_detection", { p_project: id, p_key: crypto.randomUUID() });
+      if (!de) { const { data: ss } = await supabase.auth.getSession(); fetch("/api/wake", { method: "POST", headers: { Authorization: `Bearer ${ss.session?.access_token ?? ""}` } }).catch(() => {}); }
       router.push(`/app/p/${id}`);
     } catch (x) { setMsg(x instanceof Error ? x.message : "Error inesperado"); setBusy(false); }
   }
@@ -207,7 +210,7 @@ export default function Dashboard() {
             <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               {batches.map((b) => (
                 <li key={b.id}><Link href="/app/lyric-studio" className="card lift block overflow-hidden">
-                  <div className="relative grid aspect-video place-items-center bg-[linear-gradient(135deg,#141B34,#0B1020)] text-white/70"><Icon n="music" className="h-8 w-8" /><span className="chip absolute left-2 top-2 !py-0.5">{isActive(b.status) && <span className="pulse" aria-hidden />}{STAGE[b.status] ?? b.status}</span></div>
+                  <div className="relative grid aspect-video place-items-center bg-[linear-gradient(135deg,#141B34,#0B1020)] text-white/70"><Icon n="music" className="h-8 w-8" /><span className="chip absolute left-2 top-2 !py-0.5 text-[var(--text)]">{isActive(b.status) && <span className="pulse" aria-hidden />}{STAGE[b.status] ?? b.status}</span></div>
                   <div className="p-3"><div className="truncate text-sm font-medium">{b.title}</div><div className="tnum text-xs text-[var(--muted)]">{b.params.n} vídeo{b.params.n === 1 ? "" : "s"}, {new Date(b.created_at).toLocaleDateString("es", { day: "numeric", month: "short" })}</div></div>
                 </Link></li>
               ))}

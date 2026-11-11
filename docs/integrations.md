@@ -9,7 +9,8 @@ Estado real a 2026-11-10. «Implementado» significa código y pruebas en el rep
 | Deepgram (ASR) | Transcripción con marcas de tiempo (nova-3) | Sí | **Sí** (`DEEPGRAM_API_KEY` en GitHub Actions; autoprueba 42629711496) | — |
 | Anthropic (selección editorial) | Candidatos a partir del transcript | Sí | No (sin saldo) | Saldo en la cuenta, o usar Groq |
 | Groq (ASR + editorial + visión) | Whisper large-v3-turbo, llama-3.3-70b, visión | Sí (probado contra servidor falso) | No | `GROQ_API_KEY` en GitHub Actions; `ASR_PROVIDER=groq`, `LLM_PROVIDER=groq` |
-| YouTube Data API (buscar) | Buscar vídeos y directos, estado de un vídeo | Sí | No | `YOUTUBE_API_KEY` en Vercel (API habilitada en Google Cloud) |
+| YouTube por enlace | Pegar un enlace y reconocer el vídeo (título, canal, portada) | Sí (oEmbed público, sin clave) | **Sí** | Con `YOUTUBE_API_KEY` añade duración y estado de directo |
+| Descargar un vídeo de YouTube por enlace | Cortar clips sin subir el archivo | **No** | No | Probado el 2026-11-11 desde el worker (GitHub Actions): YouTube responde «Sign in to confirm you're not a bot» a las IP de centro de datos. No se elude esa verificación. Hace falta el archivo (YouTube Studio → Descargar si el vídeo es tuyo) |
 | Google OAuth (YouTube, Drive) | Importar vídeos propios (solo lectura) | Sí (OAuth 2.0 + PKCE, migración 29) | No | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` en Vercel; pantalla de consentimiento y URI de retorno (abajo) |
 | Dropbox OAuth | Importar vídeos (solo lectura) | Sí | No | `DROPBOX_CLIENT_ID`, `DROPBOX_CLIENT_SECRET` en Vercel; URI de retorno |
 | Publicar en YouTube / TikTok / Instagram | Subir vídeos | **No** | No | Permisos de escritura y revisión de la app por cada plataforma (Google: `youtube.upload` + verificación; TikTok Content Posting API: revisión; Instagram Graph API: cuenta profesional + revisión) |
