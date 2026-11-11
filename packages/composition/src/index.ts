@@ -7,3 +7,4 @@ export * from "./thumb.ts";
 export * from "./templates.ts";
 export * from "./trim.ts";
 export * from "./reframe.ts";
+export * from "./cuts.ts";

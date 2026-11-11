@@ -6,6 +6,7 @@ export const RATIO_SIZE: Record<Ratio, { width: number; height: number }> = {
 };
 
 import { cropXExpr } from "./reframe.ts";
+import { keepExpr, keptLength, mapTime, mergeCuts, type Cut } from "./cuts.ts";
 export interface BrollItem { path: string; kind: "video" | "photo"; start: number; dur: number; name?: string }
 
 export interface Composition {
@@ -21,6 +22,8 @@ export interface Composition {
   reframe?: { kf: { t: number; x: number }[]; mode?: string; coverage?: number };
   broll?: BrollItem[]; // imágenes/vídeos propios superpuestos por tramos (tiempos relativos al clip)
   words: Word[]; // tiempos RELATIVOS al clip
+  /** Cortes internos (silencios y muletillas), relativos al clip en la línea de la fuente. Las palabras NO se retiman aquí: se retiman al exportar. */
+  cuts?: Cut[];
   style: SubtitleStyle;
   burnSubtitles: boolean;
 }
@@ -52,20 +55,26 @@ export function ffmpegArgs(c: Composition, io: { input: string; assPath: string;
   /** Marca (instantánea de una versión del brand kit): logo sobre el clip e intro/outro concatenados. */
   logo?: { local: string } & BrandLogo; intro?: { local: string } & BrandBumper; outro?: { local: string } & BrandBumper; mainHasAudio?: boolean }): string[] {
   const { width: W, height: H } = RATIO_SIZE[c.ratio];
-  const dur = c.endSec - c.startSec;
+  const srcLen = c.endSec - c.startSec;
+  const cuts = c.cuts?.length ? mergeCuts(c.cuts, srcLen) : [];
+  const dur = keptLength(srcLen, cuts);
+  const hasAudio = io.mainHasAudio !== false;
+  const vsrc = cuts.length ? "[sv]" : "[0:v]";
   const cx = Math.min(1, Math.max(0, c.crop?.x ?? 0.5));
-  const cxExpr = c.reframe?.kf?.length ? cropXExpr(c.reframe.kf) : cx.toFixed(3);
+  const kfMapped = (c.reframe?.kf ?? []).map((k) => ({ ...k, t: mapTime(k.t, cuts) })).filter((k, i, a) => i === 0 || k.t > a[i - 1].t);
+  const cxExpr = kfMapped.length ? cropXExpr(kfMapped) : cx.toFixed(3);
   const layout = c.layout === "fill" || c.layout === "fit" ? c.layout : "blur";
   // Fondo desenfocado: se desenfoca a 1/6 de tamaño y se reescala (el desenfoque fuerte no necesita resolución; ~5× más barato que a 1080×1920)
   const bw = Math.max(2, Math.round(W / 12) * 2), bh = Math.max(2, Math.round(H / 12) * 2);
   const base =
-    layout === "fill" ? `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H}:'(in_w-${W})*(${cxExpr})':'(in_h-${H})/2',setsar=1[base]`
-    : layout === "fit" ? `[0:v]scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:black,setsar=1[base]`
-    : `[0:v]split=2[bg][fg];[bg]scale=${bw}:${bh}:force_original_aspect_ratio=increase,crop=${bw}:${bh},boxblur=6:3,scale=${W}:${H}:flags=bilinear[b];[fg]scale=${W}:${H}:force_original_aspect_ratio=decrease[f];[b][f]overlay=(W-w)/2:(H-h)/2,setsar=1[base]`;
-  const parts = [base];
+    layout === "fill" ? `${vsrc}scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H}:'(in_w-${W})*(${cxExpr})':'(in_h-${H})/2',setsar=1[base]`
+    : layout === "fit" ? `${vsrc}scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:black,setsar=1[base]`
+    : `${vsrc}split=2[bg][fg];[bg]scale=${bw}:${bh}:force_original_aspect_ratio=increase,crop=${bw}:${bh},boxblur=6:3,scale=${W}:${H}:flags=bilinear[b];[fg]scale=${W}:${H}:force_original_aspect_ratio=decrease[f];[b][f]overlay=(W-w)/2:(H-h)/2,setsar=1[base]`;
+  const parts = cuts.length ? [`[0:v]fps=${c.fps},select='${keepExpr(cuts)}',setpts=N/(${c.fps}*TB)[sv]`, base] : [base];
+  if (cuts.length && hasAudio) parts.push(`[0:a:0]aselect='${keepExpr(cuts)}',asetpts=N/SR/TB[sa]`);
   const extra: string[] = [];
   let last = "base";
-  (io.broll ?? []).forEach((b, i) => {
+  (io.broll ?? []).map((b) => (cuts.length ? { ...b, start: mapTime(b.start, cuts), dur: Math.max(0.1, mapTime(b.start + b.dur, cuts) - mapTime(b.start, cuts)) } : b)).forEach((b, i) => {
     const s = Math.max(0, b.start), e = Math.min(dur, b.start + b.dur);
     if (e <= s) return;
     extra.push(...(b.kind === "photo" ? ["-loop", "1", "-t", String(dur), "-i", b.local] : ["-stream_loop", "-1", "-t", String(dur), "-i", b.local]));
@@ -88,14 +97,14 @@ export function ffmpegArgs(c: Composition, io: { input: string; assPath: string;
   const bumpers = [io.intro ? { b: io.intro, tag: "in" } : null, io.outro ? { b: io.outro, tag: "out" } : null].filter(Boolean) as { b: { local: string } & BrandBumper; tag: string }[];
   if (!bumpers.length) {
     parts.push(`[${last}]fps=${c.fps},format=yuv420p${sub}[v]`);
-    return ["-y", "-hide_banner", "-loglevel", "error", "-ss", String(c.startSec), "-t", String(dur), "-i", io.input, ...extra,
-      "-filter_complex", parts.join(";"), "-map", "[v]", "-map", "0:a:0?", "-c:v", "libx264", "-preset", "superfast", "-crf", "22", "-threads", "0", "-r", String(c.fps),
+    return ["-y", "-hide_banner", "-loglevel", "error", "-ss", String(c.startSec), "-t", String(srcLen), "-i", io.input, ...extra,
+      "-filter_complex", parts.join(";"), "-map", "[v]", "-map", cuts.length && hasAudio ? "[sa]" : "0:a:0?", "-c:v", "libx264", "-preset", "superfast", "-crf", "22", "-threads", "0", "-r", String(c.fps),
       "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", io.output];
   }
   // Intro/outro: mismo tamaño, fps y formato de audio que el clip; sin audio propio → silencio de su duración
   parts.push(`[${last}]fps=${c.fps},format=yuv420p${sub}[mv]`);
   const AF = "aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo";
-  parts.push(io.mainHasAudio === false ? `anullsrc=r=48000:cl=stereo,atrim=duration=${dur.toFixed(3)}[ma]` : `[0:a:0]${AF},atrim=duration=${dur.toFixed(3)},apad=whole_dur=${dur.toFixed(3)}[ma]`);
+  parts.push(io.mainHasAudio === false ? `anullsrc=r=48000:cl=stereo,atrim=duration=${dur.toFixed(3)}[ma]` : `${cuts.length ? "[sa]" : "[0:a:0]"}${AF},atrim=duration=${dur.toFixed(3)},apad=whole_dur=${dur.toFixed(3)}[ma]`);
   const seg: Record<string, [string, string]> = {};
   for (const { b, tag } of bumpers) {
     const d = clampN(b.dur, 0.5, 15, 3);
@@ -107,7 +116,7 @@ export function ffmpegArgs(c: Composition, io: { input: string; assPath: string;
   }
   const order = [seg.in, ["[mv]", "[ma]"], seg.out].filter(Boolean) as [string, string][];
   parts.push(`${order.map(([v, a]) => v + a).join("")}concat=n=${order.length}:v=1:a=1[v][a]`);
-  return ["-y", "-hide_banner", "-loglevel", "error", "-ss", String(c.startSec), "-t", String(dur), "-i", io.input, ...extra,
+  return ["-y", "-hide_banner", "-loglevel", "error", "-ss", String(c.startSec), "-t", String(srcLen), "-i", io.input, ...extra,
     "-filter_complex", parts.join(";"), "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-preset", "superfast", "-crf", "22", "-threads", "0", "-r", String(c.fps),
     "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", io.output];
 }

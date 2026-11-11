@@ -5,7 +5,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, writeFileSync, readFileSync, rmSync, existsSync, mkdirSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { buildAss, buildComposition, ffmpegArgs, styleForRatio, renderFamily, groupsFrom, toSRT, toVTT, toTranscript, sanitizeLogo, type BrandLogo, validateStyle, SYSTEM_FONT, escapeFilterPath, PRESETS, RATIO_SIZE, type Composition, type Ratio, type Word } from "@rafaga/composition";
+import { buildAss, buildComposition, retimeWords, ffmpegArgs, styleForRatio, renderFamily, groupsFrom, toSRT, toVTT, toTranscript, sanitizeLogo, type BrandLogo, validateStyle, SYSTEM_FONT, escapeFilterPath, PRESETS, RATIO_SIZE, type Composition, type Ratio, type Word } from "@rafaga/composition";
 import { proposeClips, safeGet, groqProposeClips, aiConfig, llmLine, renderLine, storageLine, transferLine, loadTariffs, type Line, parseFeed, captureHls, concatWindow, type WindowOut } from "@rafaga/providers";
 import { audioMomentsFromPcm } from "@rafaga/lyrics";
 import { transcribeAuto } from "./asr.ts";
@@ -339,7 +339,7 @@ async function processRender(job: Job) {
     const inp = join(dir, "in"), ass = join(dir, "c.ass"), out = join(dir, "o.mp4");
     await fetchOriginal(sb, `${clip.workspace_id}/${project.source_id}/original`, inp);
     const fontsDir = await fontsFor(clip.workspace_id, comp.style.fontName, dir);
-    writeFileSync(ass, buildAss(comp.words, { ...styleForRatio(comp.style, ratio), fontName: renderFamily(comp.style.fontName) }, RATIO_SIZE[ratio]));
+    writeFileSync(ass, buildAss(retimeWords(comp.words, comp.cuts), { ...styleForRatio(comp.style, ratio), fontName: renderFamily(comp.style.fontName) }, RATIO_SIZE[ratio]));
     const t1 = Date.now();
     // B-roll propio: solo rutas del mismo workspace, descargadas una vez
     const broll: { local: string; kind: "video" | "photo"; start: number; dur: number }[] = [];
@@ -644,9 +644,9 @@ async function processPackage(job: Job) {
       if (["srt", "vtt", "transcript"].some((k) => opt.include.includes(k))) {
         const cv = (await sb.from("clip_versions").select("composition").eq("clip_id", it.clip_id).eq("version", it.version).maybeSingle()).data?.composition as Composition | undefined;
         if (cv?.words?.length) {
-          if (opt.include.includes("srt")) { const f = `subtitulos/${stem}_v${it.version}.srt`; await addFile(f, Buffer.from(toSRT(cv.words, cv.style), "utf8")); (row.archivos as string[]).push(f); }
-          if (opt.include.includes("vtt")) { const f = `subtitulos/${stem}_v${it.version}.vtt`; await addFile(f, Buffer.from(toVTT(cv.words, cv.style), "utf8")); (row.archivos as string[]).push(f); }
-          if (opt.include.includes("transcript")) { const f = `transcripciones/${stem}_v${it.version}.txt`; await addFile(f, Buffer.from(toTranscript(cv.words) + "\n", "utf8")); (row.archivos as string[]).push(f); }
+          if (opt.include.includes("srt")) { const f = `subtitulos/${stem}_v${it.version}.srt`; await addFile(f, Buffer.from(toSRT(retimeWords(cv.words, cv.cuts), cv.style), "utf8")); (row.archivos as string[]).push(f); }
+          if (opt.include.includes("vtt")) { const f = `subtitulos/${stem}_v${it.version}.vtt`; await addFile(f, Buffer.from(toVTT(retimeWords(cv.words, cv.cuts), cv.style), "utf8")); (row.archivos as string[]).push(f); }
+          if (opt.include.includes("transcript")) { const f = `transcripciones/${stem}_v${it.version}.txt`; await addFile(f, Buffer.from(toTranscript(retimeWords(cv.words, cv.cuts)) + "\n", "utf8")); (row.archivos as string[]).push(f); }
         } else if (["srt", "vtt", "transcript"].some((k) => opt.include.includes(k))) row.sin_texto = "Esta versión no tiene palabras transcritas";
       }
       manifest.push(row);
