@@ -170,7 +170,11 @@ async function processJob(job: Job) {
     const lexBrief = bdata ? lexicalBrief(bdata) : brief;
     // Criterio editorial: el encargo en lenguaje natural puede fijar cantidad, duración y exclusiones obligatorias
     const intent = interpretBrief(lexBrief);
-    const wantCount = Math.min(20, intent.count ?? project.clip_count), minSec = intent.minSec ?? 12, maxSec = Math.max(minSec + 1, intent.maxSec ?? project.max_seconds);
+    // La duración pedida manda: sin un mínimo explícito en el encargo, el mínimo sale del objetivo (70 %), no de un valor fijo.
+    const wantCount = Math.min(20, intent.count ?? project.clip_count);
+    const maxSec0 = intent.maxSec ?? project.max_seconds;
+    const minSec = intent.minSec ?? Math.min(Math.max(12, Math.round(Number(project.target_seconds || 0) * 0.7)), Math.max(12, maxSec0 - 3));
+    const maxSec = Math.max(minSec + 1, maxSec0);
     if (intent.clarify) m.clarify = intent.clarify;
     m.intent = JSON.stringify({ count: intent.count, minSec: intent.minSec, maxSec: intent.maxSec, kinds: intent.kinds, exclude: intent.exclude.length, soft: intent.soft.length, payoff: intent.wantsPayoff });
     let raw: RawCandidate[] = [];
@@ -184,7 +188,7 @@ async function processJob(job: Job) {
         const ws = windows(words, 600, 45);
         // Cada tramo se pide por separado: un fallo en uno no anula lo que la IA propuso en los demás.
         for (const w of ws) {
-          const target = `${project.target_seconds}s (máx ${project.max_seconds}s)`;
+          const target = `entre ${minSec} y ${maxSec} s cada momento (objetivo ${project.target_seconds} s); no propongas momentos más cortos de ${minSec} s`;
           try {
             if (useGroq) { const r = await groqProposeClips(AI, { brief, windowText: transcriptText(words, w.from, w.to), target, want: Math.max(3, Math.min(10, Math.ceil(wantCount * 1.6))) }); raw.push(...r.clips); tIn += r.usage.tokensIn; tOut += r.usage.tokensOut; }
             else { raw.push(...(await proposeClips({ key: AN, model: MODEL, brief, windowText: transcriptText(words, w.from, w.to), target, want: Math.max(3, Math.min(10, Math.ceil(wantCount * 1.6))) }))); tIn += Math.round(transcriptText(words, w.from, w.to).length / 4); tOut += 400; }
