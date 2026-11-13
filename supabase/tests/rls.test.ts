@@ -2,76 +2,19 @@
 // auth/storage se simulan SOLO aquí; la prueba A/B contra Supabase real sigue pendiente.
 import { test, before } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { PGlite } from "@electric-sql/pglite";
+import type { PGlite } from "@electric-sql/pglite";
 import { createHash } from "node:crypto";
 
-const A = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
-const B = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
+import { freshDb, A, B } from "./migrate.ts";
+
 let db: PGlite;
 let wsA: string, wsB: string;
-
-const asUser = async (uid: string | null, fn: () => Promise<void>) => {
-  await db.exec(`set role ${uid ? "authenticated" : "anon"}; select set_config('request.jwt.claim.sub', '${uid ?? ""}', false);`);
-  try { await fn(); } finally { await db.exec("reset role;"); }
-};
+let asUser: (uid: string | null, fn: () => Promise<void>) => Promise<void>;
 const rejects = async (sql: string) => { await assert.rejects(() => db.query(sql)); };
 
 before(async () => {
-  db = new PGlite();
-  await db.exec(`
-    create role anon nologin; create role authenticated nologin;
-    create schema auth; create schema storage;
-    create table auth.users (id uuid primary key, email text);
-    create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
-    create table storage.buckets (id text primary key, name text, public boolean, file_size_limit bigint);
-    create table storage.objects (id uuid default gen_random_uuid() primary key, bucket_id text, name text);
-    alter table storage.objects enable row level security;
-    create function storage.foldername(name text) returns text[] language sql immutable as $$ select string_to_array(name, '/') $$;
-    grant usage on schema auth, storage, public to anon, authenticated;
-    grant select, insert, delete on storage.objects to authenticated;
-  `);
-  await db.exec(readFileSync(new URL("../migrations/20261109000001_core.sql", import.meta.url), "utf8"));
-  await db.exec("grant all on all tables in schema public to authenticated; grant all on all functions in schema public to authenticated;");
-  // grants amplios arriba; los REVOKE/column GRANT de la migración deben seguir mandando:
-  await db.exec(readFileSync(new URL("../migrations/20261109000001_core.sql", import.meta.url), "utf8").split("-- Los privilegios")[1].split("-- ───────── Storage")[0].replace(/^[^\n]*\n/, ""));
-  await db.exec(readFileSync(new URL("../migrations/20261109000002_detection.sql", import.meta.url), "utf8"));
-  await db.exec(readFileSync(new URL("../migrations/20261109000003_render_requests.sql", import.meta.url), "utf8"));
-  await db.exec(readFileSync(new URL("../migrations/20261109000004_workspace_fonts.sql", import.meta.url), "utf8"));
-  await db.exec("grant select, insert, delete on public.workspace_fonts to authenticated;");
-  await db.exec(readFileSync(new URL("../migrations/20261109000005_lyric_studio.sql", import.meta.url), "utf8"));
-  await db.exec(readFileSync(new URL("../migrations/20261109000007_collections.sql", import.meta.url), "utf8"));
-  await db.exec(readFileSync(new URL("../migrations/20261109000008_pages.sql", import.meta.url), "utf8"));
-  await db.exec("grant select, insert, delete on public.text_styles to authenticated;");
-  await db.exec(readFileSync(new URL("../migrations/20261109000009_automation_calendar.sql", import.meta.url), "utf8"));
-  await db.exec(readFileSync(new URL("../migrations/20261110000010_lyrics_ratio.sql", import.meta.url), "utf8"));
-  await db.exec(readFileSync(new URL("../migrations/20261110000011_automation_jobs.sql", import.meta.url), "utf8"));
-  await db.exec("grant execute on function public.request_automation_check(uuid) to authenticated;");
-  await db.exec(readFileSync(new URL("../migrations/20261110000012_live.sql", import.meta.url), "utf8"));
-  await db.exec("grant select on public.live_sessions, public.live_windows to authenticated; grant execute on function public.start_live_session(text, text), public.set_live_status(uuid, text) to authenticated;");
-  await db.exec(readFileSync(new URL("../migrations/20261110000013_lyric_looks.sql", import.meta.url), "utf8"));
-  await db.exec(readFileSync(new URL("../migrations/20261110000015_scheduler.sql", import.meta.url), "utf8"));
-  await db.exec(readFileSync(new URL("../migrations/20261110000016_job_timing_fair_queue.sql", import.meta.url), "utf8"));
-  await db.exec(readFileSync(new URL("../migrations/20261110000017_workspaces_roles.sql", import.meta.url), "utf8"));
-  await db.exec(readFileSync(new URL("../migrations/20261110000018_brand_kits.sql", import.meta.url), "utf8"));
-  await db.exec(readFileSync(new URL("../migrations/20261110000019_clip_thumbs_titles.sql", import.meta.url), "utf8"));
-  await db.exec(readFileSync(new URL("../migrations/20261110000020_privilege_hardening.sql", import.meta.url), "utf8"));
-  await db.exec(readFileSync(new URL("../migrations/20261110000021_review_deliveries.sql", import.meta.url), "utf8"));
-  await db.exec(readFileSync(new URL("../migrations/20261110000022_share_links_packages.sql", import.meta.url), "utf8"));
-  await db.exec(readFileSync(new URL("../migrations/20261110000023_brief_data.sql", import.meta.url), "utf8"));
-  await db.exec("alter table storage.objects add column if not exists metadata jsonb;");   // Storage real guarda size/eTag aquí
-  await db.exec(readFileSync(new URL("../migrations/20261110000024_library.sql", import.meta.url), "utf8"));
-  await db.exec(readFileSync(new URL("../migrations/20261110000025_reframe.sql", import.meta.url), "utf8"));
-  await db.exec(readFileSync(new URL("../migrations/20261110000026_youtube_picks.sql", import.meta.url), "utf8"));
-  await db.exec(readFileSync(new URL("../migrations/20261110000027_ai_usage.sql", import.meta.url), "utf8"));
-  await db.exec(readFileSync(new URL("../migrations/20261110000029_oauth_connections.sql", import.meta.url), "utf8"));
-  await db.exec(readFileSync(new URL("../migrations/20261110000030_project_lifecycle.sql", import.meta.url), "utf8"));
-  await db.exec("grant execute on function public.share_view(text), public.share_comment(text, uuid, numeric, text, text), public.share_decide(text, uuid, text, text, text), public.share_path_ok(text) to anon;");
-  await db.exec("grant select, insert, delete on public.songs to authenticated; grant select on public.song_alignments, public.lyric_videos to authenticated; grant execute on function public.request_lyrics(uuid, jsonb, text) to authenticated;");
-  await db.exec("grant execute on function public.request_detection(uuid, text) to authenticated; grant execute on function public.request_render(uuid, int, text, boolean) to authenticated;");
-  await db.exec(`insert into auth.users values ('${A}','a@test.dev'),('${B}','b@test.dev');`);
-  wsA = (await db.query<{ id: string }>(`select id from workspaces where created_by='${A}'`)).rows[0].id;
-  wsB = (await db.query<{ id: string }>(`select id from workspaces where created_by='${B}'`)).rows[0].id;
+  // Todas las migraciones, en orden, con la emulación de Supabase del arnés (supabase/tests/migrate.ts).
+  ({ db, wsA, wsB, asUser } = await freshDb());
 });
 
 test("signup crea un único workspace y membresía owner", async () => {
