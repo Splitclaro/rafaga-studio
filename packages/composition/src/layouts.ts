@@ -1,10 +1,10 @@
 // Composición v2: diseños, formatos (9:16, 16:9, 1:1) y plantillas virales como funciones puras. UNA sola fuente de cajas:
 // la vista previa y la exportación (vía `toLegacyComposition` → `ffmpegArgs`) las leen de aquí. Coordenadas normalizadas [0,1]; píxeles pares.
 import { buildComposition, RATIO_SIZE, type Composition } from "./composition.ts";
-import type { Cut } from "./cuts.ts";
-import type { ReframeKf } from "./reframe.ts";
-import type { Word } from "./subtitles.ts";
-import { safeArea, type Platform, type Rect } from "./safezones.ts";
+import { retimeWords, type Cut } from "./cuts.ts";
+import { xAt, type ReframeKf } from "./reframe.ts";
+import { groupWords, layoutLines, activeWordAt, PRESET_IMPACTO, type SubtitleStyle, type Word } from "./subtitles.ts";
+import { safeArea, SAFE_ZONES, type Platform, type Rect } from "./safezones.ts";
 
 export type LayoutId = "single_track" | "split_two" | "active_speaker" | "screen_presenter" | "fit_full" | "manual";
 export const LAYOUT_IDS: LayoutId[] = ["single_track", "split_two", "active_speaker", "screen_presenter", "fit_full", "manual"];
@@ -140,4 +140,39 @@ export function injectHeadline(ass: string, c: CompositionV2, font = "Liberation
   const text = h.lines.map((l, i) => (i === 1 && h.accent ? `{\\c${assRgb(h.accent)}}` : "") + l.replace(/[{}\\]/g, "")).join("\\N");
   const ev = `Dialogue: 5,${assTime(0)},${assTime(Math.max(0.1, c.duration))},Headline,,0,0,0,,{\\an5\\pos(${Math.round(b.x + b.w / 2)},${Math.round(b.y + b.h / 2)})}${text}`;
   return ass.replace(/(\r?\nStyle: Default[^\n]*)/, `$1\n${style}`).replace(/\s*$/, `\n${ev}\n`);
+}
+
+// ── Escena en un instante: lo que dibuja la vista previa, calculado con las MISMAS funciones que la exportación ──
+export interface SceneSubtitle { text: string; lines: string[]; active: number; start: number; end: number }
+export interface Scene {
+  t: number; plan: LayoutPlan; cropX: number | null; subtitle: SceneSubtitle | null;
+  headline: { lines: string[]; accent?: string; pill?: string; style: "plain" | "box"; box: PxBox } | null;
+  overlays: { platform: Platform; id: string; rect: PxBox }[];
+}
+export interface SceneOpts { words?: Word[]; style?: SubtitleStyle; safeZones?: Platform[] }
+
+/** Grupos de subtítulos tal y como los exporta `buildAss`: palabras relativas al clip, retimadas con los cortes y agrupadas por el estilo. */
+export function subtitleGroups(c: CompositionV2, words: Word[], style: SubtitleStyle = PRESET_IMPACTO) {
+  return groupWords(retimeWords(words, c.cuts), style);
+}
+/** Tiempo de la línea de la fuente (relativo al clip) que corresponde a un instante del vídeo ya sin cortes. */
+export function unmapTime(tOut: number, cuts: Cut[] | undefined): number {
+  let t = tOut; for (const k of [...(cuts ?? [])].sort((a, b) => a.s - b.s)) if (t >= k.s) t += k.e - k.s; return t;
+}
+
+export function sceneAt(c: CompositionV2, t: number, srcW: number, srcH: number, o: SceneOpts = {}): Scene {
+  const plan = planLayout(c, srcW, srcH), { w: W, h: H } = plan.frame;
+  const style = o.style ?? PRESET_IMPACTO;
+  let subtitle: SceneSubtitle | null = null;
+  if (c.subtitles.enabled && o.words?.length) {
+    const g = subtitleGroups(c, o.words, style).find((x) => t >= x.start && t < x.end);
+    if (g) { const lines = layoutLines(g.words, style.maxCharsPerLine).map((l) => l.map((w) => w.text).join(" ")); subtitle = { text: g.words.map((w) => w.text).join(" "), lines, active: activeWordAt(g, t), start: g.start, end: g.end }; }
+  }
+  const overlays: Scene["overlays"] = [];
+  if (o.safeZones?.length && c.aspect === "9:16") for (const p of o.safeZones) for (const u of SAFE_ZONES[p].unsafe) overlays.push({ platform: p, id: u.id, rect: px(u.rect, W, H) });
+  return {
+    t, plan, subtitle, overlays,
+    cropX: ["single_track", "manual", "active_speaker"].includes(c.layout) ? xAt(c.kf, unmapTime(t, c.cuts), 0.5) : null,
+    headline: c.headline?.lines.length ? { lines: c.headline.lines, accent: c.headline.accent, pill: c.headline.pill, style: c.headline.style ?? "plain", box: plan.headline! } : null,
+  };
 }

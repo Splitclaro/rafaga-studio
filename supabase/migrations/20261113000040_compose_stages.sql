@@ -61,3 +61,15 @@ language sql stable security definer set search_path = public as $$
   from public.clip_versions where clip_id = p_clip and version = p_version $$;
 revoke all on function public.clip_version_spec(uuid,int) from public, anon, authenticated;
 grant execute on function public.clip_version_spec(uuid,int) to service_role;
+
+-- Clave de la miniatura de un clip para el usuario que pertenece al espacio (la ruta firma después de esta comprobación).
+create or replace function public.clip_thumb_key(p_clip uuid) returns text
+language plpgsql stable security definer set search_path = public as $$
+declare c record;
+begin
+  select id, workspace_id, thumb_path into c from public.clips where id = p_clip;
+  if not found or not public.is_member(c.workspace_id) then raise exception 'not_found' using errcode = 'P0002'; end if;
+  return c.thumb_path;
+end $$;
+revoke all on function public.clip_thumb_key(uuid) from public, anon;
+grant execute on function public.clip_thumb_key(uuid) to authenticated, service_role;

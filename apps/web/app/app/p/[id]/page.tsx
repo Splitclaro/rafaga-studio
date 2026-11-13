@@ -3,6 +3,7 @@ import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ProcessingPanel from "../../../../components/ProcessingPanel";
+import ResultsGrid from "../../../../components/ResultsGrid";
 import Icon from "../../../../components/Icon";
 import BriefFields from "../../../../components/BriefFields";
 import { composeBrief, normalizeBrief, type BriefData } from "@rafaga/selection/brief";
@@ -24,7 +25,7 @@ const REASON: Record<string, string> = { indices: "Fragmento inválido", duratio
 const letter = (v?: number) => (v == null ? "–" : v >= 9 ? "A" : v >= 8 ? "A-" : v >= 7 ? "B+" : v >= 6 ? "B" : v >= 5 ? "C+" : "C");
 const dur = (ms: number) => { const s = Math.round(ms / 1000); return s >= 60 ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}` : `${s}s`; };
 
-export default function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
+function ProjectV1({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
   const [p, setP] = useState<Project | null>(null);
@@ -249,4 +250,34 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
       )}
     </main>
   );
+}
+
+/** Vista v2 (proyectos con algún trabajo `engine = 'v2'`): procesamiento por etapas + resultados con pantalla completa. Tiempo real en jobs, job_stages y clips. */
+function ProjectV2({ id }: { id: string }) {
+  const [p, setP] = useState<{ name: string; source_id: string } | null>(null);
+  useEffect(() => { supabase.from("projects").select("name,source_id").eq("id", id).single().then(({ data }) => setP(data as never)); }, [id]);
+  useEffect(() => {
+    // La interfaz refleja el estado real: cualquier cambio en jobs, job_stages o clips refresca los paneles (que además hacen su propia lectura).
+    const ch = supabase.channel(`project-v2-${id}`);
+    for (const table of ["jobs", "job_stages", "clips"]) ch.on("postgres_changes", { event: "*", schema: "public", table }, () => window.dispatchEvent(new Event("rafaga:reload-clips")));
+    ch.subscribe(); return () => { supabase.removeChannel(ch); };
+  }, [id]);
+  if (!p) return <main className="mx-auto max-w-[1100px] px-4 pb-20 pt-6 md:px-8"><div className="skeleton h-24 w-full" /></main>;
+  return (
+    <main className="mx-auto max-w-[1100px] px-4 pb-20 pt-6 md:px-8">
+      <Link href="/app/proyectos" className="text-sm text-[var(--muted)] underline">← Proyectos</Link>
+      <h1 className="mt-2 text-3xl">{p.name}</h1>
+      <ProcessingPanel projectId={id} />
+      <ResultsGrid projectId={id} sourceId={p.source_id} />
+    </main>
+  );
+}
+
+/** Elige la vista: v2 si el proyecto tiene algún trabajo v2; si no, la vista de siempre (BriefFields, «Volver a detectar», «Ajustar enfoque»). */
+export default function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
+  const [v2, setV2] = useState<boolean | null>(null);
+  useEffect(() => { supabase.from("jobs").select("id").eq("project_id", id).eq("engine", "v2").limit(1).then(({ data, error }) => setV2(!error && !!data?.length)); }, [id]);
+  if (v2 === null) return <main className="mx-auto max-w-[1100px] px-4 pb-20 pt-6 md:px-8"><div className="skeleton h-24 w-full" /></main>;
+  return v2 ? <ProjectV2 id={id} /> : <ProjectV1 params={params} />;
 }

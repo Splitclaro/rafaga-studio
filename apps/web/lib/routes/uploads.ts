@@ -81,6 +81,15 @@ export async function handle(req: Request, slug: string[], d: UploadDeps = {}): 
     return json({ url: await r2Url(cfg, "GET", r.data!.key, 3600), expires_at: new Date(Date.now() + 3600_000).toISOString() });
   }
 
+  // GET /api/uploads/clips/:clipId/thumb → URL de lectura de la miniatura del clip (tras comprobar que es del usuario)
+  if (m === "GET" && a === "clips" && UUID.test(b ?? "") && c === "thumb" && slug.length === 3) {
+    const r = await rpc<string | null>(token, "clip_thumb_key", { p_clip: b }, f);
+    if (r.error) return r.error.code === "P0002" ? notFound() : mapDbError(r.error);
+    if (!r.data) return json({ url: null });
+    if (!cfg) return json({ error: { code: "not_configured", message: "El almacenamiento no está configurado." } }, 503);
+    return json({ url: await r2Url(cfg, "GET", r.data, 3600), expires_at: new Date(Date.now() + 3600_000).toISOString() });
+  }
+
   if (!UUID.test(a ?? "")) return notFound();
   // Toda operación sobre una sesión empieza por leerla con el JWT del usuario: sin acceso → 404 sin firmar nada.
   const sr = await rpc<Session>(token, "upload_session", { p_upload: a }, f);
