@@ -211,6 +211,23 @@ async function processJob(job: Job) {
     // Entrada y salida con criterio: recupera la frase que da contexto, incluye la pregunta y deja oír el remate (también sobre lo que propone la IA)
     if (selector !== LEXICAL_VERSION) raw = raw.map((c) => { try { const r = refineBounds(words, c.startWord, c.endWord, { maxSec, wantsPayoff: intent.wantsPayoff, wantsQuestion: intent.wantsQuestion }); return { ...c, startWord: r.a, endWord: r.b, reason: r.changes.length ? `${c.reason} (${r.changes.join("; ")})` : c.reason }; } catch { return c; } });
     let v0 = validateCandidates(words, raw, { minSec, maxSec, count: wantCount, hasBrief: !!brief?.trim() });
+    // Segunda pasada de la IA (como «buscar más momentos»): si faltan clips, se pide a la IA momentos NUEVOS fuera de lo ya elegido.
+    if (!musicMode && selector !== LEXICAL_VERSION && v0.accepted.length < wantCount && words.length >= 20) {
+      const useGroq2 = selector.startsWith("groq:");
+      const missing = wantCount - v0.accepted.length; let added: RawCandidate[] = [];
+      for (const w of windows(words, 600, 45)) {
+        const taken = v0.accepted.filter((c) => c.endWord >= w.from && c.startWord <= w.to).map((c) => `[${c.startWord}]–[${c.endWord}]`);
+        const note = `${brief?.trim() ? `${brief.trim()}\n` : ""}Ya están elegidos estos tramos (NO los repitas ni los solapes): ${taken.join(", ") || "ninguno en este tramo"}. Busca momentos distintos.`;
+        const target = `entre ${minSec} y ${maxSec} s cada momento; no propongas momentos más cortos de ${minSec} s`;
+        try {
+          if (useGroq2) { const r = await groqProposeClips(AI, { brief: note, windowText: transcriptText(words, w.from, w.to), target, want: Math.max(3, Math.min(10, missing * 2)) }); added.push(...r.clips); }
+          else added.push(...(await proposeClips({ key: AN, model: MODEL, brief: note, windowText: transcriptText(words, w.from, w.to), target, want: Math.max(3, Math.min(10, missing * 2)) })));
+        } catch (e) { m.second_pass_error = (e as Error).message.slice(0, 120); }
+      }
+      added = added.map((c) => { try { const r = refineBounds(words, c.startWord, c.endWord, { maxSec, wantsPayoff: intent.wantsPayoff, wantsQuestion: intent.wantsQuestion }); return { ...c, startWord: r.a, endWord: r.b }; } catch { return c; } });
+      const merged = validateCandidates(words, [...raw, ...added], { minSec, maxSec, count: wantCount, hasBrief: !!brief?.trim() });
+      if (merged.accepted.length > v0.accepted.length) { m.second_pass = merged.accepted.length - v0.accepted.length; raw = [...raw, ...added]; v0 = merged; }
+    }
     // Completar con criterio editorial por reglas si la IA no llegó al número pedido (sin solapar lo ya aceptado): el usuario recibe tantos clips como el vídeo permite.
     if (!musicMode && v0.accepted.length < wantCount && words.length >= 20) {
       try {
