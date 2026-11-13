@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { handleWake } from "../app/api/wake/route.ts";
+import { handleWake } from "./routes/wake.ts";
 
 const JOB = "11111111-2222-3333-4444-555555555555";
 type Call = { url: string; init?: RequestInit };

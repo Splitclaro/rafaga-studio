@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import type { PGlite } from "@electric-sql/pglite";
 import { freshDb, A, B } from "../../../supabase/tests/migrate.ts";
 import { fakeSupabaseFetch, tokenFor } from "../../../supabase/tests/fake-supabase.ts";
-import { handlePost } from "../app/api/jobs/[[...slug]]/route.ts";
+import { handlePost } from "./routes/jobs.ts";
 
 let db: PGlite, wsA: string, jobId: string;
 before(async () => {

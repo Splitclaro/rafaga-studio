@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import type { PGlite } from "@electric-sql/pglite";
 import { freshDb, A, B } from "../../../supabase/tests/migrate.ts";
 import { fakeSupabaseFetch, tokenFor } from "../../../supabase/tests/fake-supabase.ts";
-import { handle, MAX_BYTES, QUOTA_BYTES } from "../app/api/uploads/[[...slug]]/route.ts";
+import { handle, MAX_BYTES, QUOTA_BYTES } from "./routes/uploads.ts";
 
 let db: PGlite, wsA: string;
 const ENV = { R2_ACCOUNT_ID: "acc", R2_BUCKET: "b", R2_ACCESS_KEY_ID: "AK", R2_SECRET_ACCESS_KEY: "SK" };
