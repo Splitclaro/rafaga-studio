@@ -36,7 +36,7 @@ export function mergeChunks(parts: { chunk: Chunk; words: TWord[] }[], overlap =
 
 const dirOf = (ctx: StageCtx, source: string) => { const d = join(ctx.tmpDir ?? "/tmp/rafaga", source); mkdirSync(d, { recursive: true }); return d; };
 interface SourceInfo { id: string; workspace_id: string; storage_path: string; bytes: number; duration_ms: number | null; has_audio: boolean | null }
-async function mezzaninePath(ctx: StageCtx, source: string): Promise<{ file: string; info: SourceInfo }> {
+export async function mezzaninePath(ctx: StageCtx, source: string): Promise<{ file: string; info: SourceInfo }> {
   const info = await ctx.rpc<SourceInfo>("source_info", { p_source: source });
   if (!info) throw new StageError("not_found", "La fuente no existe");
   const file = join(dirOf(ctx, source), "mezzanine.mp4");
@@ -44,7 +44,7 @@ async function mezzaninePath(ctx: StageCtx, source: string): Promise<{ file: str
   return { file, info };
 }
 const sha = (p: string) => createHash("sha256").update(readFileSync(p)).digest("hex");
-const range = (row: StageRow) => ({ start: Number(row.params.range_start_s ?? 0), end: row.params.range_end_s != null ? Number(row.params.range_end_s) : null });
+const range = (row: StageRow) => ({ start: Number(row.params.range_start_s ?? (row.params.range_start_ms != null ? Number(row.params.range_start_ms) / 1000 : 0)), end: row.params.range_end_s != null ? Number(row.params.range_end_s) : row.params.range_end_ms != null ? Number(row.params.range_end_ms) / 1000 : null });
 
 const prepare: StageImpl = {
   inputs: (_c, row) => ({ stage: "prepare", source: row.params.source_id, range: range(row) }),

@@ -13,8 +13,8 @@ export type Recipe = (typeof RECIPES)[number];
 export const RECIPE_LABEL: Record<Recipe, string> = { clips: "Clips de vídeo largo", captions: "Solo subtítulos", reframe: "Solo reencuadre", cleanup: "Limpiar grabación" };
 
 /** Plantillas virales (composición del paso 13). Los ids cumplen `^[a-z0-9_]{1,40}$` como exige clip_versions.template. */
-export const VIRAL_TEMPLATES = ["titular_video_subtitulos", "split_dos_hablantes", "hablante_seguimiento", "hablante_activo", "presentacion_ponente", "titular_caja", "titular_desenfoque", "completo_ajustado"] as const;
-export const TEMPLATE_LABEL: Record<string, string> = { titular_video_subtitulos: "Titular + vídeo + subtítulos", split_dos_hablantes: "Pantalla dividida (2 hablantes)", hablante_seguimiento: "Hablante con seguimiento", hablante_activo: "Cambio de hablante activo", presentacion_ponente: "Presentación + ponente", titular_caja: "Titular en caja", titular_desenfoque: "Titular sobre desenfoque", completo_ajustado: "Vídeo completo ajustado" };
+export const VIRAL_TEMPLATES = ["titular_video_subtitulos", "pantalla_dividida", "hablante_seguimiento", "cambio_hablante", "presentacion_ponente", "presentacion_sola", "titular_en_caja", "titular_sobre_desenfoque", "video_completo"] as const;
+export const TEMPLATE_LABEL: Record<string, string> = { titular_video_subtitulos: "Titular + vídeo + subtítulos", pantalla_dividida: "Pantalla dividida (2 hablantes)", hablante_seguimiento: "Hablante con seguimiento", cambio_hablante: "Cambio de hablante activo", presentacion_ponente: "Presentación + ponente", presentacion_sola: "Presentación sola", titular_en_caja: "Titular en caja", titular_sobre_desenfoque: "Titular sobre desenfoque", video_completo: "Vídeo completo ajustado" };
 export const ASPECTS = ["9:16", "16:9", "1:1"] as const;
 
 export const CAPTION_PRESETS = ["palabra_a_palabra", "corte_por_palabra", "barrido_marcador", "palabras_clave", "karaoke", "caja", "contorno", "neon"] as const;

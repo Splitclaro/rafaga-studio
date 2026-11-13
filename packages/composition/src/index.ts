@@ -9,3 +9,5 @@ export * from "./trim.ts";
 export * from "./reframe.ts";
 export * from "./cuts.ts";
 export * from "./speakers.ts";
+export * from "./layouts.ts";
+export * from "./safezones.ts";

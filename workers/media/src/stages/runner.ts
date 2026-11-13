@@ -7,8 +7,11 @@ export interface RunnerDeps { load?: (n: StageName) => Promise<StageImpl>; now?:
 /** Ejecuta UNA etapa reclamable. Devuelve null si no había ninguna. */
 export async function runOnce(ctx: StageCtx, d: RunnerDeps = {}): Promise<{ id: string; stage: string; status: string } | null> {
   const rows = await ctx.rpc<StageRow[]>("claim_stage", { p_worker: ctx.workerId, p_lease_s: 90 });
-  const row = rows?.[0];
-  if (!row) return null;
+  const claimed = rows?.[0];
+  if (!claimed) return null;
+  // Parámetros del trabajo (generation_id, analysis_id, rango, source_id…) + los propios de la etapa (mandan estos).
+  const jobParams = await ctx.rpc<Record<string, unknown> | null>("job_params", { p_job: claimed.job_id }).catch(() => null);
+  const row: StageRow = { ...claimed, params: { ...(jobParams ?? {}), ...(claimed.params ?? {}) } };
   const now = d.now ?? Date.now, cores = d.cores ?? Number(process.env.RAFAGA_CPU_CORES ?? 2), mem = d.memGib ?? Number(process.env.RAFAGA_MEM_GIB ?? 4);
   const t0 = now();
   const finish = async (status: string, output: Record<string, unknown> | null, hash: string | null, code: string | null, msg: string | null) => {
