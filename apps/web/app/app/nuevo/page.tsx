@@ -54,7 +54,7 @@ export default function Nuevo() {
     if (busy || !file) return; setBusy(true); setMsg(null);
     try {
       const a = parseTime(from), b = parseTime(to);
-      const id = await createProject({ file, name: "", brief: mode === "clips" ? brief : "", briefData: mode === "clips" ? normalizeBrief(bd) : undefined, count, mode, maxSeconds: maxLen ? Number(maxLen) : undefined, rangeStart: a ?? 0, rangeEnd: b ?? undefined, onStep: setMsg });
+      const id = await createProject({ file, name: "", brief: mode === "clips" ? brief : "", briefData: mode === "clips" ? normalizeBrief(bd) : undefined, count: dur ? Math.max(1, Math.min(count, Math.floor(dur / 18))) : count, mode, maxSeconds: maxLen ? Number(maxLen) : undefined, rangeStart: a ?? 0, rangeEnd: b ?? undefined, onStep: setMsg });
       setMsg("Encolando la detección…");
       const { error } = await supabase.rpc("request_detection", { p_project: id, p_key: crypto.randomUUID() });
       if (error) throw new Error(error.message);
@@ -99,7 +99,7 @@ export default function Nuevo() {
           <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
             <dt className="text-[var(--muted)]">Origen</dt><dd className="font-semibold">{file?.name}{dur ? ` · ${clock(dur)}` : ""}</dd>
             <dt className="text-[var(--muted)]">Objetivo</dt><dd className="font-semibold">{goal.t}{mode === "clips" ? (brief ? ", con tu encargo" : ", sin encargo (Ráfaga elige)") : ""}</dd>
-            <dt className="text-[var(--muted)]">Salida</dt><dd className="font-semibold">{mode === "clips" ? `${count} clips${maxLen ? ` · hasta ${maxLen} s` : ""}` : goal.t}{from || to ? ` · tramo ${from || "0:00"}–${to || "fin"}` : ""}</dd>
+            <dt className="text-[var(--muted)]">Salida</dt><dd className="font-semibold">{mode === "clips" ? `${dur ? Math.max(1, Math.min(count, Math.floor(dur / 18))) : count} clips${dur && Math.floor(dur / 18) < count ? " (máximo posible en este vídeo)" : ""}${maxLen ? ` · hasta ${maxLen} s` : ""}` : goal.t}{from || to ? ` · tramo ${from || "0:00"}–${to || "fin"}` : ""}</dd>
             <dt className="text-[var(--muted)]">Consumo estimado</dt><dd className="font-semibold">{dur ? `${Math.max(1, Math.round(dur / 60))} min del plan` : "—"} <span className="font-normal text-[var(--muted)]">(equivale a la duración del vídeo)</span></dd>
           </dl>
           <p className="mt-4 rounded-xl bg-[var(--surface)] p-3 text-sm text-[var(--muted)]"><b className="text-[var(--ink)]">Se hará automáticamente:</b> transcribir, elegir momentos, reencuadrar, subtitular y preparar vistas previas. No se publica nada.</p>

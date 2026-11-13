@@ -85,7 +85,7 @@ export default function Dashboard() {
     if (b != null && dur !== null && b > dur + 0.5) return setMsg("El tramo termina después del final del vídeo.");
     setBusy(true); setMsg(null);
     try {
-      const id = await createProject({ file, name: "", brief, briefData: normalizeBrief(bd), count, mode, maxSeconds: maxLen ? Number(maxLen) : undefined, rangeStart: a ?? 0, rangeEnd: b ?? undefined, onStep: setMsg });
+      const id = await createProject({ file, name: "", brief, briefData: normalizeBrief(bd), count: dur ? Math.max(1, Math.min(count, Math.floor(dur / 18))) : count, mode, maxSeconds: maxLen ? Number(maxLen) : undefined, rangeStart: a ?? 0, rangeEnd: b ?? undefined, onStep: setMsg });
       // Un solo paso: tras subir se encola la detección y se despierta al worker (sin segundo clic en el proyecto).
       setMsg("Encolando la detección…");
       const { error: de } = await supabase.rpc("request_detection", { p_project: id, p_key: crypto.randomUUID() });
