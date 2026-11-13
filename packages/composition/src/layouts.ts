@@ -20,6 +20,8 @@ export interface CompositionV2 {
   audio: { volume: number; muted?: boolean }; subtitles: SubtitleSpec; headline?: HeadlineSpec;
   extras?: { kind: string; ref: string; start: number; dur: number }[]; duration: number; needs_review?: boolean;
   cam?: { x: number; y: number; w: number; h: number }; splitTop?: number; band?: Box;
+  /** Texto y tiempos de subtítulos corregidos por el usuario (relativos al clip, línea de la fuente). Si falta, se usa la transcripción vigente. */
+  words?: Word[]; transcript_revision?: number;
 }
 
 const even = (n: number) => Math.max(2, Math.floor(n / 2) * 2);
@@ -77,7 +79,7 @@ const MAP: Record<LayoutId, Composition["layout"]> = { single_track: "fill", spl
 /** Convierte la composición v2 a la `Composition` que ya entiende `ffmpegArgs` (misma exportación que hoy). */
 export function toLegacyComposition(c: CompositionV2, words: Word[], src: { width: number; height: number }): Composition {
   const start = c.fragments[0]?.start ?? 0, end = c.fragments.at(-1)?.end ?? start + c.duration;
-  const base = buildComposition({ words, startSec: start, endSec: end, ratio: c.aspect });
+  const base = buildComposition({ words: c.words?.length ? c.words : words, startSec: start, endSec: end, ratio: c.aspect });
   const out: Composition = { ...base, layout: MAP[c.layout], burnSubtitles: c.subtitles.enabled, ...(c.cuts?.length ? { cuts: c.cuts } : {}) };
   if (c.kf?.length && (c.layout === "single_track" || c.layout === "manual" || c.layout === "active_speaker")) out.reframe = { kf: c.kf, mode: "follow" };
   if (c.layout === "screen_presenter" || c.layout === "split_two") { out.cam = c.cam ?? { x: 0.62, y: 0.55, w: 0.34, h: 0.4 }; out.splitTop = c.splitTop ?? (c.layout === "split_two" ? 0.5 : 0.62); }

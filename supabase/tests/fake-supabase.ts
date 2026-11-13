@@ -40,7 +40,7 @@ export function fakeSupabaseFetch(db: PGlite, other?: Fetch): Fetch {
         const code = err.code ?? "P0001";
         return Response.json({ code, message: err.message, details: err.detail ?? null, hint: err.hint ?? null }, { status: STATUS[code] ?? 400 });
       } finally {
-        await db.exec("reset role;");
+        await db.exec("reset role; select set_config('request.jwt.claim.sub', '', false);");
       }
     }
     // GET /rest/v1/<tabla>?col=eq.v&col=lte.v&col=gte.v&col=is.null&order=col.desc&limit=n  (RLS como `authenticated`)
@@ -64,7 +64,7 @@ export function fakeSupabaseFetch(db: PGlite, other?: Fetch): Fetch {
         const r = await db.query(`select * from public.${tbl[1]}${where.length ? ` where ${where.join(" and ")}` : ""}${order}${limit}`, vals);
         return Response.json(r.rows);
       } catch (e) { return Response.json({ code: (e as { code?: string }).code ?? "42501", message: (e as Error).message }, { status: 403 }); }
-      finally { await db.exec("reset role;"); }
+      finally { await db.exec("reset role; select set_config('request.jwt.claim.sub', '', false);"); }
     }
     if (other) return other(input, init);
     throw new Error(`unexpected fetch ${url}`);

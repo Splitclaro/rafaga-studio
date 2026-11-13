@@ -13,6 +13,7 @@ import { useCollections } from "../../../../components/Collections";
 import { useTextStyles } from "../../../../lib/textStyles";
 import Icon from "../../../../components/Icon";
 import Timeline from "../../../../components/Timeline";
+import EditorV2 from "../../../../components/EditorV2";
 
 type Layout = "blur" | "fill" | "fit" | "split";
 type Cam = { x: number; y: number; w: number; h: number };
@@ -20,7 +21,7 @@ type Reframe = { kf: { t: number; x: number }[]; mode?: string; coverage?: numbe
 type Doc = { cam?: Cam; splitTop?: number; cuts?: Cut[]; reframe?: Reframe; startSec: number; endSec: number; words: Word[]; style: SubtitleStyle; ratio: Ratio; burn: boolean; preset: string; layout: Layout; cropX: number; broll: BrollItem[] };
 type Render = { id: string; clip_version: number; ratio: string; burn_subtitles: boolean; storage_path: string; created_at: string };
 
-export default function ClipEditor({ params }: { params: Promise<{ id: string }> }) {
+function ClipEditorV1({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { fonts } = useWorkspaceFonts();
   const [meta, setMeta] = useState<{ title: string; ws: string; projectId: string; sourceId: string; version: number; base: Composition; src: string } | null>(null);
@@ -561,4 +562,20 @@ export default function ClipEditor({ params }: { params: Promise<{ id: string }>
       </div>
     </main>
   );
+}
+
+/** Elige el editor: v2 si la versión vigente del clip es una composición v2; si no, el editor de siempre (clips de proyectos v1 sin cambios). */
+export default function ClipEditor({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
+  const [v2, setV2] = useState<boolean | null>(null);
+  useEffect(() => {
+    (async () => {
+      const { data: c } = await supabase.from("clips").select("current_version").eq("id", id).single();
+      if (!c) return setV2(false);
+      const { data: v, error } = await supabase.from("clip_versions").select("aspect,layout").eq("clip_id", id).eq("version", c.current_version).single();
+      setV2(!error && !!v?.layout);          // las versiones v2 llevan aspect y layout; las v1 no
+    })();
+  }, [id]);
+  if (v2 === null) return <main className="mx-auto max-w-[1100px] px-4 pb-20 pt-6 md:px-8"><div className="skeleton h-40 w-full" /></main>;
+  return v2 ? <EditorV2 clipId={id} /> : <ClipEditorV1 params={params} />;
 }

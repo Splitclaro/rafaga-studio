@@ -73,3 +73,22 @@ begin
 end $$;
 revoke all on function public.clip_thumb_key(uuid) from public, anon;
 grant execute on function public.clip_thumb_key(uuid) to authenticated, service_role;
+
+-- Duplicar un clip: copia independiente (candidato, versión actual) marcada como editada por el usuario; nunca la sobrescribe una nueva generación.
+create or replace function public.duplicate_clip(p_clip uuid) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare c record; v record; nid uuid;
+begin
+  select * into c from public.clips where id = p_clip;
+  if not found or not public.can_edit(c.workspace_id) then raise exception 'not_found' using errcode = 'P0002'; end if;
+  select * into v from public.clip_versions where clip_id = p_clip and version = c.current_version;
+  insert into public.clips(workspace_id, project_id, generation_id, candidate_id, title, user_edited, technical_state, thumb_path, topic, tags)
+    values (c.workspace_id, c.project_id, c.generation_id, c.candidate_id, left(c.title || ' (copia)', 160), true, c.technical_state, c.thumb_path, c.topic, c.tags) returning id into nid;
+  if found then
+    insert into public.clip_versions(clip_id, workspace_id, version, composition, aspect, layout, template, created_by)
+      values (nid, c.workspace_id, 1, v.composition, v.aspect, v.layout, v.template, auth.uid());
+  end if;
+  return nid;
+end $$;
+revoke all on function public.duplicate_clip(uuid) from public, anon;
+grant execute on function public.duplicate_clip(uuid) to authenticated;

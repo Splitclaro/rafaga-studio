@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Icon from "../../../components/Icon";
@@ -17,6 +17,15 @@ const DEMOS = [
 export default function Demos() {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null), [msg, setMsg] = useState<string | null>(null);
+  const [mine, setMine] = useState<{ id: string; name: string; created_at: string }[]>([]);
+  useEffect(() => { supabase.from("projects").select("id,name,created_at").like("name", "Ejemplo ·%").is("deleted_at", null).order("created_at", { ascending: false }).limit(8).then(({ data }) => setMine((data ?? []) as never)); }, []);
+  /** Abre una COPIA editable de un ejemplo que ya usaste (mismo vídeo y encargo). El proyecto original nunca se modifica. */
+  async function copyOf(id: string) {
+    if (busy) return; setBusy(id); setMsg("Creando tu copia editable…");
+    const { data, error } = await supabase.rpc("duplicate_project", { p_project: id });
+    if (error || !data) { setMsg("No se pudo crear la copia."); setBusy(null); return; }
+    router.push(`/app/p/${data}`);
+  }
   async function use(d: (typeof DEMOS)[number]) {
     if (busy) return; setBusy(d.id); setMsg("Descargando el vídeo de ejemplo…");
     try {
@@ -36,11 +45,14 @@ export default function Demos() {
       <p className="mt-1 max-w-2xl text-sm text-[var(--muted)]">Prueba Ráfaga sin subir nada: se crea un proyecto en tu espacio con un vídeo de ejemplo y verás todo el recorrido, de la detección a los clips con subtítulos.</p>
       <ul className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{DEMOS.map((d) => (
         <li key={d.id} className="card overflow-hidden"><span className="block aspect-[16/10]" style={{ background: d.c }} /><div className="p-4">
-          <span className="mono text-xs text-[var(--muted)]">DEMO · {d.len} · {d.tag}</span>
+          <span className="mono text-xs text-[var(--muted)]">EJEMPLO · {d.len} · {d.tag}</span><span className="mt-1 block text-[11px] text-[var(--muted)]">Fuente: vídeo de ejemplo propio</span>
           <h2 className="mt-1 text-base">{d.title}</h2>
           <p className="mt-2 text-sm text-[var(--muted)]">{d.note}</p>
           <button onClick={() => use(d)} disabled={!!busy} className="btn btn-primary mt-4">{busy === d.id ? "Creando…" : "Usar este vídeo"}</button></div>
         </li>))}</ul>
+      <p className="mt-3 max-w-2xl text-xs text-[var(--muted)]">Son ejemplos preparados con vídeos propios (voces sintéticas). No simulan una generación: al usarlos se procesan de verdad y el tiempo que ves es el real. El vídeo de origen que ves aquí es una vista previa del material, no una pieza final.</p>
+      {mine.length > 0 && <section className="card mt-6 p-5" aria-label="Tus ejemplos"><h2 className="text-lg">Tus ejemplos</h2><p className="mt-1 text-sm text-[var(--muted)]">Abre una copia editable para probar otros ajustes sin tocar el ejemplo original.</p>
+        <ul className="mt-3 space-y-2">{mine.map((m) => <li key={m.id} className="flex items-center justify-between gap-3 text-sm"><span className="min-w-0 truncate">{m.name}</span><span className="flex shrink-0 gap-2"><Link className="btn btn-ghost !py-1 !text-xs" href={`/app/p/${m.id}`}>Abrir</Link><button type="button" disabled={!!busy} onClick={() => copyOf(m.id)} className="btn btn-primary !py-1 !text-xs">Abrir copia editable</button></span></li>)}</ul></section>}
       <p role="status" aria-live="polite" className="mt-3 min-h-5 text-sm text-[var(--muted)]">{msg}</p>
       <section className="card mt-8 p-5"><h2 className="text-lg">Cómo funciona</h2>
         <ol className="mt-3 space-y-3 text-sm">{[["Trae tu vídeo", "Sube el archivo o usa una demo."], ["Di qué buscar", "Momentos graciosos, consejos, polémicas… tú decides."], ["Recibe clips ordenados", "Por encaje estimado, listos para revisar, editar y descargar."]].map(([t, x], i) => <li key={t} className="flex gap-3"><span className="tnum grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[var(--accent-soft)] text-xs font-semibold text-[var(--accent-ink)]">{i + 1}</span><span><b className="block font-medium">{t}</b><span className="text-[var(--muted)]">{x}</span></span></li>)}</ol>
