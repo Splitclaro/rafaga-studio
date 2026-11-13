@@ -25,6 +25,12 @@ export async function sessionUser(req: Request, f: Fetch = fetch): Promise<strin
   return u.ok ? ((await u.json()) as { id: string }).id : null;
 }
 
+/** Lectura REST (PostgREST) como el usuario: RLS decide qué ve. Devuelve las filas o [] si hay error. */
+export async function rest<T = Record<string, unknown>>(token: string, path: string, f: Fetch = fetch): Promise<T[]> {
+  const r = await f(`${SB()}/rest/v1/${path}`, { headers: { apikey: KEY(), Authorization: `Bearer ${token}` } });
+  return r.ok ? ((await r.json()) as T[]) : [];
+}
+
 export const json = (body: unknown, status = 200) => Response.json(body, { status });
 
 /** Clave de idempotencia: cabecera `Idempotency-Key` (8–160 caracteres imprimibles) o null. */
@@ -71,6 +77,9 @@ export function mapDbError(err: DbError): Response {
     if (err.details) { try { const d = JSON.parse(err.details); if (d && typeof d === "object") extra = d as Record<string, unknown>; } catch { /* detalle no JSON */ } }
     return fail(known.code, extra);
   }
+  if (err.message === "source_not_ready") return json({ error: { code: "source_not_ready", message: "El vídeo todavía se está preparando. Espera a que termine la validación." } }, 409);
+  if (err.message === "idempotency_conflict") return json({ error: { code: "idempotency_conflict", message: "Esa petición ya se hizo con otros datos. Vuelve a intentarlo." } }, 409);
+  if (err.message === "compute_rate_card_missing") return json({ error: { code: "not_configured", message: "El procesamiento aún no está configurado (falta la tarifa de cómputo)." } }, 503);
   if (err.code === "P0002" || err.message === "not_found") return json({ error: { code: "not_found", message: "No encontrado." } }, 404);
   if (err.code === "42501" || err.message === "forbidden") return json({ error: { code: "forbidden", message: "No tienes permiso para esta acción." } }, 403);
   if (err.code === "23505") return json({ error: { code: "conflict", message: "Ya existe." } }, 409);

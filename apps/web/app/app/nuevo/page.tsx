@@ -3,6 +3,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Icon from "../../../components/Icon";
+import NuevoV2 from "../../../components/NuevoV2";
 import BriefFields, { EMPTY_BRIEF, briefText } from "../../../components/BriefFields";
 import { normalizeBrief, type BriefData } from "@rafaga/selection/brief";
 import { createProject, validateFile, probeDuration, MIN_SOURCE_SECONDS, WHOLE_VIDEO_MAX_SECONDS, type ProjectMode } from "../../../lib/projects";
@@ -22,7 +23,7 @@ const parseTime = (s: string) => { if (!s.trim()) return null; const p = s.trim(
 const clock = (d: number) => `${Math.floor(d / 60)}:${String(Math.round(d % 60)).padStart(2, "0")}`;
 
 /** Nuevo proyecto en 4 pasos (diseño maestro): origen, objetivo, parámetros y confirmación. Crea el mismo proyecto real que Inicio. */
-export default function Nuevo() {
+function NuevoV1() {
   const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState(0);
@@ -112,4 +113,9 @@ export default function Nuevo() {
       </section>
     </main>
   );
+}
+
+/** Flujo v2 (subida reanudable + panel de creación) solo si NEXT_PUBLIC_PIPELINE_VERSION=v2; si no, el flujo actual intacto. */
+export default function Nuevo() {
+  return process.env.NEXT_PUBLIC_PIPELINE_VERSION === "v2" ? <NuevoV2 /> : <NuevoV1 />;
 }

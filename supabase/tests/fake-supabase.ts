@@ -25,7 +25,8 @@ export function fakeSupabaseFetch(db: PGlite, other?: Fetch): Fetch {
       const args = (init?.body ? JSON.parse(String(init.body)) : {}) as Record<string, unknown>;
       const names = Object.keys(args);
       const params = names.map((n, i) => `${n} => $${i + 1}`).join(", ");
-      const values = names.map((n) => { const v = args[n]; return v !== null && typeof v === "object" ? JSON.stringify(v) : v; });
+      // Los objetos van como JSON; las listas de texto/números como arrays (columnas text[]), salvo las de objetos (jsonb).
+      const values = names.map((n) => { const v = args[n]; if (Array.isArray(v) && v.every((x) => typeof x !== "object" || x === null)) return v; return v !== null && typeof v === "object" ? JSON.stringify(v) : v; });
       const uid = /^test:([0-9a-f-]{36})$/.exec(token)?.[1] ?? null;
       const service = token === SERVICE_TOKEN;
       if (!uid && !service) return Response.json({ code: "PGRST301", message: "JWT required", details: null, hint: null }, { status: 401 });
@@ -41,6 +42,29 @@ export function fakeSupabaseFetch(db: PGlite, other?: Fetch): Fetch {
       } finally {
         await db.exec("reset role;");
       }
+    }
+    // GET /rest/v1/<tabla>?col=eq.v&col=lte.v&col=gte.v&col=is.null&order=col.desc&limit=n  (RLS como `authenticated`)
+    const tbl = /\/rest\/v1\/([a-z_][a-z0-9_]*)(\?.*)?$/.exec(url);
+    if (tbl && (init?.method ?? "GET") === "GET") {
+      const uid = /^test:([0-9a-f-]{36})$/.exec(token)?.[1];
+      if (!uid) return Response.json({ code: "PGRST301", message: "JWT required" }, { status: 401 });
+      const q = new URLSearchParams(tbl[2]?.slice(1) ?? ""), where: string[] = [], vals: unknown[] = []; let order = "", limit = "";
+      const OPS: Record<string, string> = { eq: "=", lte: "<=", gte: ">=" };
+      for (const [k, v] of q) {
+        if (k === "select") continue;
+        if (k === "order") { const [c, d] = v.split("."); order = ` order by ${c.replace(/[^a-z_]/g, "")} ${d === "desc" ? "desc" : "asc"}`; continue; }
+        if (k === "limit") { limit = ` limit ${Math.max(1, Math.min(1000, Number(v) || 1))}`; continue; }
+        const m = /^(eq|lte|gte|is)\.(.*)$/.exec(v); if (!m) continue;
+        const col = k.replace(/[^a-z_]/g, "");
+        if (m[1] === "is") where.push(`${col} is ${m[2] === "null" ? "null" : "not null"}`);
+        else { vals.push(m[2]); where.push(`${col} ${OPS[m[1]]} $${vals.length}`); }
+      }
+      try {
+        await db.exec(`set role authenticated; select set_config('request.jwt.claim.sub', '${uid}', false);`);
+        const r = await db.query(`select * from public.${tbl[1]}${where.length ? ` where ${where.join(" and ")}` : ""}${order}${limit}`, vals);
+        return Response.json(r.rows);
+      } catch (e) { return Response.json({ code: (e as { code?: string }).code ?? "42501", message: (e as Error).message }, { status: 403 }); }
+      finally { await db.exec("reset role;"); }
     }
     if (other) return other(input, init);
     throw new Error(`unexpected fetch ${url}`);
