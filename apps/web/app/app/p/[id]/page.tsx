@@ -2,6 +2,7 @@
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import ProcessingPanel from "../../../../components/ProcessingPanel";
 import Icon from "../../../../components/Icon";
 import BriefFields from "../../../../components/BriefFields";
 import { composeBrief, normalizeBrief, type BriefData } from "@rafaga/selection/brief";
@@ -195,6 +196,8 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         </div>
       </details>
       <p role="status" aria-live="polite" className="mt-2 min-h-5 text-sm text-[var(--muted)]">{msg}</p>
+
+      <ProcessingPanel projectId={id} />
 
       {job && (
         <section aria-live="polite" aria-label="Estado del proceso" className="card mt-4 p-5">

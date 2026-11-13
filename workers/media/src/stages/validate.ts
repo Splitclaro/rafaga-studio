@@ -151,7 +151,7 @@ export function moovBeforeMdat(file: string): boolean {
 
 function keyframeGapMax(file: string): number {
   const r = spawnSync("ffprobe", ["-v", "error", "-select_streams", "v:0", "-skip_frame", "nokey", "-show_entries", "frame=pts_time", "-of", "csv=p=0", file], { encoding: "utf8" });
-  const t = r.stdout.trim().split("\n").map(Number).filter((x) => Number.isFinite(x));
+  const t = r.stdout.trim().split("\n").map(parseFloat).filter((x) => Number.isFinite(x));
   let gap = 0; for (let i = 1; i < t.length; i++) gap = Math.max(gap, t[i] - t[i - 1]); return gap;
 }
 

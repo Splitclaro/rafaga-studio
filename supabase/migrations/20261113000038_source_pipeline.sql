@@ -26,3 +26,18 @@ language sql stable security definer set search_path = public as $$
   from public.sources s where s.id = p_source $$;
 revoke all on function public.source_info(uuid) from public, anon, authenticated;
 grant execute on function public.source_info(uuid) to service_role;
+
+-- Guarda la transcripción de un análisis (las palabras van a transcripts.words; la salida de la etapa solo lleva el recuento).
+create or replace function public.save_transcript(p_analysis uuid, p_words jsonb, p_language text, p_model text) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare a record;
+begin
+  if jsonb_typeof(p_words) <> 'array' then raise exception 'invalid_words' using errcode = 'P0001'; end if;
+  select id, transcript_id into a from public.analyses where id = p_analysis for update;
+  if not found or a.transcript_id is null then raise exception 'not_found' using errcode = 'P0002'; end if;
+  update public.transcripts set words = p_words, language = left(p_language, 8), asr_provider = 'groq', asr_model = left(p_model, 80) where id = a.transcript_id;
+  update public.analyses set language = case when p_language ~ '^[a-z]{2}$' then p_language else language end where id = p_analysis;
+  return a.transcript_id;
+end $$;
+revoke all on function public.save_transcript(uuid,jsonb,text,text) from public, anon, authenticated;
+grant execute on function public.save_transcript(uuid,jsonb,text,text) to service_role;
