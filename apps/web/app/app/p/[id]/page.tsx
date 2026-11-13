@@ -38,7 +38,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   const [open, setOpen] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [wake, setWake] = useState<"woken" | "warm" | "cold" | null>(null);
+  const [wake, setWake] = useState<"woken" | "warm" | "cold" | "off" | null>(null);
   const [tick, setTick] = useState(0);
   const busyRef = useRef(false);
   const detectRef = useRef<(() => Promise<void>) | null>(null);
@@ -119,7 +119,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
       if (error) { setMsg(error.message); return; }
       setMsg("Proceso solicitado."); await load();
       const { data: s } = await supabase.auth.getSession();
-      fetch("/api/wake", { method: "POST", headers: { Authorization: `Bearer ${s.session?.access_token ?? ""}` } }).then((r) => r.json()).then((j) => setWake(j.woken ? "woken" : j.reason === "already_running" ? "warm" : "cold")).catch(() => setWake("cold"));
+      fetch("/api/wake", { method: "POST", headers: { Authorization: `Bearer ${s.session?.access_token ?? ""}` } }).then((r) => r.json()).then((j) => setWake(j.woken ? "woken" : j.reason === "already_running" ? "warm" : j.reason === "not_configured" ? "off" : "cold")).catch(() => setWake("cold"));
     } finally { busyRef.current = false; setBusy(false); }
   }
   detectRef.current = detect;
@@ -211,7 +211,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                 <span className={st === "todo" ? "text-[var(--muted)]" : "font-medium"}>{STAGE[k]}</span>
                 <span className={`ml-auto text-xs font-medium ${st === "done" ? "text-[#0F7B4F]" : st === "now" ? "text-[var(--accent-ink)]" : "text-[var(--muted)]"}`}>{st === "done" ? "Completada" : st === "now" ? "En curso" : "Pendiente"}</span></li>);
             })}</ol>)}
-          {job.status === "queued" && <p className="mt-3 text-sm text-[var(--muted)]">{wake === "warm" ? "El worker ya está activo: lo recogerá en segundos." : wake === "woken" ? "Arrancando el worker (1–2 min la primera vez)." : "El worker arranca según el programador de GitHub, que puede tardar varios minutos."} Llevas {waiting} min en cola.{waiting >= 15 && " Si sigue así, el worker no está activo."}</p>}
+          {job.status === "queued" && <p className={`mt-3 text-sm ${wake === "off" ? "rounded-xl border border-[#E9D6A8] bg-[#FFFAEB] p-3 text-[#6B4A00]" : "text-[var(--muted)]"}`}>{wake === "warm" ? "El procesador ya está activo: lo recogerá en segundos." : wake === "woken" ? "Arrancando el procesador (≈1 min)." : wake === "off" ? <><b>El procesador no se despierta solo todavía.</b> GitHub solo lo lanza por su cuenta cada varias horas. Para que arranque al instante al subir un vídeo hay que configurar el aviso automático (variable <code>GH_DISPATCH_TOKEN</code> en Vercel). Mientras tanto, un propietario puede lanzarlo desde GitHub → Actions → «media-worker» → Run workflow.</> : "El procesador arranca según el programador de GitHub, que puede tardar."}</p>}
           {job.error_message && <p role="alert" className="mt-3 text-sm">⚠ {job.error_message}</p>}
           {job.status === "failed" && (job.error_code === "no_speech" || job.error_code === "no_speech_range" || /no se detectó voz|no hay habla/i.test(job.error_message ?? "")) && (
             <div className="mt-3 rounded-xl bg-[var(--surface)] p-4 text-sm">

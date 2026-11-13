@@ -13,11 +13,18 @@ test("tiempos derivados del transcript, no del modelo", () => {
   assert.equal(accepted[0].startSec, 0);
   assert.equal(accepted[0].endSec, words[39].end);
 });
-test("rechaza índices inválidos, duración corta/larga y excluidos", () => {
+test("rechaza índices inválidos y excluidos; un tramo corto se amplía y se solapa con el largo", () => {
   const r = validateCandidates(words, [C(-1, 10), C(0, 500), C(0, 9), C(0, 119, { startWord: 0 }), C(50, 89, { excluded: true })], O);
   const reasons = r.rejected.map((x) => x.reason).sort();
-  assert.deepEqual(reasons, ["duration", "excluded", "indices", "indices"]);
+  assert.deepEqual(reasons, ["excluded", "indices", "indices", "overlap"]);
   assert.equal(r.accepted.length, 1); // 0–119 dura 59,95 s: válido
+});
+test("ajuste en lugar de rechazo: corto se amplía a fin de frase, largo se acorta, sin cierre retrocede", () => {
+  const short = validateCandidates(words, [C(0, 9)], O);               // 5 s < minSec
+  assert.equal(short.accepted.length, 1);
+  const d = short.accepted[0].endSec - short.accepted[0].startSec; assert.ok(d >= O.minSec && d <= O.maxSec, `dur ${d}`);
+  const long = validateCandidates(words, [C(0, 119)], { ...O, maxSec: 30 });
+  assert.equal(long.accepted.length, 1); assert.ok(long.accepted[0].endSec - long.accepted[0].startSec <= 30);
 });
 test("ajusta el final a fin de oración cercano", () => {
   const { accepted } = validateCandidates(words, [C(0, 36)], O); // 36 -> sube a 39 (w39.)

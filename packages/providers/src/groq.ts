@@ -83,9 +83,9 @@ export function parseClips(text: string): RawCandidate[] {
     return [{ startWord: x.startWord as number, endWord: x.endWord as number, title: String(x.title ?? "").slice(0, 120), reason: String(x.reason ?? "").slice(0, 400), briefFit: String(x.briefFit ?? "").slice(0, 300), excluded: x.excluded === true, scores: { relevance: clamp(s.relevance), hook: clamp(s.hook), standalone: clamp(s.standalone), closure: clamp(s.closure) } }]; });
 }
 /** Selección editorial con Groq: mismo prompt, esquema y validación contra el transcript real que con cualquier otro modelo. */
-export async function groqProposeClips(cfg: AiConfig, a: { brief: string | null; windowText: string; target: string; fetchImpl?: Fetch }): Promise<{ clips: RawCandidate[]; usage: ChatUsage; model: string }> {
+export async function groqProposeClips(cfg: AiConfig, a: { brief: string | null; windowText: string; target: string; want?: number; fetchImpl?: Fetch }): Promise<{ clips: RawCandidate[]; usage: ChatUsage; model: string }> {
   const system = `${SYSTEM_PROMPT}\nResponde SOLO con un objeto JSON con este esquema: ${JSON.stringify(CANDIDATE_TOOL.input_schema)}`;
-  const user = `<brief>${a.brief?.trim() || "(sin encargo: elige los mejores momentos autónomos)"}</brief>\nDuración objetivo: ${a.target}.\n<transcript>${a.windowText}</transcript>`;
+  const user = `<brief>${a.brief?.trim() || "(sin encargo: elige los mejores momentos autónomos)"}</brief>\nDuración objetivo: ${a.target}.${a.want ? ` Propón ${a.want} momentos distintos (si el tramo lo permite; mejor más que menos, se filtrarán después), sin solaparse entre sí, cada uno con inicio y final en frase completa.` : ""}\n<transcript>${a.windowText}</transcript>`;
   const r = await groqChat(cfg, { system, user, json: true, fetchImpl: a.fetchImpl });
   return { clips: parseClips(r.text), usage: r.usage, model: r.model };
 }

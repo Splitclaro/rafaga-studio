@@ -32,8 +32,8 @@ export async function transcribe(audio: Uint8Array, mime: string, key: string, l
 }
 
 /** Anthropic Messages con tool_choice forzado (verificado en la documentación). */
-export async function proposeClips(args: { key: string; model: string; brief: string | null; windowText: string; target: string }): Promise<RawCandidate[]> {
-  const user = `<brief>${args.brief?.trim() || "(sin encargo: selección editorial general)"}</brief>\nObjetivo de duración: ${args.target}.\n<transcript>${args.windowText}</transcript>`;
+export async function proposeClips(args: { key: string; model: string; brief: string | null; windowText: string; target: string; want?: number }): Promise<RawCandidate[]> {
+  const user = `<brief>${args.brief?.trim() || "(sin encargo: selección editorial general)"}</brief>\nObjetivo de duración: ${args.target}.${args.want ? ` Propón ${args.want} momentos distintos (mejor más que menos, se filtrarán después), sin solaparse.` : ""}\n<transcript>${args.windowText}</transcript>`;
   return retry(async () => {
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",

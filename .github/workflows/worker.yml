@@ -19,6 +19,12 @@ jobs:
           # Imprescindible: Supabase y al menos un proveedor de transcripción (Deepgram o Groq). Anthropic es opcional: sin él la selección es léxica y etiquetada.
           if [ -z "$S" ] || { [ -z "$D" ] && [ -z "$G" ]; }; then echo "ready=false" >> "$GITHUB_OUTPUT"; echo "::notice::Faltan secretos (SUPABASE_SECRET_KEY y DEEPGRAM_API_KEY o GROQ_API_KEY): el worker no procesa."; else echo "ready=true" >> "$GITHUB_OUTPUT"; fi
       - if: steps.gate.outputs.ready == 'true'
+        id: ffc
+        uses: actions/cache@v4
+        with:
+          path: ~/ffbin
+          key: ffmpeg-n9.0.2-d4070a14ce-8206a48c   # clave = versión fijada; si cambia FF_SHA256, cambia la clave
+      - if: steps.gate.outputs.ready == 'true' && steps.ffc.outputs.cache-hit != 'true'
         timeout-minutes: 10
         env:
           FF_TAG: autobuild-2026-11-10-12-39
@@ -39,18 +45,31 @@ jobs:
           ffmpeg -hide_banner -filters | grep -E " (subtitles|ass) " | head -2
           ffmpeg -hide_banner -encoders | grep -E " libx264 | aac " | head -2
       - if: steps.gate.outputs.ready == 'true'
+        run: echo "$HOME/ffbin" >> "$GITHUB_PATH" && "$HOME/ffbin/ffmpeg" -hide_banner -version | head -1
+      - if: steps.gate.outputs.ready == 'true' && inputs.mode != '' && inputs.mode != 'worker'
         continue-on-error: true
         timeout-minutes: 3
         run: |
           # Solo las autopruebas usan espeak-ng y las fuentes Liberation: intento opcional, sin bloquear el procesador.
           sudo timeout 60 apt-get -o Acquire::http::Timeout=15 update -qq && sudo timeout 90 apt-get install -y -qq fonts-liberation espeak-ng || echo "::notice::apt no disponible: se omiten espeak-ng y Liberation (solo autopruebas)"
       - if: steps.gate.outputs.ready == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-opencv-4.10.0.84-numpy-lt-2.1
+      - if: steps.gate.outputs.ready == 'true'
         run: python3 -m pip install --quiet --break-system-packages "opencv-python-headless==4.10.0.84" "numpy<2.1" && python3 -c "import cv2; print('opencv', cv2.__version__)"   # reencuadre automático (detección de caras)
       - if: steps.gate.outputs.ready == 'true'
         uses: actions/setup-node@v4
         with: { node-version: 24 }
       - if: steps.gate.outputs.ready == 'true'
-        run: corepack enable && corepack prepare pnpm@12.18.0 --activate && pnpm install --frozen-lockfile
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-store-
+      - if: steps.gate.outputs.ready == 'true'
+        run: corepack enable && corepack prepare pnpm@12.18.0 --activate && pnpm install --frozen-lockfile --prefer-offline
       - if: steps.gate.outputs.ready == 'true'
         working-directory: workers/media
         env:

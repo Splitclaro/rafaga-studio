@@ -41,8 +41,24 @@ export function validateCandidates(words: TWord[], raw: RawCandidate[], o: Opts)
     // Ajuste acotado al final de oración (hasta 6 palabras) para no mutilar frases.
     let end = c.endWord;
     for (let k = 0; k <= 6 && end + k < n; k++) if (isSentenceEnd(words[end + k].text)) { end = end + k; break; }
-    if (!isSentenceEnd(words[end].text) && !isSentenceEnd(words[c.endWord].text)) return rejected.push({ index, reason: "closure" });
-    const startSec = words[c.startWord].start, endSec = words[end].end;
+    // Sin cierre: se retrocede al último final de frase dentro del tramo (hasta 20 palabras) antes de descartar.
+    if (!isSentenceEnd(words[end].text) && !isSentenceEnd(words[c.endWord].text)) {
+      let back = -1;
+      for (let k = c.endWord - 1; k > c.startWord && c.endWord - k <= 20; k--) if (isSentenceEnd(words[k].text)) { back = k; break; }
+      if (back < 0) return rejected.push({ index, reason: "closure" });
+      end = back;
+    }
+    let startSec = words[c.startWord].start, endSec = words[end].end;
+    // Demasiado corto: se amplía hasta el siguiente final de frase (máx. maxSec). Demasiado largo: se acorta al último final de frase que cabe.
+    if (endSec - startSec < o.minSec) {
+      let e2 = end;
+      for (let k = end + 1; k < n && words[k].end - startSec <= o.maxSec; k++) { e2 = k; if (isSentenceEnd(words[k].text) && words[k].end - startSec >= o.minSec) break; }
+      if (words[e2].end - startSec >= o.minSec && isSentenceEnd(words[e2].text)) { end = e2; endSec = words[e2].end; }
+    } else if (endSec - startSec > o.maxSec) {
+      let e2 = -1;
+      for (let k = end - 1; k > c.startWord; k--) if (isSentenceEnd(words[k].text) && words[k].end - startSec <= o.maxSec) { e2 = k; break; }
+      if (e2 > c.startWord && words[e2].end - startSec >= o.minSec) { end = e2; endSec = words[e2].end; }
+    }
     const dur = endSec - startSec;
     if (!(dur >= o.minSec && dur <= o.maxSec)) return rejected.push({ index, reason: "duration" });
     ok.push({ ...c, endWord: end, startSec, endSec, overall: overall(c.scores, o.hasBrief) });

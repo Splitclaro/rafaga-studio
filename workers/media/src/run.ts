@@ -183,8 +183,8 @@ async function processJob(job: Job) {
         let tIn = 0, tOut = 0;
         for (const w of windows(words, 600, 45)) {
           const target = `${project.target_seconds}s (máx ${project.max_seconds}s)`;
-          if (useGroq) { const r = await groqProposeClips(AI, { brief, windowText: transcriptText(words, w.from, w.to), target }); raw.push(...r.clips); tIn += r.usage.tokensIn; tOut += r.usage.tokensOut; }
-          else { raw.push(...(await proposeClips({ key: AN, model: MODEL, brief, windowText: transcriptText(words, w.from, w.to), target }))); tIn += Math.round(transcriptText(words, w.from, w.to).length / 4); tOut += 400; }
+          if (useGroq) { const r = await groqProposeClips(AI, { brief, windowText: transcriptText(words, w.from, w.to), target, want: Math.max(3, Math.min(10, Math.ceil(wantCount * 1.6))) }); raw.push(...r.clips); tIn += r.usage.tokensIn; tOut += r.usage.tokensOut; }
+          else { raw.push(...(await proposeClips({ key: AN, model: MODEL, brief, windowText: transcriptText(words, w.from, w.to), target, want: Math.max(3, Math.min(10, Math.ceil(wantCount * 1.6))) }))); tIn += Math.round(transcriptText(words, w.from, w.to).length / 4); tOut += 400; }
         }
         selector = useGroq ? `groq:${AI.editorialModel}` : MODEL;
         llmLines.push(llmLine(TARIFFS, useGroq ? "groq" : "anthropic", useGroq ? AI.editorialModel : MODEL, tIn, tOut, useGroq));   // Anthropic: tokens estimados (el cliente actual no devuelve el uso)
@@ -198,7 +198,15 @@ async function processJob(job: Job) {
     m.selector = selector;
     // Entrada y salida con criterio: recupera la frase que da contexto, incluye la pregunta y deja oír el remate (también sobre lo que propone la IA)
     if (selector !== LEXICAL_VERSION) raw = raw.map((c) => { try { const r = refineBounds(words, c.startWord, c.endWord, { maxSec, wantsPayoff: intent.wantsPayoff, wantsQuestion: intent.wantsQuestion }); return { ...c, startWord: r.a, endWord: r.b, reason: r.changes.length ? `${c.reason} (${r.changes.join("; ")})` : c.reason }; } catch { return c; } });
-    const v0 = validateCandidates(words, raw, { minSec, maxSec, count: wantCount, hasBrief: !!brief?.trim() });
+    let v0 = validateCandidates(words, raw, { minSec, maxSec, count: wantCount, hasBrief: !!brief?.trim() });
+    // Completar con criterio editorial por reglas si la IA no llegó al número pedido (sin solapar lo ya aceptado): el usuario recibe tantos clips como el vídeo permite.
+    if (!musicMode && v0.accepted.length < wantCount && words.length >= 20) {
+      try {
+        const lex = lexicalCandidates(words, lexBrief, { minSec, maxSec, count: wantCount * 2 }).map((c) => ({ ...c, reason: `${c.reason} (completado por reglas)` }));
+        const merged = validateCandidates(words, [...raw, ...lex], { minSec, maxSec, count: wantCount, hasBrief: !!brief?.trim() });
+        if (merged.accepted.length > v0.accepted.length) { m.topup = merged.accepted.length - v0.accepted.length; v0 = merged; }
+      } catch (e) { m.topup_error = (e as Error).message.slice(0, 120); }
+    }
     const rejected = v0.rejected;
     let accepted: (typeof v0.accepted[number])[] = v0.accepted.map((c) => ({ ...c, ...padBounds(words, c.startWord, c.endWord) }));
     if (job.params.live) {   // Directo: fuera lo que pertenece al contexto ya cubierto y lo ya entregado en la sesión (reconexiones incluidas)
