@@ -1,0 +1,436 @@
+[
+  {
+    "id": "E1-T1",
+    "title": "Arnés de migraciones por glob ordenado",
+    "epic": "01-fundamentos",
+    "dependencies": [],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN se ejecuta `node --test supabase/tests/migrate.test.ts` THE SYSTEM SHALL comprobar que la lista aplicada por `applyMigrations` es idéntica a la lista ordenada de `supabase/migrations/*.sql`, sin omitir ninguna (incluidas 006, 014, 028, 031, 032 y 033).",
+      "WHEN `freshDb()` termina THE SYSTEM SHALL exponer `sources.parts`, `sources.storage_backend`, `clips.preview_path`, la tabla `project_folders` y los roles `anon`, `authenticated` y `service_role`.",
+      "WHEN se busca `20261109000001_core.sql` en `supabase/tests/rls.test.ts` THE SYSTEM SHALL no encontrarlo (`grep` sale con 1).",
+      "WHEN se ejecuta `pnpm test` THE SYSTEM SHALL salir con 0 y 0 pruebas fallidas, incluidas las pruebas ya desplegadas de `packages/providers/src/groq.test.ts`."
+    ],
+    "verify": [
+      "export PATH=\"$HOME/.local/bin:$PATH\" && node --test supabase/tests/migrate.test.ts",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && node --test supabase/tests/rls.test.ts",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && grep -q '20261109000001_core.sql' supabase/tests/rls.test.ts; test $? -eq 1",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm test"
+    ],
+    "checkpoint": "rafaga-v2-step-01",
+    "files": ["supabase/tests/migrate.ts", "supabase/tests/migrate.test.ts", "supabase/tests/rls.test.ts"],
+    "status": "pending"
+  },
+  {
+    "id": "E1-T2",
+    "title": "Esquema v2 (migración 034)",
+    "epic": "01-fundamentos",
+    "dependencies": ["E1-T1"],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN el usuario B consulta `analyses`, `transcript_revisions`, `generation_recipes`, `clip_collections`, `clip_drafts`, `export_batches`, `publications` e `imports` THE SYSTEM SHALL devolver 0 filas del workspace de A, y SHALL rechazar cualquier inserción de B con el `workspace_id` de A (criterio 9, base de datos).",
+      "WHEN cualquier rol, incluido el propietario de la tabla, ejecuta UPDATE o DELETE directo sobre `clip_versions` THE SYSTEM SHALL lanzar `clip_versions_immutable` y dejar la fila intacta; WHEN se borra el clip padre THE SYSTEM SHALL borrar sus versiones en cascada (criterio 5, base de datos).",
+      "WHEN `save_clip_version` recibe un `p_base_version` distinto de `clips.current_version` THE SYSTEM SHALL devolver `{\"conflict\": true, \"current_version\": n}` sin crear versión; con la versión vigente SHALL crear la versión n+1 con `aspect`, `layout` y `template`, y poner `user_edited = true` salvo con `p_user_edit = false`.",
+      "WHEN se inserta en `analyses` una segunda fila con el mismo `(source_id, version)` THE SYSTEM SHALL rechazarla.",
+      "WHEN se escribe en `clips.editorial_state` un valor fuera de `pendiente|en_revision|aprobado|descartado`, o en `clip_versions.layout` uno fuera de los 6 diseños, THE SYSTEM SHALL rechazarlo.",
+      "WHEN se ejecuta `pnpm test` THE SYSTEM SHALL salir con 0 y 0 pruebas fallidas."
+    ],
+    "verify": [
+      "export PATH=\"$HOME/.local/bin:$PATH\" && node --test supabase/tests/v2_core.test.ts",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm test"
+    ],
+    "checkpoint": "rafaga-v2-step-02",
+    "files": ["supabase/migrations/20261113000034_clipping_v2_core.sql", "supabase/tests/v2_core.test.ts"],
+    "status": "pending"
+  },
+  {
+    "id": "E1-T3",
+    "title": "Libro de unidades (035) y núcleo de API",
+    "epic": "01-fundamentos",
+    "dependencies": ["E1-T2"],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN dos llamadas a `reserve_units` de 1 unidad con claves distintas se lanzan a la vez contra un saldo de 1.00 THE SYSTEM SHALL aceptar exactamente una, rechazar la otra con `insufficient_units` y dejar el saldo en 0.00.",
+      "WHEN `reserve_units` se llama 3 veces con la misma clave THE SYSTEM SHALL escribir exactamente 1 fila `reserve` y devolver el mismo `ledger_id` las 3 veces (criterio 6, base de datos).",
+      "WHEN `settle_units` o `refund_units` se llaman dos veces con la misma clave THE SYSTEM SHALL añadir una sola fila, y un `settle_units` con consumo real menor que lo reservado SHALL añadir una fila `release` por la diferencia.",
+      "WHEN un usuario `authenticated` escribe directamente en `credit_ledger`, llama a `grant_units` sin ser `owner`, o llama a `settle_units` o `refund_units` THE SYSTEM SHALL rechazarlo.",
+      "WHEN `ledger.test.ts` recorre `supabase/migrations`, `apps/web`, `workers` y `packages` (sin `node_modules` ni `.next`) THE SYSTEM SHALL encontrar `insert into public.credit_ledger` solo en `supabase/migrations/20261113000035_credit_ledger.sql`.",
+      "WHEN `mapDbError` recibe `insufficient_units` THE SYSTEM SHALL producir HTTP 402 con `{ \"error\": { \"code\": \"insufficient_units\", \"message\": … }, \"needed\": n, \"balance\": b }`, y `errorFor` SHALL devolver mensaje, trabajo conservado, acción y efecto en el consumo no vacíos para cada código de `ERROR_CODES`."
+    ],
+    "verify": [
+      "export PATH=\"$HOME/.local/bin:$PATH\" && node --test supabase/tests/ledger.test.ts apps/web/lib/api.test.ts",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm test"
+    ],
+    "checkpoint": "rafaga-v2-step-03",
+    "files": ["supabase/migrations/20261113000035_credit_ledger.sql", "supabase/tests/ledger.test.ts", "supabase/tests/fake-supabase.ts", "apps/web/lib/api.ts", "apps/web/lib/api.test.ts"],
+    "status": "pending"
+  },
+  {
+    "id": "E1-T4",
+    "title": "Motor de etapas (036), cancelación y Biblioteca",
+    "epic": "01-fundamentos",
+    "dependencies": ["E1-T3"],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN dos llamadas a `claim_stage` compiten por una única etapa reclamable THE SYSTEM SHALL entregarla a una sola, con `attempts = 1` y `lease_until` entre 85 s y 95 s por delante, y SHALL no entregar una etapa mientras otra de menor `seq` del mismo trabajo no esté `done` o `skipped`.",
+      "WHEN el arrendamiento de una etapa `running` ha caducado y se ejecuta `sweep_stale()` THE SYSTEM SHALL reencolarla mientras `attempts < 3`, y al tercer vencimiento SHALL marcar etapa y trabajo `failed` con `job_stalled` y añadir exactamente una devolución por sus unidades.",
+      "WHEN `enqueue_job` se llama 3 veces con la misma clave THE SYSTEM SHALL crear 1 trabajo, sus etapas y 1 fila `reserve` y devolver el mismo `job_id`, y una `output` de más de 8192 bytes SHALL rechazarse.",
+      "WHEN el gasto de Modal del mes en `ai_usage` (`provider = 'modal'`, `kind = 'compute'`) alcanza el 90 % de `compute_budget_usd`, o `modal_rate_card` es nula, THE SYSTEM SHALL rechazar `enqueue_job` con `compute_budget_exhausted` o `compute_rate_card_missing` sin escribir ningún trabajo.",
+      "WHEN la función heredada `claim_job()` se ejecuta con solo trabajos `engine = 'v2'` en cola THE SYSTEM SHALL devolver 0 filas.",
+      "WHEN `POST /api/jobs/:id/cancel` llega de un editor para un trabajo cuyas etapas con coste no han empezado THE SYSTEM SHALL responder 202 `{ kept, refunded_units }` y devolver sus unidades; para el usuario B SHALL responder 404."
+    ],
+    "verify": [
+      "export PATH=\"$HOME/.local/bin:$PATH\" && node --test supabase/tests/job_stages.test.ts apps/web/lib/jobs.test.ts",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm test",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm --filter @rafaga/web typecheck"
+    ],
+    "checkpoint": "rafaga-v2-step-04",
+    "files": ["supabase/migrations/20261113000036_job_stages.sql", "supabase/tests/job_stages.test.ts", "apps/web/app/api/jobs/[[...slug]]/route.ts", "apps/web/lib/jobs.test.ts", "apps/web/components/ProjectList.tsx"],
+    "status": "pending"
+  },
+  {
+    "id": "E1-T5",
+    "title": "Worker por etapas (stage.ts)",
+    "epic": "01-fundamentos",
+    "dependencies": ["E1-T4"],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN se ejecuta `node workers/media/src/stage.ts --list` THE SYSTEM SHALL imprimir una por línea las etapas de `STAGES` en su orden (de `validate` a `translate`) y salir con 0 sin leer variables de entorno, y `--list-flags` SHALL imprimir `--list`, `--list-flags`, `--drain`, `--max-idle-s`, `--sweep`, `--keep-alive`, `--plan` y `--purge`.",
+      "WHEN `stage.ts` recibe una etapa conocida y un id sin `SUPABASE_URL` o `SUPABASE_SERVICE_ROLE_KEY` THE SYSTEM SHALL salir con 78 nombrando la variable que falta, y WHEN recibe una etapa desconocida SHALL salir con 64.",
+      "WHEN `main([\"--plan\"])` se ejecuta con un `rpc` simulado THE SYSTEM SHALL imprimir un JSON con `ready` y `legacy` numéricos, y `main([\"--sweep\"])` y `main([\"--keep-alive\"])` SHALL devolver 0 tras llamar a `sweep_stale`, `enqueue_due_publications` y `keep_alive`.",
+      "WHEN `inputHash` se calcula dos veces con las mismas entradas y versiones THE SYSTEM SHALL devolver el mismo sha256 de 64 caracteres hexadecimales, y otro distinto si cambia cualquier versión de componente.",
+      "WHEN el runner reclama una etapa cuyo `input_hash` coincide con una etapa `done` del mismo workspace THE SYSTEM SHALL cerrarla como `skipped` con la salida en caché sin invocar la implementación.",
+      "WHEN una etapa lanza un error THE SYSTEM SHALL llamar a `finish_stage` con `failed` y su `error_code`, y mientras corre SHALL renovar el arrendamiento cada 15 s y abortar con `cancelled` si `heartbeat_stage` devuelve `false`."
+    ],
+    "verify": [
+      "export PATH=\"$HOME/.local/bin:$PATH\" && node --test workers/media/src/stages.test.ts",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && node workers/media/src/stage.ts --list",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && node workers/media/src/stage.ts --list-flags",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && env -u SUPABASE_URL -u SUPABASE_SERVICE_ROLE_KEY node workers/media/src/stage.ts validate 00000000-0000-0000-0000-000000000000; test $? -eq 78",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && node workers/media/src/stage.ts no-such-stage 00000000-0000-0000-0000-000000000000; test $? -eq 64",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm test"
+    ],
+    "checkpoint": "rafaga-v2-step-05",
+    "files": ["workers/media/src/stage.ts", "workers/media/src/stages/registry.ts", "workers/media/src/stages/runner.ts", "workers/media/src/stages/hash.ts", "workers/media/src/stages.test.ts"],
+    "status": "pending"
+  },
+  {
+    "id": "E1-T6",
+    "title": "App de Modal y /api/wake",
+    "epic": "01-fundamentos",
+    "dependencies": ["E1-T5"],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN `WORKER_BACKEND=modal` y una sesión válida llama a `POST /api/wake` con `{ \"job_id\": … }` THE SYSTEM SHALL hacer exactamente un POST a `MODAL_DISPATCH_URL` con la cabecera `X-Rafaga-Wake` igual a `WAKE_SECRET` y el cuerpo `{\"job_id\": …}`, y ninguna llamada a `api.github.com`.",
+      "WHEN `WORKER_BACKEND` es `actions` o no está definida THE SYSTEM SHALL despachar `worker.yml` solo si no hay ninguna ejecución `in_progress` ni `queued`, como hoy.",
+      "WHEN `WORKER_BACKEND=modal` y falta `MODAL_DISPATCH_URL` o `WAKE_SECRET` THE SYSTEM SHALL responder 200 `{ \"woken\": false, \"reason\": \"not_configured\" }`, y sin token Bearer SHALL responder 401.",
+      "WHEN `python3` analiza `workers/modal/app.py` con `ast.parse` THE SYSTEM SHALL salir con 0.",
+      "WHEN `wake.test.ts` lee `workers/modal/app.py` THE SYSTEM SHALL encontrar `X-Rafaga-Wake` y `hmac.compare_digest`, el SHA-256 `8206a48ce342b5075d0e0293e468a61198a55b3ef479bec3f7e83b04a18667d4`, `node-v24.22.3-linux-x64.tar.xz`, `opencv-python-headless==4.10.0.84`, una función cada minuto con `stage.ts --sweep` y otra diaria con `stage.ts --keep-alive`, y cada opción `--…` que `app.py` pasa a `stage.ts` SHALL figurar en la salida de `node workers/media/src/stage.ts --list-flags`.",
+      "WHEN el Python de `~/.cache/rafaga/modal-venv` importa `modal` THE SYSTEM SHALL informar la versión `1.6.4` y exponer `App`, `Image`, `Secret`, `fastapi_endpoint` y `Period` o `Cron`."
+    ],
+    "verify": [
+      "export PATH=\"$HOME/.local/bin:$PATH\" && node --test apps/web/lib/wake.test.ts",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && python3 -c \"import ast; ast.parse(open('workers/modal/app.py').read(), 'workers/modal/app.py')\"",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && ~/.cache/rafaga/modal-venv/bin/python -c \"import importlib.metadata as m, modal; assert m.version('modal') == '1.6.4'; [getattr(modal, n) for n in ('App', 'Image', 'Secret', 'fastapi_endpoint')]; assert hasattr(modal, 'Period') or hasattr(modal, 'Cron')\"",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm --filter @rafaga/web typecheck",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm test"
+    ],
+    "checkpoint": "rafaga-v2-step-06",
+    "files": ["workers/modal/app.py", "workers/modal/requirements.txt", "workers/modal/README.md", "apps/web/app/api/wake/route.ts", "apps/web/lib/wake.test.ts"],
+    "status": "pending"
+  },
+  {
+    "id": "E2-T1",
+    "title": "API de subida reanudable (037)",
+    "epic": "02-ingesta-y-analisis",
+    "dependencies": ["E1-T4"],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN `r2Multipart` firma CreateMultipartUpload, UploadPart, ListParts, CompleteMultipartUpload y AbortMultipartUpload THE SYSTEM SHALL producir URLs con `uploads`, `partNumber` y `uploadId`, `uploadId`, `uploadId` y `uploadId` respectivamente, región `auto`, y la de UploadPart SHALL llevar `X-Amz-Expires=900`; la prueba del ejemplo de AWS SHALL seguir pasando.",
+      "WHEN `POST /api/uploads` recibe `bytes` mayor que 4294967296 THE SYSTEM SHALL responder 413 `{ error: { code: \"file_too_large\" }, limit: 4294967296 }`, y WHEN el uso del workspace más `bytes` supera 10737418240 SHALL responder 507 `{ error: { code: \"quota_exceeded\" }, quota: 10737418240 }`; en ambos casos sin crear sesión.",
+      "WHEN existe en el workspace una fuente no borrada con los mismos `bytes` y `sha256_prefix` THE SYSTEM SHALL responder 409 `{ duplicate_of_project }` salvo que el cuerpo lleve `force: true`.",
+      "WHEN `POST /api/uploads/:id/complete` recibe las ETag de todas las partes THE SYSTEM SHALL completar la subida en el R2 simulado, marcar la fuente `uploaded` y crear un único trabajo `engine = 'v2'` con las etapas `validate`, `mezzanine` y `proxy`, respondiendo 202 `{ job_id }`; repetida SHALL devolver el mismo `job_id` (criterio 1, servidor).",
+      "WHEN el usuario B pide `GET /api/uploads/:id`, `POST /api/uploads/:id/parts` o `GET /api/uploads/sources/:sourceId/proxy` sobre recursos de A THE SYSTEM SHALL responder 404 sin firmar ninguna URL.",
+      "WHEN `UPLOAD_STRATEGY=parts` THE SYSTEM SHALL devolver URLs PUT para objetos `original.partNNN` de 47185920 bytes como máximo, y `GET /api/uploads/:id` SHALL reconstruir las partes subidas con HEAD por objeto."
+    ],
+    "verify": [
+      "export PATH=\"$HOME/.local/bin:$PATH\" && node --test packages/providers/src/r2.test.ts apps/web/lib/uploads.test.ts",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm test",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm --filter @rafaga/web typecheck"
+    ],
+    "checkpoint": "rafaga-v2-step-07",
+    "files": ["packages/providers/src/r2.ts", "packages/providers/src/r2.test.ts", "supabase/migrations/20261113000037_upload_storage.sql", "apps/web/app/api/uploads/[[...slug]]/route.ts", "apps/web/lib/uploads.test.ts"],
+    "status": "pending"
+  },
+  {
+    "id": "E2-T2",
+    "title": "Cliente de subida",
+    "epic": "02-ingesta-y-analisis",
+    "dependencies": ["E2-T1"],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN `planParts` recibe 4294967296 bytes THE SYSTEM SHALL devolver 256 partes de 16777216 bytes, y para 20000000 bytes SHALL devolver 2 partes de 16777216 y 3222784 bytes.",
+      "WHEN `Sha256` incremental procesa un búfer de 5 MB en trozos irregulares THE SYSTEM SHALL producir el mismo resumen que `createHash('sha256')` de `node:crypto` sobre el búfer completo.",
+      "WHEN el servidor informa de las partes 1–3 subidas y el registro local tiene las partes 1–2 THE SYSTEM SHALL programar exactamente las partes que el servidor no informa como subidas.",
+      "WHEN el PUT de una parte falla dos veces por error de red y luego responde 200 THE SYSTEM SHALL completar con 3 intentos para esa parte y nunca más de 3 partes en vuelo, informando bytes enviados, velocidad y ETA en cada evento.",
+      "WHEN se llama a `cancel()` THE SYSTEM SHALL abortar los PUT en vuelo, enviar `DELETE /api/uploads/:id` y dejar el estado `cancelled`.",
+      "WHEN se ejecuta `node scripts/r2-multipart-probe.ts --dry-run` THE SYSTEM SHALL imprimir las cinco operaciones S3 previstas y salir con 0 sin red, y sin las variables R2 y sin `--dry-run` SHALL salir con 78."
+    ],
+    "verify": [
+      "export PATH=\"$HOME/.local/bin:$PATH\" && node --test apps/web/lib/uploader.test.ts",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && node scripts/r2-multipart-probe.ts --dry-run",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && env -u R2_ACCOUNT_ID -u R2_BUCKET -u R2_ACCESS_KEY_ID -u R2_SECRET_ACCESS_KEY node scripts/r2-multipart-probe.ts; test $? -eq 78",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm --filter @rafaga/web typecheck",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm --filter @rafaga/web build"
+    ],
+    "checkpoint": "rafaga-v2-step-08",
+    "files": ["apps/web/lib/uploader.ts", "apps/web/lib/uploader.test.ts", "apps/web/lib/hash.worker.ts", "apps/web/components/UploadPanel.tsx", "scripts/r2-multipart-probe.ts"],
+    "status": "pending"
+  },
+  {
+    "id": "E2-T3",
+    "title": "Validación, mezzanine y estado derivado",
+    "epic": "02-ingesta-y-analisis",
+    "dependencies": ["E1-T5", "E2-T1"],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN `validate` analiza el fixture `ok` (1080p25 H.264, `pcm_s24le`, pista de timecode) THE SYSTEM SHALL devolver `status: \"ok\"` con duración 6 s ±0.1, 1920×1080, 25 fps, 1 pista de audio, la pista de datos ignorada y el idioma de la respuesta simulada de Groq.",
+      "WHEN el fixture no tiene audio THE SYSTEM SHALL devolver `status: \"ok\"` con el aviso `no_audio`, `modes_available` igual a `[\"manual\", \"destacados\"]` y `subtitles: false`.",
+      "WHEN el archivo está truncado o no es un contenedor admitido THE SYSTEM SHALL devolver `unsupported` con `corrupt_file` o `unsupported_container` y un mensaje de solución en español; con más de 3600 s o más de 4294967296 bytes SHALL devolver `too_long` o `too_large`; con rotación de 90° o VFR SHALL devolver `needs_conversion` con `rotation` o `vfr`.",
+      "WHEN la etapa `mezzanine` procesa el fixture `ok` THE SYSTEM SHALL escribir un MP4 h264 de 1080 px de alto con audio AAC, sin pista de datos, `moov` antes de `mdat`, claves a ≤1 s y duración a ≤1 fotograma de la fuente, y solo entonces SHALL borrar el original del R2 simulado, marcarlo purgado y apuntar `sources.storage_path` a la mezzanine.",
+      "WHEN el runner ejecuta `validate` y `mezzanine` de un trabajo en cola usando solo filas de base de datos (PGlite, sin cliente HTTP) THE SYSTEM SHALL cerrar ambas etapas `done`, poner `sources.status = 'validated'` y el trabajo en `done` (criterio 1).",
+      "WHEN `deriveProjectState` recibe las mismas filas de `jobs`, `job_stages` y `clips` en cualquier orden THE SYSTEM SHALL devolver el mismo estado, con `partial: true` cuando hay al menos un clip `disponible` y etapas en curso, y `queued` con motivo cuando ninguna etapa corre (criterio 2)."
+    ],
+    "verify": [
+      "export PATH=\"$HOME/.local/bin:$PATH\" && ffmpeg -hide_banner -version",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && node --test workers/media/src/validate.test.ts apps/web/lib/progress.test.ts",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm test"
+    ],
+    "checkpoint": "rafaga-v2-step-09",
+    "files": ["workers/media/src/stages/validate.ts", "workers/media/src/fixtures.ts", "workers/media/src/validate.test.ts", "apps/web/lib/progress.ts", "apps/web/lib/progress.test.ts"],
+    "status": "pending"
+  },
+  {
+    "id": "E2-T4",
+    "title": "Análisis y Procesamiento (vista v2)",
+    "epic": "02-ingesta-y-analisis",
+    "dependencies": ["E2-T3"],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN `planChunks(3600)` se ejecuta THE SYSTEM SHALL devolver trozos de 600 s como máximo que se solapan 2 s y cubren [0, 3600] sin huecos.",
+      "WHEN `mergeChunks` une dos trozos cuyo solape de 2 s contiene las mismas palabras THE SYSTEM SHALL emitir cada palabra una sola vez, en orden y con marcas de tiempo globales.",
+      "WHEN el limitador usa los valores por defecto (20 peticiones/min, 7200 s de audio/h, 28800 s de audio/día) o los de `GROQ_LIMITS`, y recibe una 21.ª petición en el mismo minuto o un 429 con `retry-after: 7` THE SYSTEM SHALL retrasarla, con `wait_ms` ≥ 7000 en el caso del 429 (reloj simulado).",
+      "WHEN la etapa `proxy` procesa la mezzanine del fixture THE SYSTEM SHALL escribir un MP4 h264 de 720 px de alto con `moov` antes de `mdat` y fotogramas clave a ≤1 s.",
+      "WHEN `speakers` recibe 402 de Deepgram (simulado) o falta `DEEPGRAM_API_KEY` THE SYSTEM SHALL usar el hablante activo visual (detector de caras simulado) y marcar `needs_review: true`.",
+      "WHEN `transcribe` se ejecuta dos veces sobre el mismo audio y el mismo `asr_model` THE SYSTEM SHALL calcular el mismo `input_hash`, servir la segunda desde la caché y hacer 0 llamadas a la ASR la segunda vez (criterio 3, análisis)."
+    ],
+    "verify": [
+      "export PATH=\"$HOME/.local/bin:$PATH\" && ffmpeg -hide_banner -version",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && node --test workers/media/src/analysis.test.ts",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && grep -q 'BriefFields' 'apps/web/app/app/p/[id]/page.tsx'",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm test",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm --filter @rafaga/web typecheck"
+    ],
+    "checkpoint": "rafaga-v2-step-10",
+    "files": ["workers/media/src/stages/analysis.ts", "workers/media/src/groqlimits.ts", "workers/media/src/analysis.test.ts", "apps/web/components/ProcessingPanel.tsx", "apps/web/app/app/p/[id]/page.tsx"],
+    "status": "pending"
+  },
+  {
+    "id": "E2-T5",
+    "title": "Panel de creación, estimación y reserva",
+    "epic": "02-ingesta-y-analisis",
+    "dependencies": ["E2-T2", "E2-T3"],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN `POST /api/generations` se dispara 3 veces con la misma `Idempotency-Key` y el mismo cuerpo THE SYSTEM SHALL crear exactamente 1 generación, 1 trabajo y 1 fila `reserve` y responder 202 con el mismo `{ generation_id, job_id }` las 3 veces (criterio 6); con la misma clave y otro cuerpo SHALL responder 409 `idempotency_conflict`.",
+      "WHEN el saldo es menor que las unidades necesarias THE SYSTEM SHALL responder 402 `{ needed, balance }` sin escribir generación, trabajo ni movimiento en el libro.",
+      "WHEN se estima un tramo de 30 min sin análisis THE SYSTEM SHALL devolver `total: 36` (30 × 1.2), con análisis reutilizable `total: 6` (30 × 0.2), y con gancho en los 10 mejores clips SHALL sumar `hook: 1` (10 × 0.1).",
+      "WHEN alguna etapa del plan tiene menos de 5 muestras en `stage_timings` THE SYSTEM SHALL devolver `eta: null`, y con 5 o más SHALL devolver `{ p50_s, p90_s }` calculados a partir de ellas.",
+      "WHEN los parámetros violan los límites (rango de duración desconocido, número pedido mayor que 20, tramo fuera de la fuente, modo desconocido) o la fuente no está `validated` THE SYSTEM SHALL responder 400 `invalid_params` con el campo, o 409 `source_not_ready`.",
+      "WHEN el número pedido supera el viable (`floor(duración del tramo / mínimo del rango de duración)`) THE SYSTEM SHALL guardar el número pedido en `generations.requested_count` y la estimación SHALL incluir `viable_count`, y los rangos `auto`, `lt30`, `30_60`, `60_90` y `90_180` SHALL traducirse a [10,180], [10,30], [30,60], [60,90] y [90,180] segundos."
+    ],
+    "verify": [
+      "export PATH=\"$HOME/.local/bin:$PATH\" && node --test apps/web/lib/generations.test.ts",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm test",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm --filter @rafaga/web typecheck",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm --filter @rafaga/web build"
+    ],
+    "checkpoint": "rafaga-v2-step-11",
+    "files": ["apps/web/app/api/generations/[[...slug]]/route.ts", "apps/web/lib/generations.ts", "apps/web/lib/generations.test.ts", "apps/web/components/CreationPanel.tsx", "apps/web/app/app/nuevo/page.tsx"],
+    "status": "pending"
+  },
+  {
+    "id": "E2-T6",
+    "title": "Modos, puntuación editorial y selección robusta",
+    "epic": "02-ingesta-y-analisis",
+    "dependencies": ["E2-T4", "E2-T5"],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN se lee `MODES` THE SYSTEM SHALL contener exactamente `automatico`, `por_tema`, `pregunta_respuesta`, `educativo`, `historia`, `destacados` y `manual`, cada uno con id de prompt, filtros y modelo, con `model: null` en `destacados` y `manual`.",
+      "WHEN los filtros de calidad se aplican a los candidatos del transcript de prueba de `modes.test.ts` THE SYSTEM SHALL descartar los que empiezan a mitad de frase, empiezan con un pronombre o deíctico sin antecedente, terminan sin cierre o se solapan más de un 50 % con uno ya aceptado.",
+      "WHEN se puntúan los candidatos del transcript de prueba THE SYSTEM SHALL exponer `gancho`, `desarrollo`, `valor`, `afinidad` y `calidad_tecnica` entre 0 y 1 con texto y `overall` entre 0 y 100, ordenar los candidatos de calidad distinta en el orden esperado, añadir `notes.difference` a los empatados sin alterar sus puntuaciones, y ningún `reason` SHALL contener «viral».",
+      "WHEN se piden 10 clips y solo 3 pasan los filtros THE SYSTEM SHALL entregar 3, poner `delivered_count = 3` y añadir a `generations.warnings` `{ \"code\": \"shortfall\", \"requested\": 10, \"delivered\": 3, \"reasons\": [...] }`; con 0 útiles SHALL devolver las unidades de `select` y mantener el cargo del análisis (criterio 8).",
+      "WHEN Groq (simulado) responde `400 json_validate_failed` en una de 3 ventanas y faltan clips tras validar aunque el transcript tiene habla THE SYSTEM SHALL procesar las otras 2 (`ai_windows = \"2/3\"`), pedir una segunda pasada con los rangos ya elegidos excluidos (`second_pass`), después la pasada relajada (mín ×0.5, máx ×1.5) anotada en `reason` y `relaxed`, y si sigue sin clips SHALL escribir el aviso `no_moments` con sus motivos en lugar de terminar con 0 en silencio.",
+      "WHEN `destacados` recibe picos de energía y cambios de escena THE SYSTEM SHALL proponer candidatos centrados en ellos con 0 llamadas al LLM (también `manual`), `exclude_previous` SHALL evitar todo solape con clips anteriores del proyecto, y `translate` SHALL conservar el inicio y el fin de cada grupo de subtítulos."
+    ],
+    "verify": [
+      "export PATH=\"$HOME/.local/bin:$PATH\" && node --test packages/selection/src/modes.test.ts workers/media/src/select.test.ts",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm test"
+    ],
+    "checkpoint": "rafaga-v2-step-12",
+    "files": ["packages/selection/package.json", "packages/selection/src/modes.ts", "packages/selection/src/modes.test.ts", "workers/media/src/stages/select.ts", "workers/media/src/select.test.ts"],
+    "status": "pending"
+  },
+  {
+    "id": "E3-T1",
+    "title": "Composiciones, plantillas virales y zonas seguras",
+    "epic": "03-edicion-y-entrega",
+    "dependencies": ["E2-T6"],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN `planLayout` se ejecuta para cada uno de los 6 diseños en cada uno de los 3 formatos (18 combinaciones) THE SYSTEM SHALL devolver cajas dentro del fotograma con dimensiones pares.",
+      "WHEN la cobertura del seguimiento cae por debajo de `minCoverage` THE SYSTEM SHALL usar la última caja buena ponderada al centro y después `fit_full` y marcar `needs_review: true`, y `switchLayout` SHALL conservar fragmentos, cortes, subtítulos, audio y extras.",
+      "WHEN cada plantilla de `TEMPLATES` se genera para 9:16, 1:1 y 16:9 THE SYSTEM SHALL devolver rectángulos normalizados en [0,1], y `titular_video_subtitulos` en 9:16 SHALL colocar el titular por encima de la banda de vídeo y los subtítulos por debajo, con fondo desenfocado.",
+      "WHEN se leen `SAFE_ZONES` THE SYSTEM SHALL tener entradas para `tiktok`, `instagram_reels` y `youtube_shorts` con rectángulos en [0,1] y una `source` https o la `note` \"medido por nosotros, revisar\", las plantillas con plataformas seleccionadas SHALL quedar dentro de `safeArea`, y `validateSafeZones` SHALL marcar una caja de texto que invade un rectángulo inseguro.",
+      "WHEN ffmpeg renderiza el fixture de 3 s con los 6 diseños en 9:16, `fit_full` en 16:9 y 1:1, y `titular_video_subtitulos` en 9:16 THE SYSTEM SHALL salir con 0 y ffprobe SHALL informar h264 con el ancho y el alto de `RATIO_SIZE` de cada formato.",
+      "WHEN la etapa `compose` se ejecuta para una generación THE SYSTEM SHALL crear por clip la versión 1 con `aspect`, `layout` y `template`, poner `technical_state = 'disponible'` y crear 0 filas en `renders`, y `checks` SHALL añadir el aviso `safe_zone` a un clip cuyo texto invade la zona insegura."
+    ],
+    "verify": [
+      "export PATH=\"$HOME/.local/bin:$PATH\" && ffmpeg -hide_banner -version",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && node --test workers/media/src/compose.test.ts",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm test"
+    ],
+    "checkpoint": "rafaga-v2-step-13",
+    "files": ["packages/composition/src/layouts.ts", "packages/composition/src/safezones.ts", "packages/composition/src/index.ts", "workers/media/src/stages/compose.ts", "workers/media/src/compose.test.ts"],
+    "status": "pending"
+  },
+  {
+    "id": "E3-T2",
+    "title": "Motor de escena, resultados y pantalla completa (vista v2)",
+    "epic": "03-edicion-y-entrega",
+    "dependencies": ["E3-T1", "E2-T4"],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN `parity.test.ts` compara, para cada grupo de subtítulos de su transcript de prueba, el inicio y el fin del evento `Dialogue` de `buildAss` con el intervalo de `sceneAt` THE SYSTEM SHALL encontrar diferencias de 1 fotograma (1/30 s) como máximo.",
+      "WHEN se comparan las cajas de `ffmpegArgs` (vía `toLegacyComposition`) con las de `sceneAt` THE SYSTEM SHALL encontrarlas iguales en los diseños sin fotogramas clave y el mismo arreglo `kf` en los demás, y los `overlays` de zonas seguras SHALL aparecer en `sceneAt` con `safeZones` y nunca en los argumentos de ffmpeg.",
+      "WHEN se ejecutan `grep -q 'sceneAt' apps/web/components/PreviewPlayer.tsx` y `grep -q 'Escape' apps/web/components/PreviewPlayer.tsx` THE SYSTEM SHALL salir con 0 en ambos: la vista previa usa el motor de exportación y la pantalla completa se cierra con Esc.",
+      "WHEN se ejecutan `grep -q 'postgres_changes' 'apps/web/app/app/p/[id]/page.tsx'`, `grep -q 'ResultsGrid' 'apps/web/app/app/p/[id]/page.tsx'` y `grep -q 'BriefFields' 'apps/web/app/app/p/[id]/page.tsx'` THE SYSTEM SHALL salir con 0 en los tres (la vista v1 conserva `BriefFields`), `grep -q 'BriefFields' apps/web/components/ResultsGrid.tsx` SHALL salir con 1 (la vista v2 no lo usa), y `pnpm --filter @rafaga/web build` SHALL salir con 0."
+    ],
+    "verify": [
+      "export PATH=\"$HOME/.local/bin:$PATH\" && node --test packages/composition/src/parity.test.ts",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && grep -q 'sceneAt' apps/web/components/PreviewPlayer.tsx",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && grep -q 'Escape' apps/web/components/PreviewPlayer.tsx",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && grep -q 'postgres_changes' 'apps/web/app/app/p/[id]/page.tsx'",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && grep -q 'ResultsGrid' 'apps/web/app/app/p/[id]/page.tsx'",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && grep -q 'BriefFields' 'apps/web/app/app/p/[id]/page.tsx'",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && grep -q 'BriefFields' apps/web/components/ResultsGrid.tsx; test $? -eq 1",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm test",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm --filter @rafaga/web typecheck",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm --filter @rafaga/web build"
+    ],
+    "checkpoint": "rafaga-v2-step-14",
+    "files": ["packages/composition/src/layouts.ts", "packages/composition/src/parity.test.ts", "apps/web/components/PreviewPlayer.tsx", "apps/web/components/ResultsGrid.tsx", "apps/web/app/app/p/[id]/page.tsx"],
+    "status": "pending"
+  },
+  {
+    "id": "E3-T3",
+    "title": "Editor v2 y demos editables",
+    "epic": "03-edicion-y-entrega",
+    "dependencies": ["E3-T2"],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN se borra un fragmento y después se restaura THE SYSTEM SHALL quitar y devolver sus palabras de los subtítulos y acortar y restaurar la línea de tiempo, `mapTime` SHALL llevar cada instante superviviente a tiempo de edición y de vuelta con error de 1 ms como máximo, y N deshacer tras N ediciones SHALL devolver la especificación inicial que N rehacer vuelve a aplicar.",
+      "WHEN hay ediciones en t = 0, 300 y 600 ms THE SYSTEM SHALL escribir un único borrador en t = 1400 ms pasando por `guardando` y `guardado`, y si la escritura falla SHALL mostrar `error al guardar` sin perder la edición en memoria.",
+      "WHEN `POST /api/clips/:id/versions` llega con un `base_version` obsoleto THE SYSTEM SHALL responder 409 `{ conflict: { current_version } }` sin crear versión; con la vigente SHALL responder 201 `{ version }`, y aplicar otra composición o plantilla así SHALL crear 0 trabajos, 0 etapas y 0 movimientos en el libro (criterio 3).",
+      "WHEN se guarda una nueva revisión del transcript THE SYSTEM SHALL crear una versión nueva con los subtítulos corregidos solo para los clips con `user_edited = false` y dejar idénticas las versiones de los editados por el usuario (criterio 4).",
+      "WHEN se lanza una nueva generación sobre el mismo proyecto THE SYSTEM SHALL dejar sin cambios todas las filas anteriores de `clips` y `clip_versions` (criterio 4).",
+      "WHEN se ejecuta `grep -q 'duplicate_project' apps/web/app/app/demos/page.tsx` THE SYSTEM SHALL salir con 0: abrir una demo crea una copia editable y nunca modifica el ejemplo compartido."
+    ],
+    "verify": [
+      "export PATH=\"$HOME/.local/bin:$PATH\" && node --test apps/web/lib/editor.test.ts",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && grep -q 'duplicate_project' apps/web/app/app/demos/page.tsx",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm test",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm --filter @rafaga/web typecheck",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm --filter @rafaga/web build"
+    ],
+    "checkpoint": "rafaga-v2-step-15",
+    "files": ["apps/web/lib/editor.ts", "apps/web/lib/editor.test.ts", "apps/web/app/api/clips/[[...slug]]/route.ts", "apps/web/app/app/c/[id]/page.tsx", "apps/web/app/app/demos/page.tsx"],
+    "status": "pending"
+  },
+  {
+    "id": "E3-T4",
+    "title": "Exportaciones",
+    "epic": "03-edicion-y-entrega",
+    "dependencies": ["E3-T3"],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN `render` exporta la versión 1 de un clip y después se guarda la versión 2 THE SYSTEM SHALL producir el MP4 a partir de la composición de `(clip_id, 1)` y la mezzanine —H.264 High, AAC LC, yuv420p y `moov` antes de `mdat`— y la fila de `renders` SHALL seguir con `clip_version = 1` (criterio 5).",
+      "WHEN un lote de 3 exportaciones tiene una que falla THE SYSTEM SHALL dejar las otras 2 en `ready` y descargables y el lote en `partial`, y `POST /api/exports/:id/retry` SHALL reencolar solo la fallida (criterio 7).",
+      "WHEN se pide dos veces la misma exportación (versión, formato, subtítulos y tipo) THE SYSTEM SHALL reutilizar la fila de `renders` sin crear un trabajo nuevo.",
+      "WHEN el usuario B pide `GET /api/exports/:id/url` de una exportación de A THE SYSTEM SHALL responder 404 sin firmar ninguna URL, y para A SHALL devolver `{ url, expires_at }` y fijar `downloaded_at` solo en la primera descarga (criterio 9, ruta).",
+      "WHEN `zip` empaqueta un lote THE SYSTEM SHALL producir con `ZipBuilder` una entrada por exportación `ready`, y las salidas SRT, VTT, TXT, FCPXML, xmeml y EDL SHALL cumplir su formato: `<fcpxml version=\"1.10\">`, `<xmeml version=\"4\">`, una línea `TITLE:` y un evento por fragmento en la EDL.",
+      "WHEN se pide la URL de una exportación cuyo objeto se purgó THE SYSTEM SHALL volver a renderizarla desde su versión inmutable sin ningún movimiento en el libro."
+    ],
+    "verify": [
+      "export PATH=\"$HOME/.local/bin:$PATH\" && ffmpeg -hide_banner -version",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && node --test workers/media/src/export.test.ts apps/web/lib/exports.test.ts",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm test",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm --filter @rafaga/web typecheck",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm --filter @rafaga/web build"
+    ],
+    "checkpoint": "rafaga-v2-step-16",
+    "files": ["workers/media/src/stages/export.ts", "workers/media/src/export.test.ts", "apps/web/app/api/exports/[[...slug]]/route.ts", "apps/web/lib/exports.test.ts", "apps/web/app/app/exports/page.tsx"],
+    "status": "pending"
+  },
+  {
+    "id": "E3-T5",
+    "title": "Importación y publicación",
+    "epic": "03-edicion-y-entrega",
+    "dependencies": ["E3-T4"],
+    "priority": "p1",
+    "acceptance": [
+      "WHEN `POST /api/import/link` recibe una URL `http:`, una que resuelve a una IP privada o de loopback, o una cuya redirección apunta a un rango privado THE SYSTEM SHALL responder 400 `{ reason }` con `not_https`, `private_address` o `redirect_private` sin crear ningún trabajo.",
+      "WHEN `import` descarga un enlace con `content-length` mayor que 4294967296 o `content-type` que no es de vídeo THE SYSTEM SHALL fallar con `too_large` o `unsupported_file` sin escribir en R2, y con un enlace válido SHALL subirlo a R2 por partes y encolar `validate`.",
+      "WHEN `POST /api/publish` llega para YouTube THE SYSTEM SHALL enviar `videos.insert` (simulado) con la privacidad elegida, `private` por defecto, y si la respuesta trae `status.privacyStatus` `private` cuando se pidió otra SHALL poner la publicación en `private_pending_review`.",
+      "WHEN TikTok responde `unaudited_client_can_only_post_to_private_accounts` THE SYSTEM SHALL poner la publicación en `requiere_auditoria` con su explicación, y el `privacy_level` enviado SHALL ser uno de `privacy_level_options`.",
+      "WHEN una publicación tiene `scheduled_at` futuro THE SYSTEM SHALL dejarla en `scheduled` sin llamar a la plataforma hasta que `enqueue_due_publications()` la encuentre vencida.",
+      "WHEN se inicia una conexión con `publish_tiktok` o `publish_youtube` THE SYSTEM SHALL usar `TIKTOK_CLIENT_KEY`/`TIKTOK_CLIENT_SECRET` o `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` y el alcance `video.publish` o `https://www.googleapis.com/auth/youtube.upload`."
+    ],
+    "verify": [
+      "export PATH=\"$HOME/.local/bin:$PATH\" && node --test apps/web/lib/integrations.test.ts",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm test",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm --filter @rafaga/web typecheck",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm --filter @rafaga/web build"
+    ],
+    "checkpoint": "rafaga-v2-step-17",
+    "files": ["workers/media/src/stages/integrations.ts", "apps/web/app/api/[integration]/[[...rest]]/route.ts", "apps/web/lib/integrations.test.ts", "packages/providers/src/oauth.ts", "apps/web/lib/oauthserver.ts"],
+    "status": "pending"
+  },
+  {
+    "id": "E3-T6",
+    "title": "Ciclo de vida, métricas, Uso y rendimiento",
+    "epic": "03-edicion-y-entrega",
+    "dependencies": ["E3-T4"],
+    "priority": "p1",
+    "acceptance": [
+      "WHEN `purge_candidates()` se ejecuta THE SYSTEM SHALL devolver el original de una fuente con mezzanine registrada, las exportaciones con `expires_at` vencido y todos los objetos de proyectos con `purge_at` vencido, y SHALL no devolver el proxy ni la mezzanine de un proyecto fuera de la papelera.",
+      "WHEN `purge` borra esos objetos en el R2 simulado THE SYSTEM SHALL llamar a `mark_purged` y `storage_used` SHALL bajar exactamente en la suma de sus bytes.",
+      "WHEN un proyecto se envía a la papelera THE SYSTEM SHALL fijar `purge_at` 30 días después de `deleted_at`, y `restore_project` antes de esa fecha SHALL devolverlo con sus clips y versiones intactos.",
+      "WHEN `storage_summary()` se llama THE SYSTEM SHALL devolver `used_bytes`, `quota_bytes = 10737418240`, el saldo, el cómputo del mes frente a `budget_usd` y las próximas caducidades del workspace, y para el usuario B sobre el workspace de A SHALL lanzar `not_found`.",
+      "WHEN `product_metrics` se calcula sobre datos de prueba THE SYSTEM SHALL devolver `first_approved_s`, `acceptance_rate`, `active_correction_s`, `second_variant_s` y `approved_downloaded_per_creator`, contando solo proyectos con generaciones v2 y cada descarga repetida una sola vez.",
+      "WHEN se ejecuta `node scripts/perf-run.ts --quick` THE SYSTEM SHALL generar fixtures de 5 min, ejecutar 2 proyectos a la vez con ASR y LLM simulados y escribir `docs/PERF.md` con p50 y p95 de `upload_ms`, `queue_ms`, `analysis_ms`, `first_clip_ms`, `all_clips_ms`, `render_ms` y `zip_ms`."
+    ],
+    "verify": [
+      "export PATH=\"$HOME/.local/bin:$PATH\" && ffmpeg -hide_banner -version",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && node --test workers/media/src/lifecycle.test.ts",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && node scripts/perf-run.ts --quick",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && grep -q 'first_clip_ms' docs/PERF.md",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm test",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm --filter @rafaga/web typecheck",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm --filter @rafaga/web build"
+    ],
+    "checkpoint": "rafaga-v2-step-18",
+    "files": ["workers/media/src/stages/purge.ts", "workers/media/src/lifecycle.test.ts", "apps/web/app/app/uso/page.tsx", "scripts/perf-run.ts", "docs/PERF.md"],
+    "status": "pending"
+  }
+]
