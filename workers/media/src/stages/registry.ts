@@ -5,7 +5,11 @@ export const isStage = (s: string): s is StageName => (STAGES as readonly string
 
 export interface StageRow { id: string; workspace_id: string; job_id: string; stage: StageName; seq: number; attempts: number; params: Record<string, unknown>; units: number; worker_id: string | null }
 export type Rpc = <T = unknown>(fn: string, args?: Record<string, unknown>) => Promise<T>;
-export interface StageCtx { rpc: Rpc; workerId: string; componentVersions: Record<string, string>; log: (msg: string) => void; signal?: AbortSignal; deps?: Record<string, unknown> }
+export interface MediaR2 { download(key: string, dest: string): Promise<void>; upload(key: string, file: string, contentType: string): Promise<void>; remove(keys: string[]): Promise<void> }
+export interface StageCtx {
+  rpc: Rpc; workerId: string; componentVersions: Record<string, string>; log: (msg: string) => void; signal?: AbortSignal; deps?: Record<string, unknown>;
+  r2?: MediaR2; fetch?: typeof fetch; tmpDir?: string; env?: Record<string, string | undefined>;
+}
 export interface StageResult { output: Record<string, unknown>; units_actual?: number }
 export interface StageImpl { inputs(ctx: StageCtx, row: StageRow): Promise<unknown> | unknown; run(ctx: StageCtx, row: StageRow): Promise<StageResult> }
 
