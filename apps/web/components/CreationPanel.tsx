@@ -17,7 +17,7 @@ type Est = { minutes: number; units: { processing: number; clipping: number; hoo
 
 export default function CreationPanel({ projectId, durationMs, onCreated }: { projectId: string; durationMs: number; onCreated?: (r: { generation_id: string; job_id: string }) => void }) {
   const [recipe, setRecipe] = useState<Recipe>("clips");
-  const [mode, setMode] = useState<Mode>("auto");
+  const [mode, setMode] = useState<Mode>("automatico");
   const [duration, setDuration] = useState<Bucket>("auto");
   const [count, setCount] = useState<string>("");
   const [brief, setBrief] = useState(""), [exclude, setExclude] = useState("");

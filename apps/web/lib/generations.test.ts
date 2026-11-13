@@ -13,7 +13,7 @@ const call = (uid: string, slug: string[], body: unknown, idem?: string) => {
   const req = new Request(`https://app/api/generations${slug.length ? `/${slug.join("/")}` : ""}`, { method: "POST", headers: { Authorization: `Bearer ${tokenFor(uid)}`, "Content-Type": "application/json", ...(idem ? { "Idempotency-Key": idem } : {}) }, body: JSON.stringify(body) });
   return handleGenerations(req, slug, { f: fakeSupabaseFetch(db), wake: () => {}, env: {} });
 };
-const P = (over: Record<string, unknown> = {}) => ({ project_id: projectId, params: { mode: "auto", duration: "30_60", count: 10, range_start_ms: 0, range_end_ms: MIN30, ...over } });
+const P = (over: Record<string, unknown> = {}) => ({ project_id: projectId, params: { mode: "automatico", duration: "30_60", count: 10, range_start_ms: 0, range_end_ms: MIN30, ...over } });
 const count = async (t: string) => (await db.query<{ n: number }>(`select count(*)::int n from ${t}`)).rows[0].n;
 
 before(async () => {

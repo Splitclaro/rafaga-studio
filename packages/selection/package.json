@@ -7,6 +7,7 @@
     ".": "./src/index.ts",
     "./brief": "./src/brief.ts",
     "./intent": "./src/intent.ts",
-    "./title": "./src/title.ts"
+    "./title": "./src/title.ts",
+    "./modes": "./src/modes.ts"
   }
 }

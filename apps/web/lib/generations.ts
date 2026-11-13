@@ -1,7 +1,7 @@
 // Parámetros de una generación: validación, rangos de duración, estimación de unidades y resumen. Pura y sin red.
-export const MODES = ["auto", "tema", "preguntas", "educativo", "historia", "destacados", "manual"] as const;
+export const MODES = ["automatico", "por_tema", "pregunta_respuesta", "educativo", "historia", "destacados", "manual"] as const;
 export type Mode = (typeof MODES)[number];
-export const MODE_LABEL: Record<Mode, string> = { auto: "Automático", tema: "Por tema", preguntas: "Pregunta y respuesta", educativo: "Educativo", historia: "Historia o anécdota", destacados: "Destacados", manual: "Manual" };
+export const MODE_LABEL: Record<Mode, string> = { automatico: "Automático", por_tema: "Por tema", pregunta_respuesta: "Pregunta y respuesta", educativo: "Educativo", historia: "Historia o anécdota", destacados: "Destacados", manual: "Manual" };
 
 /** Rangos de duración de cada clip, en segundos. La etiqueta «Auto» del panel dice «10 s–3 min». */
 export const DURATION_BUCKETS = { auto: [10, 180], lt30: [10, 30], "30_60": [30, 60], "60_90": [60, 90], "90_180": [90, 180] } as const;
@@ -35,7 +35,7 @@ const bad = (field: string, message: string): { ok: false; error: Invalid } => (
 export function validateParams(p: unknown, sourceDurationS: number): { ok: true; params: GenerationParams } | { ok: false; error: Invalid } {
   const x = (p ?? {}) as Record<string, unknown>;
   const recipe = (x.recipe ?? "clips") as Recipe; if (!RECIPES.includes(recipe)) return bad("recipe", "Receta desconocida.");
-  const mode = (x.mode ?? "auto") as Mode; if (!MODES.includes(mode)) return bad("mode", "Modo de selección desconocido.");
+  const mode = (x.mode ?? "automatico") as Mode; if (!MODES.includes(mode)) return bad("mode", "Modo de selección desconocido.");
   const duration = (x.duration ?? "auto") as Bucket; if (!(duration in DURATION_BUCKETS)) return bad("duration", "Rango de duración desconocido.");
   const count = x.count == null || x.count === "auto" ? null : Number(x.count);
   if (count != null && (!Number.isInteger(count) || count < 1 || count > 20)) return bad("count", "Pide entre 1 y 20 clips, o deja la selección automática.");

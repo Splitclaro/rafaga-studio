@@ -120,6 +120,10 @@ const scenes: StageImpl = {
   async run(ctx, row) {
     const { file } = await mezzaninePath(ctx, String(row.params.source_id));
     const r = sceneSignals(file);
+    if (row.params.analysis_id) {
+      await ctx.rpc("save_analysis_part", { p_analysis: row.params.analysis_id, p_part: "scenes", p_data: r.scenes });
+      await ctx.rpc("save_analysis_part", { p_analysis: row.params.analysis_id, p_part: "audio_signals", p_data: r.audio_signals });
+    }
     return { output: { scenes: r.scenes.length, audio_signals: r.audio_signals.length, cuts: r.scenes.slice(0, 100) } };
   },
 };
@@ -152,12 +156,15 @@ const speakers: StageImpl = {
         const dg = deps.deepgram ?? (async (a: Uint8Array, k: string) => deepgramTranscribe(a, "audio/ogg", k, "auto"));
         const r = await dg(readFileSync(audio), key);
         const sp = new Map<number, number>(); for (const w of r.words) if (typeof (w as { speaker?: number }).speaker === "number") sp.set((w as { speaker: number }).speaker, (sp.get((w as { speaker: number }).speaker) ?? 0) + 1);
-        return { output: { method: "deepgram", speakers: [...sp.keys()].sort(), needs_review: false } };
+        const ids = [...sp.keys()].sort();
+        if (row.params.analysis_id) await ctx.rpc("save_analysis_part", { p_analysis: row.params.analysis_id, p_part: "speakers", p_data: ids.map((id) => ({ id, method: "deepgram", words: sp.get(id) })) });
+        return { output: { method: "deepgram", speakers: ids, needs_review: false } };
       } catch (e) { const st = (e as { status?: number }).status; if (st !== 402 && st !== 401 && st !== 403) throw e; ctx.log("Deepgram sin crédito: hablante activo visual"); }
     }
     const { file } = await mezzaninePath(ctx, source);
     const detect = deps.faces ?? (async (f: string) => { const { scanFaces } = await import("../reframe.ts"); return scanFaces(f, 0, 600, 2).samples; });
     const v = visualSpeakers(await detect(file));
+    if (row.params.analysis_id) await ctx.rpc("save_analysis_part", { p_analysis: row.params.analysis_id, p_part: "speakers", p_data: v.speakers.map((s) => ({ ...s, method: "visual_largest_face", needs_review: true })) });
     return { output: { method: "visual_largest_face", speakers: v.speakers.map((s) => s.id), runs: v.runs.length, needs_review: true } };
   },
 };
