@@ -45,3 +45,46 @@ export function r2Url(cfg: R2Config, method: "GET" | "PUT" | "HEAD" | "DELETE", 
 
 /** Clave del original de una fuente: misma forma que en Supabase Storage. */
 export const originalKey = (ws: string, src: string) => `${ws}/${src}/original`;
+
+/** Clave de la parte N de un original subido en piezas independientes (estrategia `parts`). */
+export const partsKey = (key: string, n: number) => `${key}.part${String(n).padStart(3, "0")}`;
+
+type Fetch = typeof fetch;
+const host = (cfg: R2Config) => `${cfg.accountId}.r2.cloudflarestorage.com`;
+const sign = (cfg: R2Config, method: string, key: string, query: Record<string, string>, expires = 900, date?: Date) =>
+  presignV4({ method, host: host(cfg), path: `/${cfg.bucket}/${key}`, accessKeyId: cfg.accessKeyId, secretAccessKey: cfg.secretAccessKey, region: "auto", expires, date, query });
+const tag = (xml: string, t: string) => [...xml.matchAll(new RegExp(`<${t}>([\\s\\S]*?)</${t}>`, "g"))].map((m) => m[1]);
+const unq = (s: string) => s.replace(/^&quot;|&quot;$/g, "").replace(/^"|"$/g, "");
+
+/** Subida multiparte S3 sobre R2 con URLs prefirmadas (el navegador sube cada parte directamente al bucket). */
+export function r2Multipart(cfg: R2Config, f: Fetch = fetch) {
+  return {
+    createUrl: (key: string, date?: Date) => sign(cfg, "POST", key, { uploads: "" }, 900, date),
+    partUrl: (key: string, uploadId: string, n: number, expires = 900, date?: Date) => sign(cfg, "PUT", key, { partNumber: String(n), uploadId }, expires, date),
+    listUrl: (key: string, uploadId: string, date?: Date) => sign(cfg, "GET", key, { uploadId }, 900, date),
+    completeUrl: (key: string, uploadId: string, date?: Date) => sign(cfg, "POST", key, { uploadId }, 900, date),
+    abortUrl: (key: string, uploadId: string, date?: Date) => sign(cfg, "DELETE", key, { uploadId }, 900, date),
+    async create(key: string): Promise<string> {
+      const r = await f(await this.createUrl(key), { method: "POST" });
+      if (!r.ok) throw new Error(`R2 CreateMultipartUpload ${r.status}`);
+      const id = tag(await r.text(), "UploadId")[0];
+      if (!id) throw new Error("R2 CreateMultipartUpload sin UploadId");
+      return id;
+    },
+    async list(key: string, uploadId: string): Promise<{ n: number; etag: string; size: number }[]> {
+      const r = await f(await this.listUrl(key, uploadId));
+      if (!r.ok) throw new Error(`R2 ListParts ${r.status}`);
+      return tag(await r.text(), "Part").map((p) => ({ n: Number(tag(p, "PartNumber")[0]), etag: unq(tag(p, "ETag")[0] ?? ""), size: Number(tag(p, "Size")[0] ?? 0) }));
+    },
+    async complete(key: string, uploadId: string, parts: { n: number; etag: string }[]): Promise<void> {
+      const body = `<CompleteMultipartUpload>${[...parts].sort((a, b) => a.n - b.n).map((p) => `<Part><PartNumber>${p.n}</PartNumber><ETag>"${unq(p.etag)}"</ETag></Part>`).join("")}</CompleteMultipartUpload>`;
+      const r = await f(await this.completeUrl(key, uploadId), { method: "POST", body, headers: { "Content-Type": "application/xml" } });
+      const text = await r.text();
+      if (!r.ok || /<Error>/.test(text)) throw new Error(`R2 CompleteMultipartUpload ${r.status}: ${tag(text, "Code")[0] ?? ""}`);
+    },
+    async abort(key: string, uploadId: string): Promise<void> {
+      const r = await f(await this.abortUrl(key, uploadId), { method: "DELETE" });
+      if (!r.ok && r.status !== 404) throw new Error(`R2 AbortMultipartUpload ${r.status}`);
+    },
+  };
+}
