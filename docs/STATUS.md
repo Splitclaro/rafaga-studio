@@ -286,3 +286,10 @@ Probar Lyric Studio con una canción real (canto + instrumental). Siguiente: Sty
 - Verificado: 66 pruebas del paquete (render real de blur/fill/fit/split con cortes: 1080×1920 y duración correcta) y 241 de 243 en total; en producción, un diálogo de dos voces sintéticas devolvió 2 hablantes (52 % / 48 %) y el editor muestra el panel y las opciones.
 - No verificado: el aspecto visual de «pantalla + cámara» con una grabación real de pantalla y cámara; «Seguir al hablante activo» exportado a MP4 en producción (la trayectoria usa el mecanismo ya probado de reencuadre).
 - Comprobado: `GROQ_API_KEY` existe en los secretos de Actions (puesta el 11 nov a las 19:59) y desde las 20:59 las selecciones usan `groq:openai/gpt-oss-120b`. La transcripción sigue en Deepgram (no hay `ASR_PROVIDER=groq`).
+
+### Sesión 27 — Fiabilidad y velocidad del procesamiento
+- Diagnóstico con datos: jobs esperaban 224 y 382 min porque GitHub lanzaba el worker cada ~6–7 h pese al cron de 5 min; y pedidos de 6/10/5 clips daban 1/0/0 porque la IA proponía pocos candidatos y la validación rechazaba sin completar.
+- Arreglos desplegados: selección con ajuste en vez de rechazo, prompt que pide más candidatos, completado por reglas hasta el número pedido; worker con cachés (arranque en frío de >2,5 min a 25 s) y sin apt.
+- Verificado en producción: demo de 1:40 → 2 clips con gancho en 53 s.
+- **Pendiente del usuario:** `GH_DISPATCH_TOKEN` en Vercel (pasos en `docs/OPERACION_WORKER.md`). Sin él, arrancar el procesador depende de GitHub o de un «Run workflow» manual.
+- Vídeos de 24 s no pueden dar 10 clips: la app no avisa todavía de que el número pedido es inviable para esa duración (mejora pendiente).
