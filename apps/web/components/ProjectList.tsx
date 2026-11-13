@@ -5,7 +5,7 @@ import { supabase } from "../lib/supabase";
 import { STAGE, MODE_LABEL } from "../lib/projects";
 import Icon from "./Icon";
 
-export type Row = { folder_id?: string | null; archived_at?: string | null; id: string; name: string; created_at: string; project_brief: string | null; mode: string; status: string | null; clips: number; thumb?: string };
+export type Row = { folder_id?: string | null; archived_at?: string | null; id: string; name: string; created_at: string; project_brief: string | null; mode: string; status: string | null; clips: number; thumb?: string; jobId?: string; engine?: string };
 
 export function useProjects() {
   const [rows, setRows] = useState<Row[] | null>(null);
@@ -16,7 +16,7 @@ export function useProjects() {
     const ids = (data ?? []).map((p) => p.id);
     const srcIds = [...new Set((data ?? []).map((p) => p.source_id))];
     const [jobs, clips, srcs] = await Promise.all([
-      ids.length ? supabase.from("jobs").select("project_id,status,created_at").in("project_id", ids).eq("kind", "detect").order("created_at", { ascending: false }) : { data: [] },
+      ids.length ? supabase.from("jobs").select("*").in("project_id", ids).in("kind", ["detect", "generation"]).order("created_at", { ascending: false }) : { data: [] },
       ids.length ? supabase.from("clips").select("project_id,thumb_path,created_at").in("project_id", ids).eq("discarded", false).order("created_at") : { data: [] },
       srcIds.length ? supabase.from("sources").select("id,thumb_path").in("id", srcIds) : { data: [] },
     ]);
@@ -31,10 +31,17 @@ export function useProjects() {
     const ctSigned = ctPaths.length ? (await supabase.storage.from("renders").createSignedUrls(ctPaths, 3600)).data ?? [] : [];
     const ctUrl = new Map(ctSigned.map((x) => [x.path, x.signedUrl]));
     setRows((data ?? []).map((p) => ({ id: p.id, name: p.name, created_at: p.created_at, project_brief: p.project_brief, mode: p.mode, archived_at: p.archived_at, folder_id: p.folder_id, thumb: ((thumbBySrc.get(p.source_id) as string | null | undefined) ?? undefined) ?? (clipThumb.get(p.id) ? ctUrl.get(clipThumb.get(p.id)!) ?? undefined : undefined),
-      status: (jobs.data ?? []).find((j: { project_id: string }) => j.project_id === p.id)?.status ?? null, clips: (clips.data ?? []).filter((c: { project_id: string }) => c.project_id === p.id).length })));
+      ...lastJob(jobs.data ?? [], p.id), clips: (clips.data ?? []).filter((c: { project_id: string }) => c.project_id === p.id).length })));
   }, []);
   useEffect(() => { load(); }, [load]);
   return { rows, err, reload: load };
+}
+
+type JobRow = { id: string; project_id: string; status: string; engine?: string };
+/** Último trabajo del proyecto (la columna `engine` solo existe tras la migración 036; sin ella el trabajo es v1). */
+function lastJob(jobs: JobRow[], projectId: string): { status: string | null; jobId?: string; engine?: string } {
+  const j = jobs.find((x) => x.project_id === projectId);
+  return j ? { status: j.status, jobId: j.id, engine: j.engine ?? "v1" } : { status: null };
 }
 
 export const isActive = (s: string | null) => !!s && !["done", "failed", "cancelled"].includes(s);
@@ -56,9 +63,34 @@ export function ProjectCard({ p }: { p: Row }) {
       <div className="p-3">
         <div className="truncate text-sm font-medium">{p.name}</div>
         <div className="mt-0.5 flex items-center justify-between text-xs text-[var(--muted)]"><span className="tnum">{new Date(p.created_at).toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric" })}</span><span className="tnum">{p.clips} clip{p.clips === 1 ? "" : "s"}</span></div>
+        {p.engine === "v2" && p.jobId && isActive(p.status) && <CancelJob jobId={p.jobId} />}
         <div className="mt-2 text-xs font-medium underline underline-offset-4">{p.status === "failed" ? "Resolver incidencia" : isActive(p.status) ? "Ver progreso" : p.clips > 0 ? "Revisar clips" : p.status === "done" ? "Ver resultados" : "Continuar editando"}</div>
       </div>
     </Link>
+  );
+}
+
+/** Cancelar un trabajo v2 en curso: detiene tareas nuevas y devuelve lo no empezado. Sin doble envío. */
+function CancelJob({ jobId }: { jobId: string }) {
+  const [state, setState] = useState<"idle" | "busy" | "done" | "error">("idle");
+  const [msg, setMsg] = useState("");
+  const cancel = async (e: React.MouseEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    if (state === "busy" || state === "done") return;
+    setState("busy");
+    const { data: { session } } = await supabase.auth.getSession();
+    const r = await fetch(`/api/jobs/${jobId}/cancel`, { method: "POST", headers: { Authorization: `Bearer ${session?.access_token ?? ""}` } });
+    const b = await r.json().catch(() => ({}));
+    if (r.ok) { setState("done"); setMsg(`Cancelado. Se conserva: ${(b.kept ?? []).join(", ") || "nada aún"}; devueltas ${b.refunded_units ?? 0} unidades.`); }
+    else { setState("error"); setMsg(b?.error?.message ?? "No se pudo cancelar."); }
+  };
+  return (
+    <div className="mt-2 text-xs">
+      <button type="button" onClick={cancel} disabled={state === "busy" || state === "done"} className="btn btn-ghost !px-2 !py-1 text-xs" aria-live="polite">
+        {state === "busy" ? "Cancelando…" : state === "done" ? "Cancelado" : "Cancelar"}
+      </button>
+      {msg && <p className="mt-1 text-[var(--muted)]" role="status">{msg}</p>}
+    </div>
   );
 }
 
