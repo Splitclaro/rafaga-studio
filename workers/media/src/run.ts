@@ -180,12 +180,20 @@ async function processJob(job: Job) {
       const useGroq = !!AI.key && (process.env.LLM_PROVIDER === "groq" || !AN || process.env.LLM_PROVIDER !== "anthropic");   // con clave de Groq se usa Groq salvo que se pida Anthropic expresamente
       if (!useGroq && !AN) throw new Error("Sin proveedor de IA editorial configurado (ANTHROPIC_API_KEY o GROQ_API_KEY)");
       if (words.length >= 20) {
-        let tIn = 0, tOut = 0;
-        for (const w of windows(words, 600, 45)) {
+        let tIn = 0, tOut = 0, okWindows = 0, lastErr: Error | null = null;
+        const ws = windows(words, 600, 45);
+        // Cada tramo se pide por separado: un fallo en uno no anula lo que la IA propuso en los demás.
+        for (const w of ws) {
           const target = `${project.target_seconds}s (máx ${project.max_seconds}s)`;
-          if (useGroq) { const r = await groqProposeClips(AI, { brief, windowText: transcriptText(words, w.from, w.to), target, want: Math.max(3, Math.min(10, Math.ceil(wantCount * 1.6))) }); raw.push(...r.clips); tIn += r.usage.tokensIn; tOut += r.usage.tokensOut; }
-          else { raw.push(...(await proposeClips({ key: AN, model: MODEL, brief, windowText: transcriptText(words, w.from, w.to), target, want: Math.max(3, Math.min(10, Math.ceil(wantCount * 1.6))) }))); tIn += Math.round(transcriptText(words, w.from, w.to).length / 4); tOut += 400; }
+          try {
+            if (useGroq) { const r = await groqProposeClips(AI, { brief, windowText: transcriptText(words, w.from, w.to), target, want: Math.max(3, Math.min(10, Math.ceil(wantCount * 1.6))) }); raw.push(...r.clips); tIn += r.usage.tokensIn; tOut += r.usage.tokensOut; }
+            else { raw.push(...(await proposeClips({ key: AN, model: MODEL, brief, windowText: transcriptText(words, w.from, w.to), target, want: Math.max(3, Math.min(10, Math.ceil(wantCount * 1.6))) }))); tIn += Math.round(transcriptText(words, w.from, w.to).length / 4); tOut += 400; }
+            okWindows++;
+          } catch (e) { lastErr = e as Error; }
         }
+        m.ai_windows = `${okWindows}/${ws.length}`;
+        if (!okWindows && lastErr) throw lastErr;   // ningún tramo respondió: respaldo por reglas
+        if (lastErr) m.ai_window_error = lastErr.message.slice(0, 160);
         selector = useGroq ? `groq:${AI.editorialModel}` : MODEL;
         llmLines.push(llmLine(TARIFFS, useGroq ? "groq" : "anthropic", useGroq ? AI.editorialModel : MODEL, tIn, tOut, useGroq));   // Anthropic: tokens estimados (el cliente actual no devuelve el uso)
       }
@@ -206,6 +214,16 @@ async function processJob(job: Job) {
         const merged = validateCandidates(words, [...raw, ...lex], { minSec, maxSec, count: wantCount, hasBrief: !!brief?.trim() });
         if (merged.accepted.length > v0.accepted.length) { m.topup = merged.accepted.length - v0.accepted.length; v0 = merged; }
       } catch (e) { m.topup_error = (e as Error).message.slice(0, 120); }
+    }
+    // Último recurso: con habla suficiente nunca se entrega cero en silencio. Se relajan los límites (más corto y algo más largo)
+    // y queda anotado para explicarlo al usuario.
+    if (!musicMode && v0.accepted.length === 0 && words.length >= 20) {
+      try {
+        const rMin = Math.max(6, Math.round(minSec * 0.5)), rMax = Math.max(rMin + 5, Math.round(maxSec * 1.5));
+        const lex = lexicalCandidates(words, null, { minSec: rMin, maxSec: rMax, count: wantCount * 2 }).map((c) => ({ ...c, reason: `${c.reason} (duración ajustada: no había momentos completos de ${minSec}–${maxSec} s)` }));
+        const relaxed = validateCandidates(words, [...raw, ...lex], { minSec: rMin, maxSec: rMax, count: wantCount, hasBrief: false });
+        if (relaxed.accepted.length) { m.relaxed = `${rMin}-${rMax}`; v0 = relaxed; }
+      } catch (e) { m.relaxed_error = (e as Error).message.slice(0, 120); }
     }
     const rejected = v0.rejected;
     let accepted: (typeof v0.accepted[number])[] = v0.accepted.map((c) => ({ ...c, ...padBounds(words, c.startWord, c.endWord) }));

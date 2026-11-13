@@ -54,3 +54,26 @@ test("visión: fotogramas como data URL con el modelo de visión configurado", a
   assert.equal(body!.model, cfg.visionModel); assert.equal(body!.messages[1].content.filter((c) => c.type === "image_url").length, 2); assert.match(body!.messages[1].content[1].image_url!.url, /^data:image\/jpeg;base64,AAAA/);
   assert.equal(r.text, "Se ve un mezclador.");
 });
+test("gpt-oss: razonamiento bajo y margen de tokens para que el JSON no llegue cortado", async () => {
+  let body: Record<string, unknown> | null = null;
+  const f = (async (_u: string, init: RequestInit) => { body = JSON.parse(init.body as string); return json({ choices: [{ message: { content: '{"clips":[]}' } }], usage: {} }); }) as unknown as typeof fetch;
+  await groqProposeClips(cfg, { brief: null, windowText: "[0]Hola", target: "30s (máx 30s)", fetchImpl: f });
+  assert.equal(body!.reasoning_effort, "low"); assert.ok((body!.max_completion_tokens as number) >= 8000);
+});
+test("si Groq rechaza el JSON estricto (json_validate_failed) se repite sin response_format y se aprovecha la respuesta", async () => {
+  const calls: Record<string, unknown>[] = [];
+  const f = (async (_u: string, init: RequestInit) => {
+    const b = JSON.parse(init.body as string); calls.push(b);
+    if (b.response_format) return json({ error: { message: "Failed to generate JSON. Please adjust your prompt.", type: "invalid_request_error", code: "json_validate_failed" } }, 400);
+    return json({ choices: [{ message: { content: 'Aquí tienes: {"clips":[{"startWord":2,"endWord":30,"title":"t","reason":"r","briefFit":"b","scores":{}}]}' } }], usage: { prompt_tokens: 10, completion_tokens: 5 } });
+  }) as unknown as typeof fetch;
+  const r = await groqProposeClips(cfg, { brief: null, windowText: "[0]Hola", target: "30s (máx 30s)", fetchImpl: f });
+  assert.equal(calls.length, 2); assert.ok(calls[0].response_format); assert.equal(calls[1].response_format, undefined);
+  assert.equal(r.clips.length, 1);
+});
+test("otros 400 no se enmascaran como reintento sin JSON", async () => {
+  let n = 0;
+  const f = (async () => { n++; return json({ error: { message: "model not found" } }, 400); }) as unknown as typeof fetch;
+  await assert.rejects(() => groqProposeClips(cfg, { brief: null, windowText: "x", target: "30s", fetchImpl: f }), /400/);
+  assert.equal(n, 1);
+});

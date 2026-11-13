@@ -62,16 +62,24 @@ export async function groqTranscribe(audio: Uint8Array, mime: string, cfg: AiCon
 }
 
 export interface ChatUsage { tokensIn: number; tokensOut: number }
+/** Los modelos gpt-oss razonan antes de responder y ese razonamiento consume los tokens de salida: con poco margen el JSON
+ *  llega cortado y Groq lo rechaza (`json_validate_failed`). Se pide razonamiento bajo y se deja margen suficiente. */
+export const isReasoningModel = (model: string) => /gpt-oss/i.test(model);
+export const isJsonValidateFailed = (e: unknown) => (e as AiError)?.status === 400 && /json_validate_failed|Failed to (generate|validate) JSON/i.test((e as Error)?.message ?? "");
 export async function groqChat(cfg: AiConfig, o: { model?: string; system: string; user: string | unknown[]; json?: boolean; maxTokens?: number; fetchImpl?: Fetch }): Promise<{ text: string; usage: ChatUsage; model: string }> {
   if (!cfg.key) throw new AiError(0, "GROQ_API_KEY no configurada");
   const model = o.model ?? cfg.editorialModel, f = o.fetchImpl ?? fetch;
-  return withRetry(async () => {
+  const reasoning = isReasoningModel(model) ? { reasoning_effort: "low" } : {};
+  const call = (json: boolean) => withRetry(async () => {
     const r = await f(`${cfg.baseUrl}/chat/completions`, { method: "POST", headers: { Authorization: `Bearer ${cfg.key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model, temperature: 0.2, max_completion_tokens: o.maxTokens ?? 4000, ...(o.json ? { response_format: { type: "json_object" } } : {}), messages: [{ role: "system", content: o.system }, { role: "user", content: o.user }] }) });
+      body: JSON.stringify({ model, temperature: 0.2, max_completion_tokens: o.maxTokens ?? 8000, ...reasoning, ...(json ? { response_format: { type: "json_object" } } : {}), messages: [{ role: "system", content: o.system }, { role: "user", content: o.user }] }) });
     if (!r.ok) await fail(r, "Groq chat");
     const j = (await r.json()) as { choices?: { message?: { content?: string } }[]; usage?: { prompt_tokens?: number; completion_tokens?: number } };
     return { text: j.choices?.[0]?.message?.content ?? "", usage: { tokensIn: j.usage?.prompt_tokens ?? 0, tokensOut: j.usage?.completion_tokens ?? 0 }, model };
   });
+  if (!o.json) return call(false);
+  // Si Groq rechaza el JSON estricto, se repite sin `response_format`: quien llama ya extrae el objeto JSON del texto.
+  try { return await call(true); } catch (e) { if (isJsonValidateFailed(e)) return call(false); throw e; }
 }
 
 const clamp = (v: unknown) => Math.max(0, Math.min(10, Number(v) || 0));
