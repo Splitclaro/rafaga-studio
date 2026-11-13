@@ -380,7 +380,7 @@
     ],
     "checkpoint": "rafaga-v2-step-16",
     "files": ["workers/media/src/stages/export.ts", "workers/media/src/export.test.ts", "apps/web/app/api/exports/[[...slug]]/route.ts", "apps/web/lib/exports.test.ts", "apps/web/app/app/exports/page.tsx"],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E3-T5",

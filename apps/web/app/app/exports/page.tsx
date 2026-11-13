@@ -4,6 +4,7 @@ import Link from "next/link";
 import Icon from "../../../components/Icon";
 import { supabase } from "../../../lib/supabase";
 import { downloadMp4, fileName } from "../../../lib/download";
+import ExportsV2 from "../../../components/ExportsV2";
 
 type R = { id: string; ratio: string; burn_subtitles: boolean; storage_path: string; probe: { size?: string; duration?: string } | null; created_at: string; clip_id: string; clip_version: number; clips: { title: string; project_id: string; projects: { name: string } | null } | null };
 const mb = (s?: string) => (s ? `${(Number(s) / 1048576).toFixed(1)} MB` : "—");
@@ -18,7 +19,7 @@ export default function Exportados() {
   const [msg, setMsg] = useState<string | null>(null), [busy, setBusy] = useState(false);
 
   useEffect(() => { (async () => {
-    const { data, error } = await supabase.from("renders").select("id,ratio,burn_subtitles,storage_path,probe,created_at,clip_id,clip_version,clips!inner(title,project_id,projects(name))").eq("status", "ready").not("storage_path", "is", null).order("created_at", { ascending: false }).limit(300);
+    const { data, error } = await supabase.from("renders").select("id,ratio,burn_subtitles,storage_path,probe,created_at,clip_id,clip_version,clips!inner(title,project_id,projects(name))").eq("status", "ready").not("storage_path", "is", null).is("settings_hash", null).order("created_at", { ascending: false }).limit(300);
     if (error) return setErr(error.message);
     setRows((data ?? []) as unknown as R[]);
   })(); }, []);
@@ -47,6 +48,7 @@ export default function Exportados() {
         {["", "9:16", "1:1", "16:9"].map((r) => <button key={r || "all"} aria-pressed={ratio === r} onClick={() => setRatio(r)} className="chip">{r || "Todos los formatos"}</button>)}
         <button onClick={() => get(chosen)} disabled={!chosen.length || busy} className="btn btn-primary ml-auto">{busy ? "Descargando…" : `Descargar${chosen.length ? ` (${chosen.length})` : ""}`}</button>
       </div>
+      <ExportsV2 />
       {err && <p role="alert" className="mt-4 text-sm text-[var(--danger)]">No se pudieron cargar los exportados: {err}</p>}
       {msg && <p role="status" className="mt-3 text-sm text-[var(--muted)]">{msg}</p>}
       {!rows && !err && <div className="skeleton mt-6 h-64" />}

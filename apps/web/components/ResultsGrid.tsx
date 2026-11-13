@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "../lib/supabase";
+import { requestClipExport } from "../lib/exportClient";
 import PreviewPlayer, { type PClip } from "./PreviewPlayer";
 import CreationPanel from "./CreationPanel";
 import type { CompositionV2, Word } from "@rafaga/composition";
@@ -138,7 +139,7 @@ export default function ResultsGrid({ projectId, sourceId }: { projectId: string
 
       {open != null && pclips[open] && src && (
         <PreviewPlayer fullscreen clips={pclips} index={open} onIndex={(i) => openClip(i)} onClose={() => setOpen(null)} proxyUrl={proxy} src={{ w: src.width ?? 1920, h: src.height ?? 1080 }} words={words}
-          onEdit={(id) => router.push(`/app/c/${id}`)} onExport={(id) => router.push(`/app/c/${id}`)} />
+          onEdit={(id) => router.push(`/app/c/${id}`)} onExport={async (id) => { const c = rows.find((x) => x.id === id); if (!c) return; const r = await requestClipExport(await token(), id, c.current_version); if (r.ok) router.push("/app/exports"); else window.alert(r.message); }} />
       )}
     </section>
   );

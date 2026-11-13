@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LAYOUT_IDS, ASPECT_IDS, VIRAL_TEMPLATE_IDS, type CompositionV2, type Word, type LayoutId, type ViralTemplateId } from "@rafaga/composition";
 import { supabase } from "../lib/supabase";
+import { requestClipExport } from "../lib/exportClient";
 import PreviewPlayer, { type PClip } from "./PreviewPlayer";
 import { TEMPLATE_LABEL } from "../lib/generations";
 import {
@@ -78,7 +79,7 @@ export default function EditorV2({ clipId }: { clipId: string }) {
       </div>
       {msg && <p role="status" className="mt-2 text-sm">{msg}</p>}
       <div className="mt-4 grid gap-4 lg:grid-cols-[300px_1fr]">
-        <div><PreviewPlayer clips={[pclip]} index={0} onIndex={() => {}} proxyUrl={proxy} src={{ w: meta.srcW, h: meta.srcH }} words={allWords} onEdit={() => {}} onExport={() => router.push(`/app/exportados`)} />
+        <div><PreviewPlayer clips={[pclip]} index={0} onIndex={() => {}} proxyUrl={proxy} src={{ w: meta.srcW, h: meta.srcH }} words={allWords} onEdit={() => {}} onExport={async () => { if (!meta) return; const r = await requestClipExport(await token(), clipId, meta.version, state.comp.aspect); if (r.ok) router.push("/app/exports"); else window.alert(r.message); }} />
           <button type="button" className={`${btn} mt-2`} onClick={() => setFs(true)}>Pantalla completa</button></div>
         <section className="card p-4" aria-label="Herramientas de edición">
           <div role="tablist" className="mb-3 flex flex-wrap gap-2">{([["corte", "Corte"], ["texto", "Transcripción"], ["diseno", "Diseño"], ["audio", "Audio"]] as const).map(([k, l]) => <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={`${btn} ${tab === k ? "!bg-[var(--accent-soft)]" : ""}`}>{l}</button>)}</div>
@@ -107,7 +108,7 @@ export default function EditorV2({ clipId }: { clipId: string }) {
           {tab === "audio" && <label className="block text-sm">Volumen del clip · <span className="tnum">{Math.round(state.comp.audio.volume * 100)} %</span><input type="range" min={0} max={2} step={0.05} value={state.comp.audio.volume} onChange={(e) => apply((s) => setVolume(s, Number(e.target.value)))} className="mt-1 w-full" /></label>}
         </section>
       </div>
-      {fs && <PreviewPlayer fullscreen clips={[pclip]} index={0} onIndex={() => {}} onClose={() => setFs(false)} proxyUrl={proxy} src={{ w: meta.srcW, h: meta.srcH }} words={allWords} onEdit={() => setFs(false)} onExport={() => router.push(`/app/exportados`)} />}
+      {fs && <PreviewPlayer fullscreen clips={[pclip]} index={0} onIndex={() => {}} onClose={() => setFs(false)} proxyUrl={proxy} src={{ w: meta.srcW, h: meta.srcH }} words={allWords} onEdit={() => setFs(false)} onExport={async () => { if (!meta) return; const r = await requestClipExport(await token(), clipId, meta.version, state.comp.aspect); if (r.ok) router.push("/app/exports"); else window.alert(r.message); }} />}
     </main>
   );
 }
