@@ -96,7 +96,7 @@ export default function UploadPanel({ workspaceId, onDone }: { workspaceId?: str
       {ev && busy && (
         <div className="mt-4" aria-live="polite">
           <div className="flex justify-between text-xs"><span>{file?.name}</span><span className="tnum">{pct} %</span></div>
-          <div className="mt-1 h-2 overflow-hidden rounded bg-black/10"><div className="h-full bg-[var(--accent,#2A55F5)]" style={{ width: `${pct}%` }} /></div>
+          <div className="mt-1 h-2 overflow-hidden rounded bg-black/10"><div className="h-full bg-[var(--accent,#111111)]" style={{ width: `${pct}%` }} /></div>
           <div className="mt-1 flex justify-between text-xs text-[var(--muted)] tnum">
             <span>{fmtBytes(ev.bytesSent)} de {fmtBytes(ev.totalBytes)} · {ev.speedBps ? `${fmtBytes(ev.speedBps)}/s` : "—"}</span>
             <span>{ev.state === "retrying" ? "Reintentando…" : ev.state === "completing" ? "Verificando…" : `Quedan ${fmtEta(ev.etaS)}`}</span>

@@ -12,12 +12,12 @@ import { supabase, BRIEF_MAX, MAX_VIDEO_BYTES } from "../../lib/supabase";
 
 type Tab = "clips" | "lyrics";
 const TOOLS: { mode: ProjectMode | "lyrics"; label: string; glyph: string; bg: string; fg: string; badge?: string }[] = [
-  { mode: "clips", label: "Clips IA", glyph: "✂", bg: "#E3EAFF", fg: "#2A55F5", badge: "Nuevo" },
-  { mode: "lyrics", label: "Lyric Studio", glyph: "♪", bg: "#DDF3E6", fg: "#0F7B4F" },
-  { mode: "reframe", label: "Reencuadre", glyph: "▣", bg: "#FFE9D6", fg: "#C2570C" },
-  { mode: "captions", label: "Subtítulos", glyph: "Aa", bg: "#F1E4FF", fg: "#7A3FD1" },
-  { mode: "social", label: "Social edits", glyph: "◈", bg: "#FFE3EE", fg: "#C1274F" },
-  { mode: "broll", label: "B-roll", glyph: "▤", bg: "#E0F4F7", fg: "#0B7285" },
+  { mode: "clips", label: "Clips IA", glyph: "✂", bg: "#F2F2F2", fg: "#111111", badge: "Nuevo" },
+  { mode: "lyrics", label: "Lyric Studio", glyph: "♪", bg: "#F2F2F2", fg: "#111111" },
+  { mode: "reframe", label: "Reencuadre", glyph: "▣", bg: "#F2F2F2", fg: "#111111" },
+  { mode: "captions", label: "Subtítulos", glyph: "Aa", bg: "#F2F2F2", fg: "#111111" },
+  { mode: "social", label: "Social edits", glyph: "◈", bg: "#F2F2F2", fg: "#111111" },
+  { mode: "broll", label: "B-roll", glyph: "▤", bg: "#F2F2F2", fg: "#111111" },
 ];
 const LOOKS = ["Momentos graciosos", "Consejos", "Polémicas", "Historias", "Citas"];
 const STATE_CHIP: Record<string, string> = { done: "background:#E6F4EC;color:#0F7B4F", failed: "background:#FDECEA;color:#B42318" };
@@ -111,8 +111,8 @@ export default function Dashboard() {
     <main className="px-4 pb-14 pt-1 md:px-8">
       <div className="mx-auto flex max-w-[1240px] flex-col gap-8">
         {/* Hero */}
-        <section aria-label="Crear clips" className="flex flex-col items-center gap-5 rounded-[18px] bg-[linear-gradient(115deg,#E4EBFF_0%,#EFF1FF_45%,#E7F5FF_100%)] px-5 py-8 md:px-8">
-          <h1 className="text-center text-[28px] font-bold leading-[1.15] md:text-[34px]">Convierte tu vídeo largo en <span className="bg-[linear-gradient(90deg,#2A55F5,#4F8BFF)] bg-clip-text text-transparent">clips listos para publicar</span></h1>
+        <section aria-label="Crear clips" className="flex flex-col items-center gap-5 rounded-[18px] bg-[#FAFAFA] border border-[#E5E5E5] px-5 py-8 md:px-8">
+          <h1 className="text-center text-[28px] font-bold leading-[1.15] md:text-[34px]">Convierte tu vídeo largo en <span className="underline decoration-[3px] underline-offset-[6px]">clips listos para publicar</span></h1>
           <form onSubmit={submit} className="flex w-full max-w-[640px] flex-col items-center gap-3">
             <input ref={fileInput} id="file" type="file" accept="video/*,.mp4,.mov,.webm,.m4v,.mkv" className="sr-only" onChange={(e) => pick(e.target.files?.[0] ?? null)} />
             <div onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)} onDrop={(e) => { e.preventDefault(); setDrag(false); pick(e.dataTransfer.files?.[0] ?? null); }}
@@ -148,15 +148,15 @@ export default function Dashboard() {
               <div className="mt-3 grid gap-3 sm:grid-cols-2"><label>Tramo desde<input value={from} onChange={(e) => setFrom(e.target.value)} placeholder="0:00" className="input mono mt-1" inputMode="numeric" /></label><label>Tramo hasta<input value={to} onChange={(e) => setTo(e.target.value)} placeholder="fin del vídeo" className="input mono mt-1" inputMode="numeric" /></label></div></details>
           </div>
           <div className="flex flex-col gap-2.5">
-            <div className="flex items-center gap-3 rounded-[14px] border border-dashed border-[#D5D6E2] bg-white px-4 py-3.5"><span aria-hidden className="grid h-10 w-10 place-items-center rounded-[10px] bg-[#E3EAFF] text-[#2A55F5]">☁</span><span className="flex-1"><b className="text-sm">Importar desde Drive o Dropbox</b><br /><span className="text-[13px] text-[var(--muted)]">Elige un vídeo guardado en tu nube.</span></span><span className="rounded-md bg-[#F0F1F7] px-2 py-0.5 text-[11px] font-semibold text-[var(--muted)]">Próximamente</span></div>
-            <div className="flex items-center gap-3 rounded-[14px] border border-dashed border-[#D5D6E2] bg-white px-4 py-3.5"><span aria-hidden className="grid h-10 w-10 place-items-center rounded-[10px] bg-[#F1E4FF] text-[#7A3FD1]">◉</span><span className="flex-1"><b className="text-sm">Conectar Twitch</b><br /><span className="text-[13px] text-[var(--muted)]">Elige una de tus emisiones.</span></span><span className="rounded-md bg-[#F0F1F7] px-2 py-0.5 text-[11px] font-semibold text-[var(--muted)]">Próximamente</span></div>
+            <div className="flex items-center gap-3 rounded-[14px] border border-dashed border-[#D4D4D4] bg-white px-4 py-3.5"><span aria-hidden className="grid h-10 w-10 place-items-center rounded-[10px] bg-[#F2F2F2] text-[#111111]">☁</span><span className="flex-1"><b className="text-sm">Importar desde Drive o Dropbox</b><br /><span className="text-[13px] text-[var(--muted)]">Elige un vídeo guardado en tu nube.</span></span><span className="rounded-md bg-[#F0F1F7] px-2 py-0.5 text-[11px] font-semibold text-[var(--muted)]">Próximamente</span></div>
+            <div className="flex items-center gap-3 rounded-[14px] border border-dashed border-[#D4D4D4] bg-white px-4 py-3.5"><span aria-hidden className="grid h-10 w-10 place-items-center rounded-[10px] bg-[#F1E4FF] text-[#7A3FD1]">◉</span><span className="flex-1"><b className="text-sm">Conectar Twitch</b><br /><span className="text-[13px] text-[var(--muted)]">Elige una de tus emisiones.</span></span><span className="rounded-md bg-[#F0F1F7] px-2 py-0.5 text-[11px] font-semibold text-[var(--muted)]">Próximamente</span></div>
           </div>
         </section>
 
         {/* Demos */}
         <section aria-labelledby="dm" className="flex flex-col gap-3">
           <div className="flex flex-wrap items-baseline justify-between gap-2"><h2 id="dm" className="text-[19px]">Demos</h2><span className="text-[13px] text-[var(--muted)]">Mira qué hace Ráfaga con un vídeo de ejemplo. Sin subir nada.</span></div>
-          <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4">{[["1:40", "Podcast", "linear-gradient(135deg,#C9D6FF,#7F95E0)"], ["0:36", "Entrevista", "linear-gradient(135deg,#FFE9C7,#E8A94A)"], ["0:36", "Tutorial", "linear-gradient(135deg,#CDEFD9,#5DB383)"], ["0:37", "Directo", "linear-gradient(135deg,#FFD6E4,#E58AB0)"]].map(([d, t, g]) => <Link key={t} href="/app/demos" className="card block overflow-hidden"><span className="block aspect-[16/10]" style={{ background: g }} /><span className="block px-3 py-2.5"><span className="mono text-xs text-[var(--muted)]">DEMO · {d}</span><br /><b className="text-sm">{t}</b></span></Link>)}</div>
+          <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4">{[["1:40", "Podcast", "linear-gradient(135deg,#EDEDED,#BDBDBD)"], ["0:36", "Entrevista", "linear-gradient(135deg,#EDEDED,#BDBDBD)"], ["0:36", "Tutorial", "linear-gradient(135deg,#EDEDED,#BDBDBD)"], ["0:37", "Directo", "linear-gradient(135deg,#EDEDED,#BDBDBD)"]].map(([d, t, g]) => <Link key={t} href="/app/demos" className="card block overflow-hidden"><span className="block aspect-[16/10]" style={{ background: g }} /><span className="block px-3 py-2.5"><span className="mono text-xs text-[var(--muted)]">DEMO · {d}</span><br /><b className="text-sm">{t}</b></span></Link>)}</div>
         </section>
 
         {/* Herramientas */}
@@ -174,11 +174,11 @@ export default function Dashboard() {
           <div className="flex flex-wrap items-center justify-between gap-3"><h2 id="rp" className="text-[19px]">Proyectos recientes</h2><Link href="/app/proyectos" className="text-sm font-semibold text-[var(--accent-ink)]">Ver todos</Link></div>
           {err && <p role="alert" className="text-sm text-[var(--danger)]">No se pudieron cargar los proyectos: {err}</p>}
           {!rows && !err && <ul className="grid gap-4 sm:grid-cols-3 lg:grid-cols-5">{[0, 1, 2, 3, 4].map((i) => <li key={i} className="skeleton aspect-[4/3]" />)}</ul>}
-          {rows && !recent.length && <div className="rounded-[14px] border border-dashed border-[#D5D6E2] p-8 text-center text-[var(--muted)]">Todavía no hay proyectos. Sube un vídeo arriba para empezar.</div>}
+          {rows && !recent.length && <div className="rounded-[14px] border border-dashed border-[#D4D4D4] p-8 text-center text-[var(--muted)]">Todavía no hay proyectos. Sube un vídeo arriba para empezar.</div>}
           {!!recent.length && <ul className="grid gap-4 sm:grid-cols-3 lg:grid-cols-5">{recent.map((p) => (
             <li key={p.id}><Link href={`/app/p/${p.id}`} className="flex flex-col overflow-hidden rounded-[14px] bg-[#F0F0F5]">
               <span className="thumb relative block aspect-[16/10]">{p.thumb ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={p.thumb} alt="" className="absolute inset-0 h-full w-full object-cover" /> : null}
-                <span className="absolute left-2 top-2 rounded-full px-2.5 py-0.5 text-[11px] font-semibold" style={{ ...(isActive(p.status) ? { background: "#EAEFFF", color: "#1B3FD0" } : p.clips > 0 ? { background: "#E6F4EC", color: "#0F7B4F" } : p.status === "failed" ? { background: "#FDECEA", color: "#B42318" } : { background: "#fff", color: "#6A6F85" }) }}>{isActive(p.status) ? "Procesando" : p.status === "failed" ? "Con error" : p.clips > 0 ? `${p.clips} clip${p.clips === 1 ? "" : "s"}` : "Borrador"}</span></span>
+                <span className="absolute left-2 top-2 rounded-full px-2.5 py-0.5 text-[11px] font-semibold" style={{ ...(isActive(p.status) ? { background: "#111111", color: "#FFFFFF" } : p.clips > 0 ? { background: "#F2F2F2", color: "#111111" } : p.status === "failed" ? { background: "#FDECEA", color: "#B42318" } : { background: "#fff", color: "#5C5C5C" }) }}>{isActive(p.status) ? "Procesando" : p.status === "failed" ? "Con error" : p.clips > 0 ? `${p.clips} clip${p.clips === 1 ? "" : "s"}` : "Borrador"}</span></span>
               <span className="flex flex-col gap-0.5 px-3 pb-3 pt-2.5"><span className="text-xs text-[var(--muted)]">{new Date(p.created_at).toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric" })}</span><b className="truncate text-sm font-semibold">{p.name}</b></span></Link></li>))}</ul>}
         </section>
       </div>

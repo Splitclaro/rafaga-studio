@@ -95,10 +95,10 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const itm = "flex shrink-0 items-center gap-3 rounded-[10px] px-3 py-2 text-sm min-h-11";
   return (
     <div className="min-h-screen bg-[var(--bg)] md:flex">
-      <nav aria-label="Principal" className="z-20 flex shrink-0 flex-col gap-3.5 border-b border-[#ECECF1] bg-[var(--bg)] px-3 py-3 md:sticky md:top-0 md:h-screen md:w-64 md:border-b-0 md:border-r md:py-[18px]">
+      <nav aria-label="Principal" className="z-20 flex shrink-0 flex-col gap-3.5 border-b border-[#E5E5E5] bg-[var(--bg)] px-3 py-3 md:sticky md:top-0 md:h-screen md:w-64 md:border-b-0 md:border-r md:py-[18px]">
         <Link href="/app" className="flex items-center gap-2 px-2 pb-1" aria-label="Ráfaga, inicio">
-          <span aria-hidden className="grid h-7 w-7 place-items-center rounded-[9px] bg-[linear-gradient(135deg,#2A55F5,#5B8CFF)]"><Icon n="bolt" className="h-[15px] w-[15px] text-white" /></span>
-          <span className="font-display text-2xl font-extrabold tracking-[-0.03em] text-[#22254A]">ráfaga</span>
+          <span aria-hidden className="grid h-7 w-7 place-items-center rounded-[9px] bg-[#111111]"><Icon n="bolt" className="h-[15px] w-[15px] text-white" /></span>
+          <span className="font-display text-2xl font-extrabold tracking-[-0.03em] text-[#111111]">ráfaga</span>
         </Link>
         <div className="relative hidden md:block">
           <button onClick={() => setMenu(!menu)} aria-expanded={menu} aria-label="Cambiar de espacio de trabajo" className="flex w-full items-center gap-2.5 rounded-xl p-2 text-left hover:bg-[var(--hover)]">
@@ -131,7 +131,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
           <Link href="/app/style-studio" className={`${itm} text-[var(--ink)] hover:bg-[var(--hover)]`}><span aria-hidden className="w-[18px] text-center">Aa</span>Style Studio</Link>
           <Link href="/app/automatizaciones" className={`${itm} text-[var(--ink)] hover:bg-[var(--hover)]`}><span aria-hidden className="w-[18px] text-center">⟳</span>Automatizaciones</Link>
           <Link href="/app/demos" className={`${itm} text-[var(--ink)] hover:bg-[var(--hover)]`}><span aria-hidden className="w-[18px] text-center">▣</span>Demos y tutoriales</Link>
-          <Link href="/app/director" className="mt-2 flex items-center justify-between gap-2 rounded-[14px] border hairline bg-[var(--card)] px-3.5 py-3"><span className="flex items-center gap-2"><span aria-hidden className="text-[var(--accent)]">✦</span><span className="font-display text-base font-bold text-[#22254A]">director IA</span><span className="rounded-md bg-[#F0F1F7] px-1.5 text-[10px] font-semibold text-[var(--muted)]">Beta</span></span><span aria-hidden>→</span></Link>
+          <Link href="/app/director" className="mt-2 flex items-center justify-between gap-2 rounded-[14px] border hairline bg-[var(--card)] px-3.5 py-3"><span className="flex items-center gap-2"><span aria-hidden className="text-[var(--accent)]">✦</span><span className="font-display text-base font-bold text-[#111111]">director IA</span><span className="rounded-md bg-[#F0F1F7] px-1.5 text-[10px] font-semibold text-[var(--muted)]">Beta</span></span><span aria-hidden>→</span></Link>
         </div>
       </nav>
 

@@ -1,48 +1,49 @@
 @import "tailwindcss";
-/* Bootzy TM: fuente de los RESULTADOS (subtítulos y letras de los clips) y de sus vistas previas. La interfaz usa la fuente del sistema. */
+/* Bootzy TM: fuente de los títulos de la interfaz (display) y de los resultados (subtítulos y letras de los clips). El cuerpo usa la fuente del sistema. */
 @font-face { font-family: "Bootzy TM"; src: url("https://attrnwbcgascvppncucl.supabase.co/storage/v1/object/public/app-fonts/BootzyTM.woff2") format("woff2"), url("https://attrnwbcgascvppncucl.supabase.co/storage/v1/object/public/app-fonts/BootzyTM.ttf") format("truetype"); font-display: swap; }
-@theme { --font-display: var(--font-heading), ui-sans-serif, system-ui, sans-serif; --font-mono: var(--font-mono-ui), ui-monospace, "SF Mono", Menlo, monospace; }
-/* Sistema visual v4 (diseño maestro): claro, editorial, acento azul. Sin brillos ni degradados decorativos.
+@theme { --font-display: "Bootzy TM", var(--font-heading), ui-sans-serif, system-ui, sans-serif; --font-mono: var(--font-mono-ui), ui-monospace, "SF Mono", Menlo, monospace; }
+/* Sistema visual monocromo (AMPLIACION_V2 §4): blanco, superficie #FAFAFA, texto #111, secundario #5C5C5C, bordes #E5E5E5, botón principal negro. Sin degradados decorativos.
    Los colores que el usuario elige para subtítulos/letras NO dependen de estos tokens. */
 :root {
-  --bg: #FAFAFC; --surface: #F3F4F9; --text: #151A27; --muted: #5B6478; --border: #E3E6EE; --border-2: #D2D7E3;
-  --ink: #0B0F1A; --accent: #2A55F5; --accent-soft: #EAEFFF; --accent-ink: #1B3FD0; --select: #2A55F5; --danger: #B42318; --ok: #0F7B4F; --warn: #6B4A00; --hover: #F1F3F9;
+  --bg: #FFFFFF; --surface: #FAFAFA; --text: #111111; --muted: #5C5C5C; --border: #E5E5E5; --border-2: #D4D4D4;
+  --ink: #111111; --accent: #111111; --accent-soft: #F2F2F2; --accent-ink: #111111; --select: #111111; --danger: #B42318; --ok: #0F7B4F; --warn: #6B4A00; --hover: #F5F5F5;
   --shadow-1: 0 1px 0 rgba(11,15,26,.03);
   --shadow-2: 0 1px 0 rgba(11,15,26,.03), 0 10px 28px -18px rgba(11,15,26,.22);
   --shadow-3: 0 1px 0 rgba(11,15,26,.04), 0 24px 48px -28px rgba(11,15,26,.28);
-  --ring: 0 0 0 2px #fff, 0 0 0 4px #2A55F5;
+  --ring: 0 0 0 2px #fff, 0 0 0 4px #111111;
   --card: #FFFFFF;
 }
 /* Tema oscuro reservado al editor de clips (patrón de editor profesional). */
 .theme-dark { --bg: #0D111C; --card: #151B2A; --text: #EAF0FF; --muted: #98A6C9; --border: rgba(255,255,255,.11); --border-2: rgba(255,255,255,.18); --hover: rgba(255,255,255,.07); --surface: rgba(255,255,255,.05); --ink: #EAF0FF; --accent: #6C8BFF; --accent-soft: rgba(108,139,255,.16); --accent-ink: #B7C6FF; color: var(--text); background: var(--bg); }
 html, body { background: var(--bg); color: var(--text); font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
-input[type="range"], input[type="checkbox"], input[type="radio"] { accent-color: #2A55F5; }
+input[type="range"], input[type="checkbox"], input[type="radio"] { accent-color: #111111; }
 .tnum { font-variant-numeric: tabular-nums; }
 .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 :focus-visible { outline: none; box-shadow: var(--ring); border-radius: 10px; }
-h1, h2, h3, .font-display { font-family: var(--font-display); font-weight: 700; letter-spacing: -0.02em; color: var(--ink); }
+h1, h2, .font-display { font-family: var(--font-display); font-weight: 700; letter-spacing: -0.01em; color: var(--ink); }
+h3 { font-family: var(--font-heading), ui-sans-serif, system-ui, sans-serif; font-weight: 700; letter-spacing: -0.02em; color: var(--ink); }
 .theme-dark h1, .theme-dark h2, .theme-dark h3 { color: var(--text); }
 
 /* Superficies */
 .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow-1); }
 .card-raised { background: var(--card); border: 1px solid var(--border); border-radius: 18px; box-shadow: var(--shadow-2); }
 .panel-night, .panel-dark { background: var(--card); border: 1px solid var(--border); border-radius: 18px; box-shadow: var(--shadow-1); }
-.dots { background-image: radial-gradient(#E3E6EE 1px, transparent 1.2px); background-size: 18px 18px; }
+.dots { background-image: radial-gradient(#E5E5E5 1px, transparent 1.2px); background-size: 18px 18px; }
 .dots-dark { background-image: radial-gradient(rgba(11,15,26,.10) 1px, transparent 1.2px); background-size: 18px 18px; }
 .hairline { border-color: var(--border); }
-.hero-soft { background: linear-gradient(180deg, #EFF3FF 0%, #F7F9FF 100%); border: 1px solid #E1E8FF; border-radius: 20px; }
+.hero-soft { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; }
 
 /* Controles */
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; border-radius: 12px; padding: .55rem 1rem; min-height: 40px; font-weight: 600; font-size: .875rem; transition: background-color .12s ease, border-color .12s ease; cursor: pointer; }
 .btn:active { transform: translateY(1px); }
 .btn-primary { background: var(--accent); color: #fff; border: 1px solid var(--accent); }
-.btn-primary:hover { background: #1F45DB; border-color: #1F45DB; }
+.btn-primary:hover { background: #333333; border-color: #333333; }
 .btn-primary:disabled { opacity: .4; cursor: not-allowed; }
 .btn-ghost { background: var(--card); border: 1px solid var(--border-2); color: var(--text); }
 .btn-ghost:hover { background: var(--hover); }
 .btn-dark { background: var(--ink); color: #fff; border: 1px solid var(--ink); }
 .input { width: 100%; background: var(--card); color: var(--text); border: 1px solid var(--border-2); border-radius: 12px; padding: .55rem .8rem; min-height: 40px; font-size: .875rem; transition: border-color .12s ease, box-shadow .12s ease; }
-.input:hover { border-color: #b9c0d3; } .input:focus { outline: none; border-color: var(--accent); box-shadow: var(--ring); }
+.input:hover { border-color: #A3A3A3; } .input:focus { outline: none; border-color: var(--accent); box-shadow: var(--ring); }
 .chip { display: inline-flex; align-items: center; gap: .4rem; border: 1px solid var(--border); background: var(--card); border-radius: 999px; padding: .35rem .85rem; min-height: 32px; font-size: .8125rem; transition: background-color .12s, border-color .12s; cursor: pointer; color: var(--text); }
 .chip:hover { background: var(--hover); border-color: var(--border-2); }
 .chip[aria-pressed="true"], .chip[aria-selected="true"], .chip.on { background: var(--ink); color: #fff; border-color: var(--ink); }
@@ -50,12 +51,12 @@ h1, h2, h3, .font-display { font-family: var(--font-display); font-weight: 700; 
 .pulse { position: relative; display: inline-block; width: 8px; height: 8px; border-radius: 999px; background: var(--accent); }
 .pulse::after { content: ""; position: absolute; inset: -4px; border-radius: 999px; border: 1px solid var(--accent); animation: ping 1.6s cubic-bezier(0,0,.2,1) infinite; }
 @keyframes ping { 0% { transform: scale(.6); opacity: .8; } 80%, 100% { transform: scale(1.6); opacity: 0; } }
-.skeleton { background: linear-gradient(90deg, #eef0f6 25%, #f7f8fb 37%, #eef0f6 63%); background-size: 400% 100%; animation: shimmer 1.4s ease infinite; border-radius: 12px; }
+.skeleton { background: linear-gradient(90deg, #EEEEEE 25%, #F7F7F7 37%, #EEEEEE 63%); background-size: 400% 100%; animation: shimmer 1.4s ease infinite; border-radius: 12px; }
 @keyframes shimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
-.glass { background: rgba(250,250,252,.92); backdrop-filter: blur(10px); }
+.glass { background: rgba(255,255,255,.92); backdrop-filter: blur(10px); }
 .lift { transition: border-color .15s ease, box-shadow .15s ease; }
 .lift:hover { box-shadow: var(--shadow-2); border-color: var(--border-2); }
-.thumb { background: linear-gradient(160deg, #C9D6FF, #8EA3E8); }
+.thumb { background: linear-gradient(160deg, #E5E5E5, #BDBDBD); }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 
 /* Compositor de subtítulos: aproximación visual de las entradas animadas (el export usa libass) */
