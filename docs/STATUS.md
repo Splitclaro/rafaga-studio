@@ -313,3 +313,8 @@ Probar Lyric Studio con una canción real (canto + instrumental). Siguiente: Sty
 - Modo por defecto `cualquier_momento`: la IA elige tramos completos de cualquier parte del vídeo y, si no hay voz suficiente (videoclips), `coverageSlots` reparte tramos por toda la duración hasta el número pedido; aviso `coverage_fill` en `generations.warnings`. «Más virales (estimación)» (`automatico`) es ahora una opción.
 - Migración 106 (aditiva) aplicada en producción. Verificado en el entorno desplegado con el mismo videoclip (copia 720p, 2:31): pedido 5 → entregados 5 (tramos de 28 s), etapas v2 en Modal en <2 min.
 - Worker Modal: limpia claves con secuencias de teclado/duplicadas, alias `SUPABASE_SECRET_KEY`, `ASR_PROVIDER=groq`, `WAKE_SECRET` en el secreto `rafaga-wake`.
+
+## 2026-11-14 · Cierre de operación
+- Aviso al worker desde el servidor con `after()` (`apps/web/lib/after.ts`) en subidas, generaciones, exportaciones, integraciones y Lyric: Vercel ya no corta el aviso. El barrido de Modal pasa a 3 min (respaldo) para cuidar el tope de 1 USD.
+- `worker.yml` sin cron (GitHub Actions no procesa medios); sigue disponible a mano para autopruebas.
+- **Pendiente solo del propietario:** apps/claves de YouTube y TikTok (publicación y OAuth), Deepgram opcional. Sin gasto en ninguna capa. No verificado en producción tras este cambio: el arranque inmediato por aviso directo (se comprobará en el siguiente proyecto real).
