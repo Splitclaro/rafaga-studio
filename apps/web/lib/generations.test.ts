@@ -24,10 +24,13 @@ before(async () => {
   projectId = (await db.query<{ id: string }>(`insert into projects(workspace_id, source_id, name, created_by) values ('${wsA}','${sourceId}','Gen','${A}') returning id`)).rows[0].id;
 });
 
-test("rangos de duración: auto, lt30, 30_60, 60_90 y 90_180 → [10,180], [10,30], [30,60], [60,90], [90,180]", () => {
-  assert.deepEqual({ ...DURATION_BUCKETS }, { auto: [10, 180], lt30: [10, 30], "30_60": [30, 60], "60_90": [60, 90], "90_180": [90, 180] });
+test("rangos de duración: auto, lt30, 30_60, 60_90, 90_180 y 180_300, y unión al elegir varias", () => {
+  assert.deepEqual({ ...DURATION_BUCKETS }, { auto: [10, 180], lt30: [10, 30], "30_60": [30, 60], "60_90": [60, 90], "90_180": [90, 180], "180_300": [180, 300] });
   const v = validateParams({ duration: "60_90" }, 600);
   assert.ok(v.ok && v.params.min_s === 60 && v.params.max_s === 90);
+  // selección múltiple (como OpusClip): unión de los rangos elegidos; «auto» no cuenta
+  const m = validateParams({ duration: "lt30", duration_set: ["lt30", "60_90", "auto", "inventado"] }, 600);
+  assert.ok(m.ok && m.params.min_s === 10 && m.params.max_s === 90 && JSON.stringify(m.params.duration_set) === JSON.stringify(["lt30", "60_90"]));
 });
 
 test("estimación: 30 min sin análisis = 36; con análisis = 6; el gancho de 10 clips suma 1", () => {
