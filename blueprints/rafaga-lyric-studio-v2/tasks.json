@@ -46,7 +46,7 @@
     ],
     "checkpoint": "rafaga-lyric-v2-step-02",
     "files": ["supabase/migrations/20261201000101_lyric_songs.sql", "workers/media/src/stages/lyric.ts", "workers/media/src/stages/registry.ts", "workers/media/src/fixtures.ts", "workers/media/src/lyric_song.test.ts"],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E1-T3",

@@ -1,5 +1,5 @@
 // Registro de etapas v2: cada etapa vive en un módulo que se carga solo cuando hace falta.
-export const STAGES = ["validate", "mezzanine", "proxy", "prepare", "transcribe", "scenes", "speakers", "candidates", "select", "compose", "previews", "checks", "render", "zip", "import", "publish", "translate"] as const;
+export const STAGES = ["validate", "mezzanine", "proxy", "prepare", "transcribe", "scenes", "speakers", "candidates", "select", "compose", "previews", "checks", "render", "zip", "import", "publish", "translate", "song_validate", "lyric_sync", "media_split"] as const;
 export type StageName = (typeof STAGES)[number];
 export const isStage = (s: string): s is StageName => (STAGES as readonly string[]).includes(s);
 
@@ -20,6 +20,7 @@ const MODULE: Record<StageName, string> = {
   compose: "./compose.ts", previews: "./compose.ts", checks: "./compose.ts",
   render: "./export.ts", zip: "./export.ts",
   import: "./integrations.ts", publish: "./integrations.ts", translate: "./integrations.ts",
+  song_validate: "./lyric.ts", lyric_sync: "./lyric.ts", media_split: "./lyric.ts",
 };
 
 export class StageError extends Error { code: string; constructor(code: string, message?: string) { super(message ?? code); this.code = code; } }

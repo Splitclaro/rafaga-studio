@@ -540,7 +540,8 @@ end $$;
 create or replace function public.song_by_source(p_source uuid) returns jsonb
 language sql stable security definer set search_path = public as $$
   select jsonb_build_object('song_id', s.id, 'workspace_id', s.workspace_id, 'source_id', s.source_id, 'key', s.storage_path,
-    'mime', s.mime, 'bytes', s.bytes, 'demo', s.demo, 'title', s.title)
+    'mime', s.mime, 'bytes', s.bytes, 'demo', s.demo, 'title', s.title,
+    'project_id', (select p.id from public.projects p where p.source_id = s.source_id limit 1))
   from public.songs s where s.source_id = p_source $$;
 
 create or replace function public.finish_song_validate(p_song uuid, p_status text, p_bytes bigint, p_duration_ms bigint, p_sample_rate int,

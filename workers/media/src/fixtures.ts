@@ -6,7 +6,10 @@ import { join } from "node:path";
 import type { PGlite } from "@electric-sql/pglite";
 import type { Rpc, MediaR2 } from "./stages/registry.ts";
 
-export type FixtureKind = "ok" | "noaudio" | "corrupt" | "rotated" | "vfr" | "short3";
+export type FixtureKind = "ok" | "noaudio" | "corrupt" | "rotated" | "vfr" | "short3" | "song_wav" | "song_m4a" | "song_flac" | "song_ogg" | "song_long" | "song180" | "scenes";
+const EXT: Partial<Record<FixtureKind, string>> = { song_wav: "wav", song_m4a: "m4a", song_flac: "flac", song_ogg: "ogg", song_long: "flac", song180: "wav", scenes: "mp4" };
+/** Tono con pausas (12 s, 44100 Hz estéreo): suena como una canción simple y tiene sonoridad finita. */
+const SONG = (secs: number) => ["-f", "lavfi", "-i", `aevalsrc=exprs=0.5*sin(2*PI*440*t)*lt(mod(t\\,2)\\,1.2):s=44100:c=stereo:d=${secs}`];
 const SPARSE = "aevalsrc=0.3*sin(2*PI*440*t)*lt(mod(t\\,2)\\,0.5):s=48000:c=stereo";   // tono 0,5 s de cada 2 = «habla escasa»
 
 function ff(args: string[]) {
@@ -16,7 +19,7 @@ function ff(args: string[]) {
 
 export function makeFixture(kind: FixtureKind, dir: string): string {
   mkdirSync(dir, { recursive: true });
-  const out = join(dir, `${kind}.mov`);
+  const out = join(dir, `${kind}.${EXT[kind] ?? "mov"}`);
   if (existsSync(out)) return out;
   const video = (secs: number, fps = 25) => ["-f", "lavfi", "-i", `testsrc2=s=1920x1080:r=${fps}:d=${secs}`];
   const enc = ["-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-g", "25"];
@@ -39,6 +42,14 @@ export function makeFixture(kind: FixtureKind, dir: string): string {
       ff(["-display_rotation", "90", "-i", tmp, "-c", "copy", out]);
       break;
     }
+    case "song_wav": ff([...SONG(12), out]); break;
+    case "song_m4a": ff([...SONG(12), "-c:a", "aac", "-b:a", "128k", out]); break;
+    case "song_flac": ff([...SONG(12), "-c:a", "flac", out]); break;
+    case "song_ogg": ff([...SONG(12), "-c:a", "libopus", "-b:a", "96k", out]); break;
+    case "song180": ff([...SONG(180), out]); break;
+    case "song_long": ff(["-f", "lavfi", "-i", "aevalsrc=exprs=0.4*sin(2*PI*220*t):s=8000:c=mono:d=601", "-c:a", "flac", out]); break;
+    case "scenes": ff(["-f", "lavfi", "-i", "color=c=red:s=640x360:r=25:d=2", "-f", "lavfi", "-i", "color=c=green:s=640x360:r=25:d=2", "-f", "lavfi", "-i", "color=c=blue:s=640x360:r=25:d=2",
+      "-filter_complex", "[0:v][1:v][2:v]concat=n=3:v=1:a=0[v]", "-map", "[v]", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", out]); break;
     case "vfr":
       ff([...video(2, 25), ...video(2, 12), "-f", "lavfi", "-i", SPARSE, "-filter_complex", "[0:v][1:v]concat=n=2:v=1:a=0[v]", "-map", "[v]", "-map", "2:a", "-t", "4",
         ...enc, "-c:a", "aac", "-fps_mode", "passthrough", out]);
