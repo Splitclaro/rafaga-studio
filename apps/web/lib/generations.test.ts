@@ -84,7 +84,7 @@ test("estimación: sin análisis total 36, con análisis reutilizable 6; eta nul
   assert.equal(b.viable_count, 60); assert.equal(b.requested_count, 10); assert.ok(b.balance > 0);
   // análisis hecho y reutilizable
   const tid = (await db.query<{ id: string }>(`select id from transcripts limit 1`)).rows[0].id;
-  await db.exec(`update analyses set status='done', range_start_ms=0, range_end_ms=${MIN30}, transcript_id='${tid}', component_versions='{"asr_model":"whisper-large-v3-turbo"}'`);
+  await db.exec(`update analyses set status='done', range_start_ms=0, range_end_ms=${MIN30}, transcript_id='${tid}', component_versions='{"asr_model":"whisper-large-v3"}'`);
   const r2 = (await (await call(A, ["estimate"], P())).json()) as { units: { total: number }; reusable_analysis: boolean };
   assert.equal(r2.reusable_analysis, true); assert.equal(r2.units.total, 6);
   // ≥5 muestras de cada etapa → eta calculada
