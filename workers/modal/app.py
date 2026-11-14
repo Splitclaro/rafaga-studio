@@ -15,7 +15,7 @@ FF_SHA256 = "8206a48ce342b5075d0e0293e468a61198a55b3ef479bec3f7e83b04a18667d4"
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 MAX_PARALLEL = 4
 WAKE_HEADER = "X-Rafaga-Wake"  # FastAPI lo entrega en el parámetro x_rafaga_wake
-FN_ENV = {"RAFAGA_CPU_CORES": "2", "RAFAGA_MEM_GIB": "4", "PYTHON_BIN": "python3"}
+FN_ENV = {"ASR_PROVIDER": "groq", "RAFAGA_CPU_CORES": "2", "RAFAGA_MEM_GIB": "4", "PYTHON_BIN": "python3"}
 
 image = (
     modal.Image.debian_slim(python_version="3.12")
@@ -40,8 +40,22 @@ app = modal.App("rafaga-worker")
 secret = modal.Secret.from_name("rafaga-worker")
 wake_secret = modal.Secret.from_name("rafaga-wake")  # solo WAKE_SECRET; el último secreto prevalece
 
+import re as _re
+
+def _clean(v):
+    """Quita secuencias de teclado pegadas por error y una clave duplicada (misma mitad dos veces)."""
+    v = _re.sub(r"\x1b\[[0-9;]*[A-Za-z~]", "", v).strip()
+    h = len(v) // 2
+    return v[:h] if len(v) % 2 == 0 and h > 8 and v[:h] == v[h:] else v
+
+def _env():
+    e = {k: _clean(x) for k, x in os.environ.items()}
+    if "SUPABASE_SERVICE_ROLE_KEY" in e:  # run.ts exige SUPABASE_SECRET_KEY; stage.ts acepta ambas
+        e.setdefault("SUPABASE_SECRET_KEY", e["SUPABASE_SERVICE_ROLE_KEY"])
+    return {**e, **FN_ENV}
+
 def _node(*args, timeout):  # solo opciones que imprime `stage.ts --list-flags`
-    return subprocess.run(["node", "workers/media/src/stage.ts", *args], cwd="/repo", env={**os.environ, **FN_ENV},
+    return subprocess.run(["node", "workers/media/src/stage.ts", *args], cwd="/repo", env=_env(),
                           timeout=timeout, capture_output=True, text=True)
 
 def _plan_and_spawn():
@@ -59,7 +73,7 @@ def drain():
 
 @app.function(image=image, secrets=[secret], cpu=2.0, memory=4096, timeout=3600)
 def run_legacy():  # tipos v1 durante la coexistencia; mismo código que en Actions
-    return subprocess.run(["node", "src/run.ts"], cwd="/repo/workers/media", env={**os.environ, **FN_ENV}, timeout=3540).returncode
+    return subprocess.run(["node", "src/run.ts"], cwd="/repo/workers/media", env=_env(), timeout=3540).returncode
 
 @app.function(image=image, secrets=[secret, wake_secret], timeout=60)
 @modal.fastapi_endpoint(method="POST")
