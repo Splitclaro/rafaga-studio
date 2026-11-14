@@ -32,7 +32,7 @@ export default function CreationPanel({ projectId, durationMs, onCreated }: { pr
   const [cap2, setCap2] = useState<CaptionStyleV2>(DEFAULT_CAPTION), [beh, setBeh] = useState<BehaviourPresetId>("frase_palabra_activa");
   const style2 = useMemo(() => ({ ...style, font: cap2.font, color: cap2.color, active_color: cap2.activeColor, size: cap2.size, position: (cap2.position.y < 0.35 ? "top" : cap2.position.y < 0.65 ? "middle" : "bottom") as CaptionStyle["position"], subtitle_style: captionToSubtitleStyle(cap2) }), [style, cap2]);
   const [hook, setHook] = useState(false), [hookN, setHookN] = useState(10), [hookStyle, setHookStyle] = useState<"editorial" | "statement" | "classic">("editorial");
-  const [durSet, setDurSet] = useState<Bucket[]>([]), [subLang, setSubLang] = useState(""), [open, setOpen] = useState<null | "picks" | "len" | "prompt" | "premium" | "recipes">(null), [recTab, setRecTab] = useState<"built" | "mine">("built"), [showSettings, setShowSettings] = useState(true), [clipping, setClipping] = useState(true);
+  const [lang, setLang] = useState<"auto" | "es" | "en">("auto"), [durSet, setDurSet] = useState<Bucket[]>([]), [subLang, setSubLang] = useState(""), [open, setOpen] = useState<null | "picks" | "len" | "prompt" | "premium" | "recipes">(null), [recTab, setRecTab] = useState<"built" | "mine">("built"), [showSettings, setShowSettings] = useState(true), [clipping, setClipping] = useState(true);
   const [aspect, setAspect] = useState<(typeof ASPECTS)[number]>("9:16"), [template, setTemplate] = useState<string>("hablante_seguimiento");
   const [brandKit, setBrandKit] = useState(""), [kits, setKits] = useState<{ id: string; name: string }[]>([]);
   const [recipes, setRecipes] = useState<{ id: string; name: string; params: Partial<GenerationParams> }[]>([]);
@@ -40,9 +40,9 @@ export default function CreationPanel({ projectId, durationMs, onCreated }: { pr
   const idem = useRef<string | null>(null);
 
   const params = useMemo(() => ({ ...(subLang ? { subtitle_language: subLang } : {}),
-    recipe: recipe === "clips" && !clipping ? "captions" : recipe, mode, duration: durSet[0] ?? duration, ...(durSet.length ? { duration_set: durSet } : {}), count: count ? Number(count) : null, range_start_ms: parse(from), range_end_ms: to ? parse(to) : (durationMs ?? 0), language: "auto", brief: [brief.trim(), exclude.trim() ? `Evitar: ${exclude.trim()}` : ""].filter(Boolean).join("\n") || undefined,
+    recipe: recipe === "clips" && !clipping ? "captions" : recipe, mode, duration: durSet[0] ?? duration, ...(durSet.length ? { duration_set: durSet } : {}), count: count ? Number(count) : null, range_start_ms: parse(from), range_end_ms: to ? parse(to) : (durationMs ?? 0), language: lang, brief: [brief.trim(), exclude.trim() ? `Evitar: ${exclude.trim()}` : ""].filter(Boolean).join("\n") || undefined,
     exclude: exclude.trim() || undefined, aspect, template: recipe === "clips" || recipe === "reframe" ? template : undefined, subtitles: subs, caption_style: subs ? (lyricV2 ? style2 : style) : undefined, hook: hook ? { enabled: true, template: hookStyle, top_n: hookN } : undefined, brand_kit_id: brandKit || undefined,
-  }), [recipe, clipping, mode, duration, durSet, subLang, hookStyle, count, from, to, brief, exclude, aspect, template, subs, style, style2, lyricV2, hook, hookN, brandKit]);
+  }), [lang, recipe, clipping, mode, duration, durSet, subLang, hookStyle, count, from, to, brief, exclude, aspect, template, subs, style, style2, lyricV2, hook, hookN, brandKit]);
 
   const token = async () => (await supabase.auth.getSession()).data.session?.access_token ?? "";
   useEffect(() => { (async () => {
@@ -142,6 +142,8 @@ export default function CreationPanel({ projectId, durationMs, onCreated }: { pr
                   <span>Duración del clip:</span>
                   <Pop id="len" label={lenLabel}>
                     <ul>{(Object.keys(DURATION_BUCKETS) as Bucket[]).map((b) => <li key={b}><label className="flex cursor-pointer items-center gap-2 rounded-lg p-2 text-sm text-[var(--text)] hover:bg-[var(--hover)]"><input type="checkbox" checked={b === "auto" ? durSet.length === 0 : durSet.includes(b)} onChange={() => (b === "auto" ? setDurSet([]) : toggleLen(b))} />{b === "auto" ? "Auto (0–3 min)" : BUCKET_LABEL[b]}</label></li>)}</ul></Pop>
+                  <span>Idioma hablado:</span>
+                  <select className="rounded-lg bg-transparent px-1 py-1 text-sm" value={lang} onChange={(e) => setLang(e.target.value as "auto" | "es" | "en")} aria-label="Idioma hablado del vídeo"><option value="auto">Auto</option><option value="es">Español</option><option value="en">Inglés</option></select>
                   <span>Clips:</span>
                   <select className="rounded-lg bg-transparent px-1 py-1 text-sm" value={count} onChange={(e) => setCount(e.target.value)} aria-label="Número de clips"><option value="">Los que haya</option>{[3, 5, 8, 10, 15, 20].map((n) => <option key={n} value={n}>{n}</option>)}</select>
                 </div>

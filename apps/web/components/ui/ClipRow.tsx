@@ -34,6 +34,14 @@ function ClipRowBase({ c, index, selected, onSelect, onFavorite, onDiscard, proj
     const words = ((data?.composition as { words?: { text: string }[] } | null)?.words ?? []).map((w) => w.text);
     setText(words.length ? words.join(" ") : "Este clip no tiene transcripción guardada.");
   }
+  const [dup, setDup] = useState(false);
+  async function duplicate() {
+    setDup(true); setErr(null);
+    const r = await supabase.rpc("duplicate_clip", { p_clip: c.id });
+    setDup(false);
+    if (r.error) { setErr("No se pudo duplicar el clip."); return; }
+    window.location.reload();
+  }
   function exportXml() {
     if (c.startMs == null || c.endMs == null) return;
     const xml = clipsToXmeml({ project: projectName, source: { name: `${projectName}.mp4`, durationMs: c.endMs }, clips: [{ title: c.title, startMs: c.startMs, endMs: c.endMs }] });
@@ -63,6 +71,7 @@ function ClipRowBase({ c, index, selected, onSelect, onFavorite, onDiscard, proj
             <input type="checkbox" aria-label={`Seleccionar «${c.title}»`} checked={selected} onChange={(e) => onSelect(c.id, (e.nativeEvent as MouseEvent).shiftKey)} className="mt-1.5 h-4 w-4 shrink-0 accent-[var(--accent)]" />
             <h3 className="min-w-0 flex-1 text-lg leading-snug"><span className="mr-2 text-[var(--muted)]">#{index}</span>{c.title}</h3>
             <button onClick={() => onFavorite(c.id, !c.favorite)} aria-pressed={c.favorite} aria-label={c.favorite ? "Quitar de favoritos" : "Marcar como favorito"} className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg hover:bg-[var(--hover)] ${c.favorite ? "text-[var(--accent)]" : "text-[var(--muted)]"}`}><Icon n="brand" className="h-4 w-4" /></button>
+            <button onClick={() => { if (confirm("¿No te gusta este clip? Dejará de aparecer en el proyecto (los exports hechos se conservan).")) onDiscard(c.id); }} aria-label="No me gusta: descartar el clip" title="No me gusta" className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-[var(--muted)] hover:bg-[var(--hover)]">👎</button>
           </div>
 
           <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-3">
@@ -79,11 +88,12 @@ function ClipRowBase({ c, index, selected, onSelect, onFavorite, onDiscard, proj
           </div>
 
           <div className="mt-4 flex flex-wrap gap-2">
+            <Link href={`/app/calendario?clip=${c.id}`} className="btn btn-ghost !py-2 !text-sm">Publicar en redes</Link>
+            {c.startMs != null && c.endMs != null && <button onClick={exportXml} title="Secuencia para Premiere Pro, DaVinci Resolve o Final Cut: apunta al vídeo original por nombre" className="btn btn-ghost !py-2 !text-sm">Exportar XML</button>}
             <button onClick={download} disabled={!c.path} title={c.path ? "" : "Aún no hay MP4: ábrelo en el editor y pulsa Exportar"} className="btn btn-primary !py-2 !text-sm"><Icon n="download" className="h-4 w-4" />Descargar</button>
             <Link href={`/app/c/${c.id}`} className="btn btn-ghost !py-2 !text-sm"><Icon n="scissors" className="h-4 w-4" />Editar</Link>
+            <button onClick={() => void duplicate()} disabled={dup} className="btn btn-ghost !py-2 !text-sm">{dup ? "Duplicando…" : "Duplicar"}</button>
             <Link href={`/app/r/${c.id}`} className="btn btn-ghost !py-2 !text-sm">Revisar</Link>
-            {c.startMs != null && c.endMs != null && <button onClick={exportXml} title="Secuencia para Premiere Pro, DaVinci Resolve o Final Cut: apunta al vídeo original por nombre" className="btn btn-ghost !py-2 !text-sm">Exportar XML</button>}
-            <button onClick={() => { if (confirm("¿Descartar este clip? Deja de aparecer en el proyecto (los exports hechos se conservan).")) onDiscard(c.id); }} className="btn btn-ghost !py-2 !text-sm text-[var(--muted)]">Descartar</button>
           </div>
           {err && <p role="alert" className="mt-2 text-sm text-[var(--danger)]">{err}</p>}
 
@@ -93,9 +103,14 @@ function ClipRowBase({ c, index, selected, onSelect, onFavorite, onDiscard, proj
             {bd && <div className="mt-2 rounded-xl border hairline bg-[var(--surface)] p-4">
               <ul className="space-y-2.5">{F.filter(([, v]) => typeof v === "number").map(([n, v]) => { const x = Math.max(0, Math.min(10, v as number)); return <li key={n} className="flex items-center gap-3 text-sm"><span className="w-56 shrink-0">{n}</span><span className="h-2 flex-1 overflow-hidden rounded-full bg-[var(--border)]"><span className="block h-full rounded-full bg-[var(--accent)]" style={{ width: `${x * 10}%` }} /></span><span className="mono w-8 text-right">{x.toFixed(1)}</span></li>; })}</ul>
               <p className="mt-3 text-xs text-[var(--muted)]">Estimación editorial del selector (IA o reglas). No predice rendimiento ni garantiza viralidad.</p></div>}</>)}
-          {(c.reason || c.brief_fit) && <p className="mt-4 text-sm leading-relaxed text-[var(--text)]">{c.reason}{c.brief_fit ? <span className="mt-1 block text-[var(--muted)]">{c.brief_fit}</span> : null}</p>}
-          <button onClick={toggleText} aria-expanded={open} className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--accent)]"><Icon n={open ? "chevD" : "chevR"} className="h-3.5 w-3.5" />Transcripción del clip</button>
-          {open && <p className="mt-2 max-h-48 overflow-auto rounded-xl bg-[var(--surface)] p-3 text-sm leading-relaxed text-[var(--text)]">{text ?? "Cargando…"}</p>}
+          <div className="mt-4 border-t hairline pt-3">
+            <div className="flex items-center justify-between text-sm"><span className="text-[var(--muted)]">Análisis de escena</span>
+              <label className="flex cursor-pointer items-center gap-2 text-[var(--muted)]"><input type="checkbox" checked={open} onChange={() => void toggleText()} />Solo transcripción</label></div>
+            <div className="mt-2 max-h-56 overflow-auto text-sm leading-relaxed text-[var(--text)]">
+              {c.startMs != null && c.endMs != null && <span className="tnum mr-1 text-[var(--muted)]">[{fmtDur(c.startMs)} – {fmtDur(c.endMs)}]</span>}
+              {open ? (text ?? "Cargando…") : <>{c.reason}{c.brief_fit ? <span className="mt-1 block text-[var(--muted)]">{c.brief_fit}</span> : null}{!c.reason && !c.brief_fit ? "Sin análisis para este clip." : null}</>}
+            </div>
+          </div>
         </div>
       </div>
     </li>
