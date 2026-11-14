@@ -22,7 +22,7 @@
     ],
     "checkpoint": "rafaga-lyric-v2-step-01",
     "files": ["supabase/migrations/20261201000100_lyric_v2.sql", "supabase/tests/lyric_v2.test.ts"],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E1-T2",

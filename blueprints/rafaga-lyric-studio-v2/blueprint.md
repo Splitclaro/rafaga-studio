@@ -267,8 +267,8 @@ alter table public.songs add column if not exists loudness_lufs numeric(6,2);
 alter table public.songs add column if not exists codec text check (codec is null or char_length(codec) <= 40);
 alter table public.songs add column if not exists error_code text;
 alter table public.songs add column if not exists demo boolean not null default false;
-alter table public.songs add constraint songs_mime_check check (mime in ('audio/mpeg','audio/mp3','audio/wav','audio/x-wav','audio/wave',
-  'audio/mp4','audio/x-m4a','audio/aac','audio/flac','audio/x-flac','audio/ogg'));
+alter table public.songs add constraint songs_mime_check check (mime in ('audio/mpeg','audio/wav','audio/x-wav','audio/wave')
+  or (source_id is not null and mime in ('audio/mp3','audio/mp4','audio/x-m4a','audio/aac','audio/flac','audio/x-flac','audio/ogg')));
 alter table public.songs add constraint songs_storage_path_check check (storage_path like workspace_id::text || '/songs/%'
   or (source_id is not null and storage_path like workspace_id::text || '/%'));
 alter table public.songs add constraint songs_v2_bytes_check check (source_id is null or bytes <= 62914560);
