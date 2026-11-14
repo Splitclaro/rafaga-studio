@@ -200,3 +200,12 @@ test("lote con una exportación fallida: las otras 2 se descargan y el reintento
   const items = ["lrc", "lrc_word", "ass"].map((kind) => ({ clip_id: j.clip_ids[0], version: 1, aspect: "4:5", burn_subtitles: false, kind }));
   const ex = (await as<{ r: { export_ids: string[] } }>(`select public.request_exports('${JSON.stringify(items)}'::jsonb, false, 'fmt-key-000001') r`))[0].r; assert.equal(ex.export_ids.length, 3);
 });
+
+test("GET /exports/batches/:id/url: sin ZIP → 409; con ZIP → URL firmada; otro usuario → 404 sin firmar", async () => {
+  const pid = await lyricProject(), r = await call(A, "POST", `/projects/${pid}/variants`, { variants: plan(2) }, "variants-zip-0001"), j = (await r.json()) as { batch_id: string };
+  assert.equal((await exp("GET", `/batches/${j.batch_id}/url`)).status, 409);
+  await db.exec(`select public.set_batch_zip('${j.batch_id}', '${ws}/batches/${j.batch_id}.zip', 1234)`);
+  const ok = await exp("GET", `/batches/${j.batch_id}/url`); assert.equal(ok.status, 200); assert.match(((await ok.json()) as { url: string }).url, /X-Amz-Expires=3600/);
+  const other = await handleExports(new Request(`https://app/api/exports/batches/${j.batch_id}/url`, { headers: { Authorization: `Bearer ${tokenFor(B)}` } }), ["batches", j.batch_id, "url"], { f: fakeSupabaseFetch(db), env: ENV });
+  assert.equal(other.status, 404);
+});

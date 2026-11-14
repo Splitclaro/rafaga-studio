@@ -26,6 +26,15 @@ export async function handleExports(req: Request, slug: string[], d: ExportDeps 
     if (r.data?.job_id && !r.data.replay) wake(req, r.data.job_id);
     return json(r.data, 202);
   }
+  // GET /api/exports/batches/:id/url → URL firmada del ZIP del lote (tras comprobar acceso como el usuario; de otro usuario → 404 sin firmar)
+  if (req.method === "GET" && id === "batches" && UUID.test(action ?? "") && slug[2] === "url") {
+    const r = await rpc<{ key: string | null; status: string; expired: boolean }>(token, "batch_zip_object", { p_batch: action }, f);
+    if (r.error) return r.error.code === "P0002" ? notFound() : mapDbError(r.error);
+    if (!r.data!.key) return json({ error: { code: "not_ready", message: "El ZIP del lote aún no está listo." }, status: r.data!.status }, 409);
+    if (r.data!.expired) return fail("download_expired", { renewable: false });
+    const cfg = r2FromEnv(env); if (!cfg) return json({ error: { code: "not_configured", message: "El almacenamiento no está configurado." } }, 503);
+    return json({ url: await r2Url(cfg, "GET", r.data!.key, 3600), expires_at: new Date(Date.now() + 3600_000).toISOString() });
+  }
   if (!UUID.test(id ?? "")) return notFound();
 
   if (req.method === "POST" && (action === "retry" || action === "renew")) {

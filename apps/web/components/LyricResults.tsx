@@ -7,7 +7,7 @@ type R = { id: string; status: string; ratio: string; kind: string; clip_id: str
 const STATE: Record<string, string> = { queued: "En cola", running: "Renderizando", ready: "Lista", failed: "Falló", cancelled: "Cancelada" };
 
 const FORMATS = [["srt", "SRT"], ["vtt", "VTT"], ["lrc", "LRC"], ["lrc_word", "LRC por palabra"], ["ass", "ASS karaoke"], ["txt", "Texto"]] as const;
-export default function LyricResults({ exportIds, generationId, projectId }: { exportIds: string[]; generationId?: string; projectId?: string }) {
+export default function LyricResults({ exportIds, generationId, projectId, batchId }: { exportIds: string[]; generationId?: string; projectId?: string; batchId?: string }) {
   const [fmt, setFmt] = useState<(typeof FORMATS)[number][0]>("srt"), [pubOpen, setPubOpen] = useState<string | null>(null), [pf, setPf] = useState({ platform: "youtube", title: "", privacy: "private", at: "" });
   const [rows, setRows] = useState<R[]>([]), [warn, setWarn] = useState<{ code: string; variants: number[] }[]>([]), [msg, setMsg] = useState<string | null>(null), [busy, setBusy] = useState<string | null>(null);
   const load = useCallback(async () => {
@@ -33,6 +33,10 @@ export default function LyricResults({ exportIds, generationId, projectId }: { e
     const j = await res.json().catch(() => ({})); setMsg(res.ok ? (j.state === "scheduled" ? "Programada. No se llama a la plataforma hasta la hora elegida." : "Publicando. Verás el estado en Conexiones.") : (j?.error?.message ?? "No se pudo publicar.")); setPubOpen(null);
   }
   /** Compartir: crea una entrega con clip y versión fijados; el enlace se gestiona en Entregas. */
+  async function zip() {
+    const res = await call(`/batches/${batchId}/url`, "GET"), j = await res.json().catch(() => ({}));
+    if (res.ok && j.url) window.open(j.url, "_blank", "noopener"); else setMsg(res.status === 409 ? "El ZIP todavía se está preparando." : (j?.error?.message ?? "No se pudo preparar el ZIP."));
+  }
   async function share() {
     if (!projectId) return setMsg("Falta el proyecto para crear la entrega.");
     const { error } = await supabase.rpc("create_delivery", { p_project: projectId, p_name: "Variantes de letra", p_description: null, p_items: rows.filter((r) => r.status === "ready").map((r) => ({ clip_id: r.clip_id, version: 1 })) });
@@ -63,7 +67,8 @@ export default function LyricResults({ exportIds, generationId, projectId }: { e
         <select aria-label="Formato de letra" className="rounded border hairline px-2 py-1" value={fmt} onChange={(e) => setFmt(e.target.value as typeof fmt)}>{FORMATS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
         <button className="btn btn-ghost !min-h-8" onClick={() => void exportText()}>Exportar letra</button>
         <button className="btn btn-ghost !min-h-8" onClick={() => void share()}>Compartir</button></div>
-      <p className="text-xs text-[var(--muted)]">Si una variante falla, las demás siguen disponibles. El ZIP del lote se prepara en Exportados.</p>
+      <p className="text-xs text-[var(--muted)]">Si una variante falla, las demás siguen disponibles.</p>
+      {batchId && <button className="btn btn-ghost !min-h-8" onClick={() => void zip()}>Descargar ZIP del lote</button>}
       {msg && <p role="status" className="text-sm">{msg}</p>}
     </section>
   );

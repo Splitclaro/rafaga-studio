@@ -32,7 +32,7 @@ export default function LyricStudioV2() {
   const [wsId, setWsId] = useState<string | null>(null);
   useEffect(() => { void supabase.from("workspace_members").select("workspace_id").limit(1).then(({ data }) => setWsId(data?.[0]?.workspace_id ?? null)); }, []);
   const [projectId, setProjectId] = useState<string | null>(null), [nVar, setNVar] = useState(3), [res, setRes] = useState<720 | 1080>(720), [outFmt, setOutFmt] = useState<LyricComposition["aspect"]>("9:16");
-  const [locks, setLocks] = useState({ song_range: true, lyrics_sync: true, style: false, background: true, format: true }), [batch, setBatch] = useState<{ export_ids: string[]; generation_id: string } | null>(null);
+  const [locks, setLocks] = useState({ song_range: true, lyrics_sync: true, style: false, background: true, format: true }), [batch, setBatch] = useState<{ export_ids: string[]; generation_id: string; batch_id?: string } | null>(null);
   const [comp, setComp] = useState<LyricComposition | null>(null);
   const [editing, setEditing] = useState<{ song: Song; url: string; revision: number | null; words: SyncWord[] } | null>(null);
   const ctl = useRef<{ cancel: () => Promise<void> } | null>(null);
@@ -91,7 +91,7 @@ export default function LyricStudioV2() {
     const base = { ...comp, res, aspect: outFmt }, variants = planLyricVariants(base, nVar, locks, { styles: Array.from({ length: nVar }, (_, i) => surpriseCaption(base.seed * 1000 + i)) });
     const r = await fetch(`/api/lyrics/projects/${pid}/variants`, { method: "POST", headers: { ...H, "Idempotency-Key": `var-${crypto.randomUUID()}` }, body: JSON.stringify({ variants, zip: true }) });
     const j = await r.json().catch(() => ({})); if (!r.ok) return setMsg(j?.error?.message ?? "No se pudieron generar las variantes.");
-    setBatch({ export_ids: j.export_ids, generation_id: j.generation_id }); setMsg(`Generando ${variants.length} variantes. No consume unidades.`);
+    setBatch({ export_ids: j.export_ids, generation_id: j.generation_id, batch_id: j.batch_id }); setMsg(`Generando ${variants.length} variantes. No consume unidades.`);
   }
   async function createPiece(s: Song) {
     const t = await token(), m = mode[s.id] ?? "letra";
@@ -146,7 +146,7 @@ export default function LyricStudioV2() {
         <fieldset className="flex flex-wrap gap-3 text-xs"><legend className="mb-1 text-[var(--muted)]">Mantener igual en todas</legend>{([["song_range", "Canción y tramo"], ["lyrics_sync", "Letra y sincronización"], ["style", "Estilo"], ["background", "Fondo"], ["format", "Formato"]] as const).map(([k, l]) => <label key={k} className="flex items-center gap-1"><input type="checkbox" checked={locks[k]} onChange={(e) => setLocks({ ...locks, [k]: e.target.checked })} />{l}</label>)}</fieldset>
         <button className="btn btn-primary !min-h-9" onClick={() => void generate()}>Generar {nVar} variantes</button>
       </section>}
-      {batch && <LyricResults exportIds={batch.export_ids} generationId={batch.generation_id} projectId={projectId ?? undefined} />}
+      {batch && <LyricResults exportIds={batch.export_ids} generationId={batch.generation_id} batchId={batch.batch_id} projectId={projectId ?? undefined} />}
       <LyricLibrary workspaceId={wsId} />
       {editing && <LyricSyncEditor songId={editing.song.id} audioUrl={editing.url} lyrics={editing.song.lyrics_text ?? editing.words.map((w) => w.text).join(" ")} revision={editing.revision} words={editing.words} onSaved={() => void load()} />}
     </main>
