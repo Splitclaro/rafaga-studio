@@ -8,12 +8,17 @@ import { handleLyrics } from "./routes/lyrics.ts";
 
 let db: PGlite, ws: string;
 const ENV = { R2_ACCOUNT_ID: "acc", R2_BUCKET: "b", R2_ACCESS_KEY_ID: "AK", R2_SECRET_ACCESS_KEY: "SK" };
-const call = (uid: string, method: string, path: string, body?: unknown) =>
-  handleLyrics(new Request(`https://app/api/lyrics${path}`, { method, headers: { Authorization: `Bearer ${tokenFor(uid)}`, "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined }), path.split("/").filter(Boolean), { f: fakeSupabaseFetch(db), env: ENV });
+const woken: string[] = [];
+const call = (uid: string, method: string, path: string, body?: unknown, idem?: string) =>
+  handleLyrics(new Request(`https://app/api/lyrics${path}`, { method, headers: { Authorization: `Bearer ${tokenFor(uid)}`, "Content-Type": "application/json", ...(idem ? { "Idempotency-Key": idem } : {}) }, body: body ? JSON.stringify(body) : undefined }), path.split("/").filter(Boolean), { f: fakeSupabaseFetch(db), env: ENV, wake: (_r, j) => woken.push(j) });
 const as = async <T>(sql: string) => { await db.exec(`set role authenticated; select set_config('request.jwt.claim.sub','${A}', false);`); try { return (await db.query<T & object>(sql)).rows; } finally { await db.exec("reset role; select set_config('request.jwt.claim.sub','', false);"); } };
 const session = async (mime: string, bytes: number, idem: string) => (await as<{ r: { upload_id: string } }>(`select public.create_upload_session('${ws}','Tema',${bytes},'${mime}', null, null, true, 'multipart', 8388608, '${idem}') r`))[0].r.upload_id;
 
-before(async () => { ({ db, wsA: ws } = (await freshDb()) as unknown as { db: PGlite; wsA: string }); });
+before(async () => {
+  ({ db, wsA: ws } = (await freshDb()) as unknown as { db: PGlite; wsA: string });
+  await db.exec(`update platform_settings set value = '{"usd_per_core_s":0.001,"usd_per_gib_s":0.0001}' where key='modal_rate_card'`);
+  await db.exec(`select public.grant_units('${ws}', 20, 'pruebas', 'grant-lyr-0001')`);
+});
 
 test("POST /songs: 201 con song_id y project_id, y repetida con la misma sesión devuelve los mismos", async () => {
   const up = await session("audio/flac", 5_000_000, "lyr-up-0001");
@@ -52,4 +57,57 @@ test("POST /projects (modo texto) y PUT a letra: 201 {project_id} y 200 {saved_a
   const bad = await call(A, "PUT", `/projects/${project_id}`, { mode: "otro" }); const jb = (await bad.json()) as { error: { code: string }; field: string };
   assert.equal(bad.status, 400); assert.equal(jb.error.code, "invalid_params"); assert.equal(jb.field, "mode");
   assert.equal((await call(B, "PUT", `/projects/${project_id}`, { mode: "letra" })).status, 404);
+});
+
+// ───────── Sincronización (paso 5) ─────────
+async function readySong(idem: string, lyrics: string | null = "uno dos tres") {
+  const up = await session("audio/flac", 5_000_000, idem);
+  const { song_id } = (await (await call(A, "POST", "/songs", { upload_id: up, title: "Sync" })).json()) as { song_id: string };
+  await db.exec(`update songs set status='ready', duration_ms=180000, lyrics_text=${lyrics === null ? "null" : `'${lyrics}'`} where id='${song_id}'`);
+  return song_id;
+}
+const W = (n: number, manual = false) => Array.from({ length: n }, (_, i) => ({ text: `p${i}`, start: i, end: i + 0.5, line: 0, manual }));
+
+test("POST /songs/:id/sync: 180 s sin ASR → 202 con 3 unidades reservadas; con el ASR guardado → 0 y cached sin filas nuevas en el libro", async () => {
+  const s = await readySong("lyr-up-0010");
+  const ledger = async () => (await db.query<{ n: number }>("select count(*)::int n from credit_ledger")).rows[0].n;
+  const l0 = await ledger();
+  const a = await call(A, "POST", `/songs/${s}/sync`, { mode: "align" }, "sync-route-0001"), ja = (await a.json()) as { job_id: string; units_reserved: number; cached: boolean };
+  assert.equal(a.status, 202); assert.equal(ja.units_reserved, 3); assert.equal(ja.cached, false); assert.equal(await ledger(), l0 + 1);
+  assert.ok(woken.includes(ja.job_id));
+  assert.equal((await db.query<{ units: string }>("select units from credit_ledger where kind='reserve' order by created_at desc limit 1")).rows[0].units, "-3.00");
+  await db.exec(`select public.save_song_asr('${s}', 'whisper-large-v3-turbo', '[{"text":"uno","start":0,"end":0.4}]'::jsonb)`);
+  const l1 = await ledger();
+  const b = await call(A, "POST", `/songs/${s}/sync`, { mode: "align" }, "sync-route-0002"), jb = (await b.json()) as { units_reserved: number; cached: boolean };
+  assert.equal(b.status, 202); assert.equal(jb.units_reserved, 0); assert.equal(jb.cached, true); assert.equal(await ledger(), l1);
+  assert.equal((await call(A, "POST", `/songs/${s}/sync`, { mode: "align" })).status, 400, "sin Idempotency-Key");
+});
+
+test("align sin letra guardada → 409 lyrics_required; PUT de la letra y luego sí", async () => {
+  const s = await readySong("lyr-up-0011", null);
+  const r = await call(A, "POST", `/songs/${s}/sync`, { mode: "align" }, "sync-route-0003");
+  assert.equal(r.status, 409); assert.equal(((await r.json()) as { error: { code: string } }).error.code, "lyrics_required");
+  assert.equal((await call(A, "PUT", `/songs/${s}/lyrics`, { text: "hola mundo" })).status, 200);
+  assert.equal((await call(A, "POST", `/songs/${s}/sync`, { mode: "align" }, "sync-route-0004")).status, 202);
+});
+
+test("PUT /alignment: base obsoleta → 409 con current_revision; tiempos decrecientes → 400 invalid_words; restore crea revisión con la primera aligned", async () => {
+  const s = await readySong("lyr-up-0012");
+  await db.exec(`select public.save_song_alignment('${s}', null, '${JSON.stringify(W(3))}'::jsonb, 'aligned', '[]'::jsonb)`);       // revisión 1 (worker)
+  const ok = await call(A, "PUT", `/songs/${s}/alignment`, { base_revision: 1, words: W(3, true) }); assert.equal(ok.status, 201); assert.equal(((await ok.json()) as { revision: number }).revision, 2);
+  const stale = await call(A, "PUT", `/songs/${s}/alignment`, { base_revision: 1, words: W(3, true) });
+  assert.equal(stale.status, 409); assert.deepEqual(await stale.json(), { conflict: { current_revision: 2 } });
+  const bad = await call(A, "PUT", `/songs/${s}/alignment`, { base_revision: 2, words: [{ ...W(1)[0] }, { text: "b", start: 0.2, end: 0.1, line: 0, manual: false }] });
+  assert.equal(bad.status, 400); assert.equal(((await bad.json()) as { error: { code: string } }).error.code, "invalid_words");
+  assert.equal((await db.query<{ n: number }>(`select count(*)::int n from song_alignments where song_id='${s}' and revision is not null`)).rows[0].n, 2, "ninguna revisión extra");
+  const rs = await call(A, "POST", `/songs/${s}/alignment/restore`), jr = (await rs.json()) as { revision: number };
+  assert.equal(rs.status, 201); assert.equal(jr.revision, 3);
+  const got = (await (await call(A, "GET", `/songs/${s}/alignment`)).json()) as { revision: number; words: { manual: boolean }[] };
+  assert.equal(got.revision, 3); assert.ok(got.words.every((w) => w.manual === false), "las palabras son las de la primera revisión aligned");
+});
+
+test("el usuario B recibe 404 al pedir la alineación o sincronizar una canción de A", async () => {
+  const s = await readySong("lyr-up-0013");
+  assert.equal((await call(B, "GET", `/songs/${s}/alignment`)).status, 404);
+  assert.equal((await call(B, "POST", `/songs/${s}/sync`, { mode: "align" }, "sync-route-0005")).status, 404);
 });

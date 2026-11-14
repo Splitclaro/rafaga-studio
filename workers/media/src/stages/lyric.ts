@@ -3,6 +3,9 @@
 import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { aiConfig, groqTranscribe, AiError } from "@rafaga/providers";
+import { parseLyrics, alignWithAnchors, transcriptionProposal, type AsrWord, type SyncWord } from "@rafaga/lyrics";
+import { GroqLimiter, limitsFromEnv } from "../groqlimits.ts";
 import { StageError, type StageCtx, type StageImpl } from "./registry.ts";
 
 export const SONG_MAX_BYTES = 62914560, SONG_MAX_S = 600;
@@ -76,4 +79,57 @@ const songValidate: StageImpl = {
   },
 };
 
-export const STAGE_IMPLS: Record<string, StageImpl> = { song_validate: songValidate };
+// ───────── lyric_sync ─────────
+interface SyncCtx { song_id: string; workspace_id: string; audio_key: string; lyrics_text: string | null; language: string | null; duration_ms: number | null; asr: AsrWord[] | null; latest: { revision: number; kind: string; words: SyncWord[] } | null }
+export interface SyncDeps { transcribe?: (audio: Uint8Array, language: string) => Promise<{ words: AsrWord[] }>; limiter?: GroqLimiter }
+
+const lyricSync: StageImpl = {
+  async inputs(ctx, row) {
+    const c = await ctx.rpc<SyncCtx | null>("lyric_sync_context", { p_song: row.params.song_id, p_model: row.params.model });
+    // `latest_revision` hace que una re-sincronización tras editar a mano no se sirva de la caché del runner
+    return { stage: "lyric_sync", song_id: row.params.song_id, mode: row.params.mode, model: row.params.model, hints: row.params.hints ?? [], latest_revision: c?.latest?.revision ?? null, lyrics: c?.lyrics_text ?? null, v: 1 };
+  },
+  async run(ctx, row) {
+    const song = String(row.params.song_id), model = String(row.params.model ?? "whisper-large-v3-turbo"), mode = String(row.params.mode);
+    const c = await ctx.rpc<SyncCtx | null>("lyric_sync_context", { p_song: song, p_model: model });
+    if (!c) throw new StageError("not_found", "La canción no existe");
+    if (mode === "align" && !(c.lyrics_text ?? "").trim()) throw new StageError("lyrics_required", "Falta la letra para alinear");
+    const minutes = Math.max(0.01, Math.round(((c.duration_ms ?? 0) / 60000) * 100) / 100);
+    let asr = c.asr, called = false;
+    if (!asr) {
+      if (!ctx.r2) throw new StageError("not_configured", "R2 no está configurado en el worker");
+      const dir = join(ctx.tmpDir ?? "/tmp/rafaga", `sync-${song}`); mkdirSync(dir, { recursive: true });
+      const file = join(dir, "audio.opus");
+      try {
+        await ctx.r2.download(c.audio_key, file);
+        const audio = new Uint8Array(readFileSync(file)), deps = (ctx.deps ?? {}) as SyncDeps, env = ctx.env ?? process.env;
+        const limiter = deps.limiter ?? new GroqLimiter(limitsFromEnv(env));
+        await limiter.wait("stt", Math.ceil((c.duration_ms ?? 0) / 1000));
+        try {
+          const lang = c.language && c.language !== "auto" ? c.language : "auto";
+          const r = deps.transcribe ? await deps.transcribe(audio, lang) : await groqTranscribe(audio, "audio/ogg", aiConfig(env), { language: lang, fetchImpl: ctx.fetch });
+          asr = r.words.map((w) => ({ text: w.text, start: w.start, end: w.end }));
+        } catch (e) {
+          if (e instanceof AiError && e.status === 429) { limiter.on429(e.retryAfter ?? 20); throw new StageError("rate_limited", "Groq pidió esperar"); }
+          throw e;
+        }
+        called = true;
+        await ctx.rpc("save_song_asr", { p_song: song, p_model: model, p_words: asr });
+      } finally { rmSync(file, { force: true }); }
+    }
+    let revision: number | null = null, extras = 0, instrumentals = 0;
+    if (mode === "transcribe") {
+      const p = transcriptionProposal(asr);                                   // no toca songs.lyrics_text
+      revision = ((await ctx.rpc<{ revision: number }>("save_song_alignment", { p_song: song, p_base_revision: null, p_words: p.words, p_kind: "proposal", p_flags: [] })) ?? {}).revision ?? null;
+    } else {
+      const anchors = c.latest && c.latest.kind !== "proposal" ? c.latest.words : undefined;
+      const r = alignWithAnchors(parseLyrics(c.lyrics_text ?? ""), asr, { anchors, hints: Array.isArray(row.params.hints) ? (row.params.hints as never) : undefined });
+      extras = r.extras.length; instrumentals = r.instrumentals.length;
+      const flags = [...r.extras.map((e) => ({ type: "extra", ...e })), ...r.instrumentals.map((i) => ({ type: "instrumental", ...i }))];
+      revision = ((await ctx.rpc<{ revision: number }>("save_song_alignment", { p_song: song, p_base_revision: null, p_words: r.words, p_kind: "aligned", p_flags: flags })) ?? {}).revision ?? null;
+    }
+    return { output: { revision, asr_called: called, extras, instrumentals }, units_actual: called ? minutes : 0 };
+  },
+};
+
+export const STAGE_IMPLS: Record<string, StageImpl> = { song_validate: songValidate, lyric_sync: lyricSync };
