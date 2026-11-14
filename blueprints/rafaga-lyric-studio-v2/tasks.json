@@ -420,7 +420,7 @@
     ],
     "checkpoint": "rafaga-lyric-v2-step-17",
     "files": ["workers/media/src/stages/lyric.ts", "workers/media/src/lyric_demo.test.ts", "scripts/lyric-perf.ts", "docs/PERF.md"],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E3-T6",

@@ -5,7 +5,7 @@ import { writeFileSync } from "node:fs";
 import { mkdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { aiConfig, groqTranscribe, AiError } from "@rafaga/providers";
-import { parseLyrics, alignWithAnchors, transcriptionProposal, toSrtLyrics, toVttLyrics, toLrc, toLrcEnhanced, toAssKaraoke, toTxtLyrics, type AsrWord, type SyncWord } from "@rafaga/lyrics";
+import { DEMO_SONG, DEMO_AUDIO_EXPR, parseLyrics, alignWithAnchors, transcriptionProposal, toSrtLyrics, toVttLyrics, toLrc, toLrcEnhanced, toAssKaraoke, toTxtLyrics, type AsrWord, type SyncWord } from "@rafaga/lyrics";
 import { GroqLimiter, limitsFromEnv } from "../groqlimits.ts";
 import { randomUUID } from "node:crypto";
 import { mezzaninePath } from "./analysis.ts";
@@ -54,13 +54,17 @@ const songValidate: StageImpl = {
       await ctx.rpc("finish_song_validate", { p_song: song.song_id, p_status: "failed", p_bytes: null, p_duration_ms: null, p_sample_rate: null, p_channels: null, p_lufs: null, p_codec: null, p_lyrics: null, p_error: code });
       throw new StageError(code, msg);
     };
-    if (row.params.demo) throw new StageError("not_implemented", "La demo se prepara en el paso 17");
-    if (Number(song.bytes) > SONG_MAX_BYTES) return fail("too_large", "La canción supera los 60 MiB.");          // antes de descargar nada
+    const demo = row.params.demo === true;
+    if (!demo && Number(song.bytes) > SONG_MAX_BYTES) return fail("too_large", "La canción supera los 60 MiB.");          // antes de descargar nada
     if (!ctx.r2) throw new StageError("not_configured", "R2 no está configurado en el worker");
     const dir = join(ctx.tmpDir ?? "/tmp/rafaga", `song-${source}`); mkdirSync(dir, { recursive: true });
     const file = join(dir, "original"), opus = join(dir, "audio.opus");
     try {
-      await ctx.r2.download(song.key, file);
+      if (demo) {                                                           // demo: el audio se sintetiza (sin binarios en el repositorio) y se sube a la clave del original
+        const m4a = join(dir, "demo.m4a"), g = spawnSync("ffmpeg", ["-y", "-v", "error", "-f", "lavfi", "-i", DEMO_AUDIO_EXPR, "-c:a", "aac", "-b:a", "96k", m4a], { encoding: "utf8" });
+        if (g.status !== 0) throw new StageError("demo_failed", `ffmpeg: ${g.stderr?.slice(-200)}`);
+        writeFileSync(file, readFileSync(m4a)); rmSync(m4a, { force: true }); await ctx.r2.upload(song.key, file, "audio/mp4");
+      } else await ctx.r2.download(song.key, file);
       if (statSync(file).size > SONG_MAX_BYTES) return fail("too_large", "La canción supera los 60 MiB.");
       if (!audioKind(readFileSync(file).subarray(0, 64))) return fail("unsupported_file", "El archivo no es un audio compatible (MP3, WAV, M4A, AAC, FLAC u OGG).");
       const p = probe(file);
@@ -76,8 +80,9 @@ const songValidate: StageImpl = {
       const key = `${song.workspace_id}/${source}/audio.opus`;
       await ctx.r2.upload(key, opus, "audio/ogg");
       await ctx.rpc("record_object", { p_ws: song.workspace_id, p_key: key, p_bytes: statSync(opus).size, p_kind: "audio", p_project: song.project_id, p_source: source, p_render: null, p_expires_at: null });
-      await ctx.rpc("finish_song_validate", { p_song: song.song_id, p_status: "ready", p_bytes: null, p_duration_ms: Math.round(dur * 1000), p_sample_rate: Number(a.sample_rate ?? 0) || null,
-        p_channels: a.channels ?? null, p_lufs: lufs, p_codec: a.codec_name ?? null, p_lyrics: null, p_error: null });
+      await ctx.rpc("finish_song_validate", { p_song: song.song_id, p_status: "ready", p_bytes: demo ? statSync(file).size : null, p_duration_ms: Math.round(dur * 1000), p_sample_rate: Number(a.sample_rate ?? 0) || null,
+        p_channels: a.channels ?? null, p_lufs: lufs, p_codec: a.codec_name ?? null, p_lyrics: demo ? DEMO_SONG.lyrics : null, p_error: null });
+      if (demo) await ctx.rpc("save_song_alignment", { p_song: song.song_id, p_base_revision: null, p_words: DEMO_SONG.words, p_kind: "manual", p_flags: [] });   // revisión 1 manual, sin ASR
       return { output: { duration_s: +dur.toFixed(2), sample_rate: Number(a.sample_rate ?? 0), channels: a.channels ?? 0, lufs, codec: a.codec_name ?? null, key } };
     } finally { rmSync(file, { force: true }); rmSync(opus, { force: true }); }
   },

@@ -4,7 +4,7 @@
 // sirve para detectar regresiones y fijar una línea base, no para prometer tiempos al usuario.
 //   node scripts/perf-run.ts --quick
 import { spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, statSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir, cpus, platform, arch } from "node:os";
 import { join } from "node:path";
 import { performance } from "node:perf_hooks";
@@ -144,6 +144,7 @@ Con ${PROJECTS} muestras por fase, p95 coincide con el máximo. Fases: \`upload_
 
 Los objetivos de rendimiento se fijan después de medir vídeos de 5, 30 y 60 min con Modal real y ASR/LLM reales, con una concurrencia definida. Hasta entonces la interfaz muestra la etapa actual y rangos estimados con datos reales, sin porcentajes inventados.
 `;
-writeFileSync(join(ROOT, "docs", "PERF.md"), out);
+const perfPath = join(ROOT, "docs", "PERF.md"), prev = existsSync(perfPath) ? readFileSync(perfPath, "utf8") : "", ls = prev.indexOf("<!-- lyric-perf:start -->"), le = prev.indexOf("<!-- lyric-perf:end -->");
+writeFileSync(perfPath, ls >= 0 && le > ls ? `${out.replace(/\s*$/, "")}\n\n${prev.slice(ls, le + "<!-- lyric-perf:end -->".length)}\n` : out);   // la sección de Lyric Studio no se pierde
 console.log(out.split("\n").filter((l) => l.startsWith("|")).join("\n"));
 process.exit(0);
