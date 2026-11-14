@@ -16,8 +16,10 @@ async function sha256(s: string) {
  * Sincronización manual por pulsación: marca el inicio de cada palabra (pulsar) y, en modo «mantener», su duración.
  * Guarda una versión reutilizable por todos los estilos y variantes de la canción (tiempos absolutos).
  */
-export default function TapSync({ songId, audioUrl, lyrics, ensureLyrics, from = 0, onSaved }: {
+export default function TapSync({ songId, audioUrl, lyrics, ensureLyrics, from = 0, onSaved, onMarks }: {
   songId: string; audioUrl: string; lyrics: string; ensureLyrics: () => Promise<boolean>; from?: number; onSaved?: (n: number) => void;
+  /** Con esta prop, «Guardar» entrega las marcas al llamador (editor v2) en vez de llamar a save_manual_alignment (v1 idéntico sin ella). */
+  onMarks?: (marks: { text: string; line: number; start: number; end: number | null }[]) => void;
 }) {
   const words = useMemo(() => parseLyrics(lyrics).flatMap((l, li) => l.words.map((w) => ({ text: w, line: li }))), [lyrics]);
   const audio = useRef<HTMLAudioElement>(null);
@@ -118,6 +120,7 @@ export default function TapSync({ songId, audioUrl, lyrics, ensureLyrics, from =
     if (!marks.length) return;
     if (marks.length < words.length && !confirm(`Has marcado ${marks.length} de ${words.length} palabras. Solo se guardan las marcadas; el resto usará la alineación automática en la próxima generación. ¿Guardar?`)) return;
     if (!(await ensureLyrics())) return;
+    if (onMarks) { onMarks(finalized()); setSaved(new Date().toLocaleString("es")); setMsg(`${marks.length} palabras marcadas. Revisa la línea de tiempo y guarda la sincronización.`); setActive(false); audio.current?.pause(); return; }
     const { error } = await supabase.rpc("save_manual_alignment", { p_song: songId, p_words: finalized() });
     if (error) return setMsg(error.message);
     setSaved(new Date().toLocaleString("es")); setMsg(`Sincronización guardada (${marks.length} palabras). Se usará en todos los estilos y variantes de esta letra.`);

@@ -144,7 +144,7 @@
     ],
     "checkpoint": "rafaga-lyric-v2-step-06",
     "files": ["apps/web/lib/synceditor.ts", "apps/web/lib/synceditor.test.ts", "apps/web/components/LyricSyncEditor.tsx", "apps/web/components/TapSync.tsx", "apps/web/components/LyricStudioV2.tsx"],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E2-T1",

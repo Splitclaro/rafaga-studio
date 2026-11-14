@@ -5,9 +5,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { httpApi, localResumeStore, runUpload, type UploadEvent } from "../lib/uploader";
+import type { SyncWord } from "@rafaga/lyrics";
+import LyricSyncEditor from "./LyricSyncEditor";
 
 const MAX_SONG = 62914560;
-type Song = { id: string; title: string; artist: string | null; status: "pending" | "ready" | "failed"; duration_ms: number | null; error_code: string | null; created_at: string };
+type Song = { id: string; lyrics_text?: string | null; title: string; artist: string | null; status: "pending" | "ready" | "failed"; duration_ms: number | null; error_code: string | null; created_at: string };
 const ERR: Record<string, string> = {
   too_long: "La canción dura más de 10 minutos. Recórtala y súbela de nuevo.",
   too_large: "La canción pesa más de 60 MiB. Expórtala en MP3 o M4A y súbela de nuevo.",
@@ -22,11 +24,12 @@ async function sha256Hex(f: File) { return [...new Uint8Array(await crypto.subtl
 export default function LyricStudioV2() {
   const [songs, setSongs] = useState<Song[] | null>(null), [ev, setEv] = useState<UploadEvent | null>(null), [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false), [mode, setMode] = useState<Record<string, string>>({});
+  const [editing, setEditing] = useState<{ song: Song; url: string; revision: number | null; words: SyncWord[] } | null>(null);
   const ctl = useRef<{ cancel: () => Promise<void> } | null>(null);
   const token = async () => (await supabase.auth.getSession()).data.session?.access_token ?? "";
 
   const load = useCallback(async () => {
-    const { data } = await supabase.from("songs").select("id,title,artist,status,duration_ms,error_code,created_at").not("source_id", "is", null).order("created_at", { ascending: false });
+    const { data } = await supabase.from("songs").select("id,title,artist,status,duration_ms,error_code,created_at,lyrics_text").not("source_id", "is", null).order("created_at", { ascending: false });
     setSongs((data ?? []) as Song[]);
   }, []);
   useEffect(() => { void load(); }, [load]);
@@ -53,6 +56,21 @@ export default function LyricStudioV2() {
       await load();
     } catch (e) { setMsg((e as Error).message); } finally { setBusy(false); }
   }
+  /** Pide la sincronización (cuesta 1 unidad por minuto solo si hay que transcribir) y abre el editor con la última revisión. */
+  async function sync(s: Song) {
+    const t = await token(), H = { Authorization: `Bearer ${t}`, "Content-Type": "application/json" };
+    const r = await fetch(`/api/lyrics/songs/${s.id}/sync`, { method: "POST", headers: { ...H, "Idempotency-Key": `sync-${s.id}-${crypto.randomUUID()}` }, body: JSON.stringify({ mode: s.lyrics_text?.trim() ? "align" : "transcribe" }) });
+    const j = await r.json().catch(() => ({}));
+    setMsg(r.ok ? (j.cached ? "Sincronizando con la transcripción guardada (sin coste)." : `Sincronizando. Se reservan ${j.units_reserved} unidades; lo no usado se devuelve.`) : (j?.error?.message ?? "No se pudo sincronizar."));
+  }
+  async function edit(s: Song) {
+    const t = await token(), H = { Authorization: `Bearer ${t}` };
+    const [a, u] = await Promise.all([fetch(`/api/lyrics/songs/${s.id}/alignment`, { headers: H }), fetch(`/api/lyrics/songs/${s.id}/audio`, { headers: H })]);
+    const aj = await a.json().catch(() => ({})), uj = await u.json().catch(() => ({}));
+    if (!u.ok) return setMsg(uj?.error?.message ?? "No se pudo abrir el audio.");
+    if (!aj.words?.length) return setMsg("Todavía no hay sincronización. Pulsa «Sincronizar» y espera unos segundos.");
+    setEditing({ song: s, url: uj.url, revision: aj.revision ?? null, words: aj.words });
+  }
   async function createPiece(s: Song) {
     const t = await token(), m = mode[s.id] ?? "letra";
     const r = await fetch("/api/lyrics/projects", { method: "POST", headers: { Authorization: `Bearer ${t}`, "Content-Type": "application/json" }, body: JSON.stringify({ song_id: s.id, mode: m }) });
@@ -77,11 +95,14 @@ export default function LyricStudioV2() {
             <li key={s.id} className="card flex flex-wrap items-center justify-between gap-3 p-3 text-sm">
               <div><p className="font-medium">{s.title}{s.artist ? ` · ${s.artist}` : ""}</p>
                 <p className="text-xs text-[var(--muted)]">{s.status === "pending" ? "Validando…" : s.status === "ready" ? `Lista · ${dur(s.duration_ms)}` : (ERR[s.error_code ?? ""] ?? "No se pudo validar el archivo.")}</p></div>
-              {s.status === "ready" && <div className="flex items-center gap-2">
+              {s.status === "ready" && <div className="flex flex-wrap items-center gap-2">
+                <button className="btn btn-ghost !min-h-9" onClick={() => void sync(s)}>Sincronizar</button>
+                <button className="btn btn-ghost !min-h-9" onClick={() => void edit(s)}>Editar sincronización</button>
                 <select aria-label="Modo de la pieza" className="input !min-h-9" value={mode[s.id] ?? "letra"} onChange={(e) => setMode((m) => ({ ...m, [s.id]: e.target.value }))}>{MODES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
                 <button className="btn btn-ghost !min-h-9" onClick={() => void createPiece(s)}>Crear pieza</button></div>}
             </li>))}</ul>}
       </section>
+      {editing && <LyricSyncEditor songId={editing.song.id} audioUrl={editing.url} lyrics={editing.song.lyrics_text ?? editing.words.map((w) => w.text).join(" ")} revision={editing.revision} words={editing.words} onSaved={() => void load()} />}
     </main>
   );
 }
