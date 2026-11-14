@@ -146,7 +146,7 @@ export default function LyricStudioV2() {
         <fieldset className="flex flex-wrap gap-3 text-xs"><legend className="mb-1 text-[var(--muted)]">Mantener igual en todas</legend>{([["song_range", "Canción y tramo"], ["lyrics_sync", "Letra y sincronización"], ["style", "Estilo"], ["background", "Fondo"], ["format", "Formato"]] as const).map(([k, l]) => <label key={k} className="flex items-center gap-1"><input type="checkbox" checked={locks[k]} onChange={(e) => setLocks({ ...locks, [k]: e.target.checked })} />{l}</label>)}</fieldset>
         <button className="btn btn-primary !min-h-9" onClick={() => void generate()}>Generar {nVar} variantes</button>
       </section>}
-      {batch && <LyricResults exportIds={batch.export_ids} generationId={batch.generation_id} />}
+      {batch && <LyricResults exportIds={batch.export_ids} generationId={batch.generation_id} projectId={projectId ?? undefined} />}
       <LyricLibrary workspaceId={wsId} />
       {editing && <LyricSyncEditor songId={editing.song.id} audioUrl={editing.url} lyrics={editing.song.lyrics_text ?? editing.words.map((w) => w.text).join(" ")} revision={editing.revision} words={editing.words} onSaved={() => void load()} />}
     </main>

@@ -5,7 +5,7 @@ import { writeFileSync } from "node:fs";
 import { mkdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { aiConfig, groqTranscribe, AiError } from "@rafaga/providers";
-import { parseLyrics, alignWithAnchors, transcriptionProposal, type AsrWord, type SyncWord } from "@rafaga/lyrics";
+import { parseLyrics, alignWithAnchors, transcriptionProposal, toSrtLyrics, toVttLyrics, toLrc, toLrcEnhanced, toAssKaraoke, toTxtLyrics, type AsrWord, type SyncWord } from "@rafaga/lyrics";
 import { GroqLimiter, limitsFromEnv } from "../groqlimits.ts";
 import { randomUUID } from "node:crypto";
 import { mezzaninePath } from "./analysis.ts";
@@ -206,9 +206,19 @@ export function firstFrameHash(file: string): string {
   return hex;
 }
 export async function renderLyricItem(ctx: StageCtx, it: LyricItem, o: { key: string; dir: string; fail: (code: string, msg: string) => Promise<never> }): Promise<StageResult> {
-  if (it.kind !== "mp4") return o.fail("not_implemented", "Este formato de letra se exporta desde el paso de formatos");
   if (!ctx.r2) throw new StageError("not_configured", "R2 no está configurado en el worker");
   const c = validateLyricComposition(it.composition), r2 = ctx.r2;
+  if (it.kind !== "mp4") {                                                  // formatos de texto: palabras de la composición relativas al tramo
+    const words: SyncWord[] = c.words.filter((w) => w.end > c.range.start && w.start < c.range.end).map((w) => ({ text: w.text, start: Math.max(0, +(w.start - c.range.start).toFixed(3)), end: Math.min(c.duration, +(w.end - c.range.start).toFixed(3)), line: w.line, occurrence: 1, manual: false, confidence: 1, origin: "manual", flags: [] }));
+    const make: Record<string, () => string> = { srt: () => toSrtLyrics(words), vtt: () => toVttLyrics(words), lrc: () => toLrc(words, { title: it.title }), lrc_word: () => toLrcEnhanced(words, { title: it.title }), ass: () => toAssKaraoke(words), txt: () => toTxtLyrics(words) };
+    const MIME: Record<string, string> = { srt: "application/x-subrip", vtt: "text/vtt", lrc: "text/plain", lrc_word: "text/plain", ass: "text/x-ssa", txt: "text/plain" };
+    if (!make[it.kind]) return o.fail("render_failed", `Formato no admitido para letra: ${it.kind}`);
+    if (!words.length) return o.fail("render_failed", "La pieza no tiene letra en ese tramo");
+    const file = join(o.dir, `lyrics.${it.kind}`); writeFileSync(file, make[it.kind]());
+    await r2.upload(o.key, file, MIME[it.kind]);
+    await ctx.rpc("finish_render", { p_render: it.render_id, p_status: "ready", p_path: o.key, p_probe: null, p_bytes: statSync(file).size, p_duration_ms: Math.round(c.duration * 1000), p_width: null, p_height: null, p_error: null });
+    return { output: { key: o.key, kind: it.kind, words: words.length } };
+  }
   const song = await ctx.rpc<{ key: string } | null>("song_by_source", { p_source: it.source_id });
   if (!song) return o.fail("render_failed", "La canción de esta pieza ya no existe");
   const get = async (key: string, name: string) => { const p = join(o.dir, name); await r2.download(key, p); return p; };
