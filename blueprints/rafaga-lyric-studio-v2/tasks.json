@@ -94,7 +94,7 @@
     ],
     "checkpoint": "rafaga-lyric-v2-step-04",
     "files": ["packages/lyrics/src/sync.ts", "packages/lyrics/src/sync.test.ts", "packages/lyrics/src/formats.ts", "packages/lyrics/src/formats.test.ts", "packages/lyrics/src/index.ts"],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E1-T5",

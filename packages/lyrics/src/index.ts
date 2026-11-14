@@ -91,3 +91,5 @@ export * from "./beats.ts";
 export * from "./metrics.ts";
 export * from "./more.ts";
 export * from "./audiomoments.ts";
+export * from "./sync.ts";
+export * from "./formats.ts";
