@@ -221,3 +221,92 @@ export function lyricAss(c: LyricComposition): string {
   for (const o of lyricOverlays(c, L)) ev.push(`Dialogue: 2,${assFrame(o.startF)},${assFrame(o.endF)},W,,0,0,0,,{\\an7\\pos(${o.box.x},${o.box.y})\\fs${((o.em * (f.ascent - f.descent)) / f.unitsPerEm).toFixed(2)}}${esc(o.text)}`);
   return head + ev.join("\n") + "\n";
 }
+
+// ───────── Render: filtros, ajuste de fondo, argumentos de ffmpeg y variantes ─────────
+/** Mismas cadenas que `FILTERS.midnight|super8|noir|vaporwave` de @rafaga/lyrics/background.ts (copiadas: composition no depende de lyrics). */
+export const LYRIC_FILTERS: Record<Exclude<LyricFilter, "none">, string> = {
+  noche: "colorbalance=bs=0.22:bm=0.08,eq=brightness=-0.04:saturation=0.85",
+  super8: "eq=saturation=1.15:contrast=1.06,colorbalance=rs=0.08:gs=0.04:bs=-0.06,noise=alls=10:allf=t,vignette=PI/5",
+  bn: "hue=s=0,eq=contrast=1.18:brightness=-0.02",
+  vapor: "colorbalance=rs=0.22:gs=-0.08:bs=0.28,eq=saturation=1.35",
+};
+/** Aproximación para el canvas de la vista previa. */
+export const LYRIC_FILTER_CSS: Record<LyricFilter, string> = { none: "none", noche: "saturate(.85) hue-rotate(-12deg) brightness(.92)", super8: "saturate(1.15) contrast(1.06) sepia(.15)", bn: "grayscale(1) contrast(1.18)", vapor: "saturate(1.35) hue-rotate(40deg)" };
+
+/** Rectángulo (escalado + posición) de un plano de fondo según el ajuste: `fill` recorta, `preserve` cabe con negro, `band` banda 16:9 centrada. */
+export function bgRect(fit: "preserve" | "fill" | "band", item: { w: number; h: number }, W: number, H: number) {
+  const cover = (bw: number, bh: number) => Math.max(bw / item.w, bh / item.h), contain = (bw: number, bh: number) => Math.min(bw / item.w, bh / item.h);
+  if (fit === "preserve") { const k = contain(W, H), w = even(item.w * k), h = even(item.h * k); return { x: even((W - w) / 2), y: even((H - h) / 2), w, h, clip: null }; }
+  const bh = fit === "band" ? even((W * 9) / 16) : H, k = cover(W, bh), w = even(item.w * k), h = even(item.h * k), y0 = fit === "band" ? even((H - bh) / 2) : 0;
+  return { x: even((W - w) / 2), y: y0 + even((bh - h) / 2), w, h, clip: { x: 0, y: y0, w: W, h: bh } };
+}
+const filt = (s: string) => s.replace(/\\/g, "\\\\").replace(/:/g, "\\:").replace(/'/g, "\\'");
+export interface RenderIo { audio: string; items: string[]; coverFront?: string; coverBack?: string; ass: string; fontsDir: string; out: string }
+/** Argumentos de ffmpeg (sin shell). El audio sale SOLO de la canción, sin filtros de audio: `-c:a aac -b:a 192k`. */
+export function lyricRenderArgs(c: LyricComposition, io: RenderIo): string[] {
+  const { width: W, height: H } = lyricFrameSize(c), D = c.duration, a: string[] = ["-y", "-v", "error"], chains: string[] = [];
+  const bandH = even((W * 9) / 16), fitF = c.background.fit === "fill" ? `scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H}`
+    : c.background.fit === "band" ? `scale=${W}:${bandH}:force_original_aspect_ratio=increase,crop=${W}:${bandH},pad=${W}:${H}:0:${even((H - bandH) / 2)}:color=black`
+    : `scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:color=black`;
+  const shots = lyricShots(c); let n = 0;
+  if (shots.length) {
+    shots.forEach((s, i) => {
+      const it = c.background.items[s.item], d = +(s.end - s.start).toFixed(3), fade = c.settings.blend > 0 && shots.length > 1 ? `,fade=t=in:st=0:d=${(c.settings.blend * 0.25).toFixed(2)},fade=t=out:st=${Math.max(0, d - c.settings.blend * 0.25).toFixed(2)}:d=${(c.settings.blend * 0.25).toFixed(2)}` : "";
+      if (it.kind === "video") a.push("-stream_loop", "-1", "-ss", "0", "-t", String(d), "-i", io.items[s.item]); else a.push("-loop", "1", "-framerate", "30", "-t", String(d), "-i", io.items[s.item]);
+      chains.push(`[${n}:v]setsar=1,fps=30,${fitF},format=yuv420p,trim=duration=${d},setpts=PTS-STARTPTS${fade}[s${i}]`); n++;
+    });
+    chains.push(`${shots.map((_, i) => `[s${i}]`).join("")}concat=n=${shots.length}:v=1:a=0[bg]`);
+  } else { a.push("-f", "lavfi", "-t", String(D), "-i", `color=c=${c.background.color.replace("#", "0x")}:s=${W}x${H}:r=30`); chains.push(`[${n}:v]setsar=1,format=yuv420p[bg]`); n++; }
+  const post: string[] = [];
+  if (c.settings.filter !== "none") post.push(LYRIC_FILTERS[c.settings.filter]);
+  if (c.settings.dim > 0) post.push(`drawbox=x=0:y=0:w=iw:h=ih:color=black@${Math.min(0.8, c.settings.dim).toFixed(2)}:t=fill`);
+  const bar = even(Math.round((c.settings.crop * 0.4 * H) / 2));
+  if (bar > 0) post.push(`drawbox=x=0:y=0:w=iw:h=${bar}:color=black:t=fill`, `drawbox=x=0:y=ih-${bar}:w=iw:h=${bar}:color=black:t=fill`);
+  let last = "bg"; chains.push(`[bg]${post.length ? post.join(",") : "null"}[g]`); last = "g";
+  if (c.mode === "portada" && (io.coverFront || io.coverBack)) {
+    const side = even(W * 0.7), cx = W / 2, cy = H * 0.4, zoom = c.cover?.motion === "estatica" ? "1" : `(1+0.06*t/${D})`;
+    for (const [k, path, half] of [["f", io.coverFront, 0], ["b", io.coverBack ?? io.coverFront, 1]] as const) {
+      if (!path) continue; a.push("-loop", "1", "-framerate", "30", "-t", String(D), "-i", path);
+      const en = half ? `gte(t,${(D / 2).toFixed(3)})` : io.coverBack ? `lt(t,${(D / 2).toFixed(3)})` : "1";
+      chains.push(`[${n}:v]scale=${side}:${side}:force_original_aspect_ratio=increase,crop=${side}:${side},scale=w='${side}*${zoom}':h='${side}*${zoom}':eval=frame,format=yuva420p[c${k}]`);
+      chains.push(`[${last}][c${k}]overlay=x='${cx}-overlay_w/2':y='${cy}-overlay_h/2':eval=frame:enable='${en}'[o${k}]`); last = `o${k}`; n++;
+    }
+  }
+  chains.push(`[${last}]subtitles=${filt(io.ass)}:fontsdir=${filt(io.fontsDir)},format=yuv420p[v]`);
+  a.push("-ss", String(c.range.start), "-t", String(D), "-i", io.audio);
+  a.push("-filter_complex", chains.join(";"), "-map", "[v]", "-map", `${n}:a:0`, "-c:v", "libx264", "-preset", "superfast", "-crf", "20", "-r", "30", "-c:a", "aac", "-b:a", "192k", "-t", String(D), "-movflags", "+faststart", io.out);
+  return a;
+}
+
+// ───────── Variantes ─────────
+export interface VariantLocks { song_range?: boolean; lyrics_sync?: boolean; style?: boolean; background?: boolean; format?: boolean }
+export interface VariantOpts { styles?: CaptionStyleV2[]; collections?: LyricBgItem[][]; aspects?: LyricAspect[]; ranges?: { start: number; end: number }[]; alignments?: LyricWord[][] }
+/** N composiciones con semillas distintas (`seed × 1000 + i`); solo varía lo no bloqueado, rotando entre las opciones dadas. */
+export function planLyricVariants(base: LyricComposition, n: number, locks: VariantLocks = {}, opts: VariantOpts = {}): LyricComposition[] {
+  return Array.from({ length: Math.max(0, Math.floor(n)) }, (_, i) => {
+    const seed = base.seed * 1000 + i; let s = seed >>> 0; const r = () => { s = (s + 0x6d2b79f5) >>> 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t ^= t + Math.imul(t ^ (t >>> 7), 61 | t); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    let c: LyricComposition = { ...base, seed };
+    const pick = <T,>(a: T[] | undefined) => (a && a.length ? a[i % a.length] : undefined);
+    const st = !locks.style ? pick(opts.styles) : undefined, bg = !locks.background ? pick(opts.collections) : undefined, ar = !locks.format ? pick(opts.aspects) : undefined, rg = !locks.song_range ? pick(opts.ranges) : undefined, al = !locks.lyrics_sync ? pick(opts.alignments) : undefined;
+    if (st) c = { ...c, style: st }; if (bg) c = { ...c, background: { ...c.background, kind: "media", items: bg, sequence: [] } }; if (ar) c = { ...c, aspect: ar };
+    if (rg) c = { ...c, range: rg, duration: rg.end - rg.start }; if (al) c = { ...c, words: al };
+    if (base.settings.variation > 0 && !locks.background) { const v = base.settings.variation / 100; c = { ...c, settings: { ...c.settings, crop: +Math.min(1, Math.max(0, c.settings.crop + (r() - 0.5) * 0.2 * v)).toFixed(2), dim: +Math.min(0.8, Math.max(0, c.settings.dim + (r() - 0.5) * 0.2 * v)).toFixed(2) } }; }
+    return c;
+  });
+}
+/** FNV-1a de 64 bits (hex) de los parámetros que hacen distinta a una variante: estilo, formato, tramo, fondo y ajustes (no la semilla). */
+export function variantHash(c: LyricComposition): string {
+  const txt = JSON.stringify([c.style, c.aspect, c.range, c.background.kind, c.background.color, c.background.items.map((i) => i.ref), c.background.sequence, c.background.interval, c.background.order, c.background.fit, c.settings, c.mode, c.preset]);
+  let h = 0xcbf29ce484222325n; for (const b of new TextEncoder().encode(txt)) { h ^= BigInt(b); h = (h * 0x100000001b3n) & 0xffffffffffffffffn; }
+  return h.toString(16).padStart(16, "0");
+}
+const bits = (a: string, b: string) => { let d = 0; for (let i = 0; i < Math.min(a.length, b.length); i++) { let x = parseInt(a[i], 16) ^ parseInt(b[i], 16); while (x) { d += x & 1; x >>= 1; } } return d; };
+/** Pares casi duplicados: mismo `variantHash`, o hash perceptivo del primer fotograma a ≤ `maxBits` bits. */
+export function nearDuplicates(items: { id: string; hash: string; ahash?: string | null }[], maxBits = 4): [string, string][] {
+  const out: [string, string][] = [];
+  for (let i = 0; i < items.length; i++) for (let j = i + 1; j < items.length; j++) {
+    const a = items[i], b = items[j];
+    if (a.hash === b.hash || (a.ahash && b.ahash && bits(a.ahash, b.ahash) <= maxBits)) out.push([a.id, b.id]);
+  }
+  return out;
+}

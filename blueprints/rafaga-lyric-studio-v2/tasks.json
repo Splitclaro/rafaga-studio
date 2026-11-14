@@ -343,7 +343,7 @@
     ],
     "checkpoint": "rafaga-lyric-v2-step-14",
     "files": ["packages/composition/src/lyricscene.ts", "packages/composition/src/lyricrender.test.ts", "workers/media/src/stages/export.ts", "workers/media/src/stages/lyric.ts", "workers/media/src/lyric_render.test.ts"],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E3-T3",

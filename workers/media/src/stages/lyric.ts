@@ -1,6 +1,7 @@
 // Etapas de Lyric Studio v2. Paso 2: `song_validate` (canción subida con el cargador compartido → audio de trabajo + sonoridad).
 // `lyric_sync` y `media_split` se añaden en sus pasos; mientras no estén, `loadStage` responde `not_implemented`.
 import { spawnSync } from "node:child_process";
+import { writeFileSync } from "node:fs";
 import { mkdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { aiConfig, groqTranscribe, AiError } from "@rafaga/providers";
@@ -8,7 +9,8 @@ import { parseLyrics, alignWithAnchors, transcriptionProposal, type AsrWord, typ
 import { GroqLimiter, limitsFromEnv } from "../groqlimits.ts";
 import { randomUUID } from "node:crypto";
 import { mezzaninePath } from "./analysis.ts";
-import { StageError, type StageCtx, type StageImpl } from "./registry.ts";
+import { lyricAss, lyricRenderArgs, lyricFrameSize, validateLyricComposition } from "@rafaga/composition";
+import { StageError, type StageCtx, type StageImpl, type StageResult } from "./registry.ts";
 
 export const SONG_MAX_BYTES = 62914560, SONG_MAX_S = 600;
 export type AudioKind = "mp3" | "wav" | "m4a" | "aac" | "flac" | "ogg";
@@ -192,5 +194,38 @@ const mediaSplit: StageImpl = {
     return { output: { items: ids.length, item_ids: ids } };
   },
 };
+
+// ───────── Render de variantes de letra (lo llama `render` de export.ts cuando la composición es de tipo lyric) ─────────
+export interface LyricItem { render_id: string; workspace_id: string; clip_id: string; version: number; kind: string; composition: unknown; source_id: string; title: string }
+/** Hash perceptivo (aHash 8×8 en gris → 16 hex) del primer fotograma. */
+export function firstFrameHash(file: string): string {
+  const r = spawnSync("ffmpeg", ["-v", "error", "-i", file, "-vf", "scale=8:8:flags=area,format=gray", "-frames:v", "1", "-f", "rawvideo", "-"], { maxBuffer: 1 << 20 });
+  const px = r.stdout; if (r.status !== 0 || px.length < 64) throw new Error("No se pudo calcular el hash del primer fotograma");
+  const mean = px.reduce((a, b) => a + b, 0) / 64; let hex = "";
+  for (let i = 0; i < 64; i += 4) hex += ([0, 1, 2, 3].reduce((n, k) => (n << 1) | (px[i + k] > mean ? 1 : 0), 0)).toString(16);
+  return hex;
+}
+export async function renderLyricItem(ctx: StageCtx, it: LyricItem, o: { key: string; dir: string; fail: (code: string, msg: string) => Promise<never> }): Promise<StageResult> {
+  if (it.kind !== "mp4") return o.fail("not_implemented", "Este formato de letra se exporta desde el paso de formatos");
+  if (!ctx.r2) throw new StageError("not_configured", "R2 no está configurado en el worker");
+  const c = validateLyricComposition(it.composition), r2 = ctx.r2;
+  const song = await ctx.rpc<{ key: string } | null>("song_by_source", { p_source: it.source_id });
+  if (!song) return o.fail("render_failed", "La canción de esta pieza ya no existe");
+  const get = async (key: string, name: string) => { const p = join(o.dir, name); await r2.download(key, p); return p; };
+  const audio = await get(song.key, "song"), items: string[] = [];
+  for (const [i, b] of c.background.items.entries()) items.push(await get(b.ref, `bg${i}`));          // un fondo que falta rompe SOLO esta variante
+  const coverFront = c.cover?.front ? await get(c.cover.front, "cover-front") : undefined, coverBack = c.cover?.back ? await get(c.cover.back, "cover-back") : undefined;
+  const ass = join(o.dir, "lyric.ass"), out = join(o.dir, "out.mp4"), fontsDir = (ctx.env ?? process.env).LYRIC_FONTS_DIR ?? new URL("../../../../apps/web/public/fonts/caption", import.meta.url).pathname;
+  writeFileSync(ass, lyricAss(c));
+  const r = spawnSync("ffmpeg", lyricRenderArgs(c, { audio, items, coverFront, coverBack, ass, fontsDir, out }), { encoding: "utf8", maxBuffer: 1 << 26 });
+  if (r.status !== 0) return o.fail("render_failed", `ffmpeg: ${(r.stderr ?? "").slice(-300)}`);
+  const pr = spawnSync("ffprobe", ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height,codec_name,pix_fmt:format=duration", "-of", "json", out], { encoding: "utf8" });
+  const j = JSON.parse(pr.stdout || "{}") as { streams?: { width: number; height: number; codec_name: string; pix_fmt: string }[]; format?: { duration?: string } }, v = j.streams?.[0], size = lyricFrameSize(c);
+  if (!v || v.codec_name !== "h264" || v.pix_fmt !== "yuv420p" || v.width !== size.width || v.height !== size.height) return o.fail("render_failed", "El MP4 resultante no es H.264/yuv420p del tamaño esperado");
+  const ahash = firstFrameHash(out), dur = Number(j.format?.duration ?? c.duration);
+  await r2.upload(o.key, out, "video/mp4");
+  await ctx.rpc("finish_render", { p_render: it.render_id, p_status: "ready", p_path: o.key, p_probe: { codec: v.codec_name, pix_fmt: v.pix_fmt, width: v.width, height: v.height, duration_s: dur, ahash }, p_bytes: statSync(out).size, p_duration_ms: Math.round(dur * 1000), p_width: v.width, p_height: v.height, p_error: null });
+  return { output: { key: o.key, kind: "mp4", width: v.width, height: v.height, ahash } };
+}
 
 export const STAGE_IMPLS: Record<string, StageImpl> = { song_validate: songValidate, lyric_sync: lyricSync, media_split: mediaSplit };

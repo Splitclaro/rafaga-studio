@@ -8,10 +8,11 @@ import { toVTT as vtt } from "@rafaga/composition";
 import { StageError, type StageCtx, type StageImpl } from "./registry.ts";
 import { mezzaninePath } from "./analysis.ts";
 import { ZipBuilder } from "../zip.ts";
+import { renderLyricItem } from "./lyric.ts";
 
 export interface ExportItem { render_id: string; workspace_id: string; clip_id: string; version: number; kind: string; aspect: string; burn: boolean; composition: CompositionV2; source_id: string; title: string; words: Word[]; hash: string; batch_id: string | null }
-const EXT: Record<string, string> = { mp4: "mp4", srt: "srt", vtt: "vtt", txt: "txt", fcpxml: "fcpxml", xmeml: "xml", edl: "edl" };
-const MIME: Record<string, string> = { mp4: "video/mp4", srt: "application/x-subrip", vtt: "text/vtt", txt: "text/plain", fcpxml: "application/xml", xmeml: "application/xml", edl: "text/plain" };
+const EXT: Record<string, string> = { mp4: "mp4", srt: "srt", vtt: "vtt", txt: "txt", fcpxml: "fcpxml", xmeml: "xml", edl: "edl", lrc: "lrc", lrc_word: "lrc", ass: "ass" };
+const MIME: Record<string, string> = { mp4: "video/mp4", srt: "application/x-subrip", vtt: "text/vtt", txt: "text/plain", fcpxml: "application/xml", xmeml: "application/xml", edl: "text/plain", lrc: "text/plain", lrc_word: "text/plain", ass: "text/x-ssa" };
 export const exportKey = (it: Pick<ExportItem, "workspace_id" | "clip_id" | "version" | "hash" | "kind">) => `${it.workspace_id}/${it.clip_id}/v${it.version}-${it.hash.slice(0, 12)}.${EXT[it.kind]}`;
 const FPS = 30;
 const frames = (s: number) => Math.round(s * FPS);
@@ -73,6 +74,7 @@ const render: StageImpl = {
     const fail = async (code: string, msg: string): Promise<never> => { await ctx.rpc("finish_render", { p_render: id, p_status: "failed", p_path: null, p_probe: null, p_bytes: null, p_duration_ms: null, p_width: null, p_height: null, p_error: code }); throw new BatchItemFailed(code, msg, !!it.batch_id); };
     const key = exportKey(it), d = dir(ctx, id);
     try {
+      if ((it.composition as unknown as { kind?: string }).kind === "lyric") return await renderLyricItem(ctx, it as never, { key, dir: d, fail });
       if (it.kind !== "mp4") {
         const text = textOutput(it), out = join(d, `out.${EXT[it.kind]}`); writeFileSync(out, text);
         await ctx.r2.upload(key, out, MIME[it.kind]);
