@@ -1,7 +1,7 @@
 // OAuth 2.0 (código de autorización + PKCE) para Google (YouTube, Drive) y Dropbox. Módulo PURO: construye URLs, intercambia y
 // renueva tokens con `fetch`. Los secretos de cliente solo viven en el servidor; los tokens nunca llegan al navegador (ver docs/integrations.md).
-export type OAuthProvider = "google" | "dropbox";
-export type Capability = "import_youtube" | "import_drive" | "import_dropbox";
+export type OAuthProvider = "google" | "dropbox" | "tiktok";
+export type Capability = "import_youtube" | "import_drive" | "import_dropbox" | "publish_youtube" | "publish_tiktok";
 export interface ProviderConfig { clientId: string; clientSecret: string }
 export interface Tokens { accessToken: string; refreshToken: string | null; expiresAt: string | null; scopes: string[]; accountLabel: string | null }
 
@@ -10,11 +10,15 @@ export const SCOPES: Record<Capability, string[]> = {
   import_youtube: ["https://www.googleapis.com/auth/youtube.readonly"],
   import_drive: ["https://www.googleapis.com/auth/drive.readonly"],
   import_dropbox: ["files.metadata.read", "files.content.read", "account_info.read"],
+  publish_youtube: ["https://www.googleapis.com/auth/youtube.upload"],
+  publish_tiktok: ["video.publish"],
 };
-export const PROVIDER_OF: Record<Capability, OAuthProvider> = { import_youtube: "google", import_drive: "google", import_dropbox: "dropbox" };
+export const PROVIDER_OF: Record<Capability, OAuthProvider> = { import_youtube: "google", import_drive: "google", import_dropbox: "dropbox", publish_youtube: "google", publish_tiktok: "tiktok" };
 export const ENDPOINTS: Record<OAuthProvider, { auth: string; token: string; revoke: string; whoami: string }> = {
+  // TikTok: endpoints de la documentación pública de Login Kit v2; NO verificados contra una app real (los confirma el propietario, LC-10).
   google: { auth: "https://accounts.google.com/o/oauth2/v2/auth", token: "https://oauth2.googleapis.com/token", revoke: "https://oauth2.googleapis.com/revoke", whoami: "https://www.googleapis.com/oauth2/v3/userinfo" },
   dropbox: { auth: "https://www.dropbox.com/oauth2/authorize", token: "https://api.dropboxapi.com/oauth2/token", revoke: "https://api.dropboxapi.com/2/auth/token/revoke", whoami: "https://api.dropboxapi.com/2/users/get_current_account" },
+  tiktok: { auth: "https://www.tiktok.com/v2/auth/authorize/", token: "https://open.tiktokapis.com/v2/oauth/token/", revoke: "https://open.tiktokapis.com/v2/oauth/revoke/", whoami: "https://open.tiktokapis.com/v2/user/info/?fields=display_name" },
 };
 
 const b64url = (buf: ArrayBuffer | Uint8Array) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -29,6 +33,7 @@ export const randomState = () => { const r = new Uint8Array(24); crypto.getRando
 
 /** URL de autorización. `state` ata la petición al usuario (anti-CSRF); el reto PKCE evita el robo del código. */
 export function authUrl(provider: OAuthProvider, o: { clientId: string; redirectUri: string; scopes: string[]; state: string; challenge: string }): string {
+  if (provider === "tiktok") return `${ENDPOINTS.tiktok.auth}?${new URLSearchParams({ client_key: o.clientId, redirect_uri: o.redirectUri, response_type: "code", scope: o.scopes.join(","), state: o.state })}`;
   const p = new URLSearchParams({ client_id: o.clientId, redirect_uri: o.redirectUri, response_type: "code", state: o.state, code_challenge: o.challenge, code_challenge_method: "S256" });
   if (provider === "google") { p.set("scope", o.scopes.join(" ")); p.set("access_type", "offline"); p.set("prompt", "consent"); p.set("include_granted_scopes", "true"); }
   else { p.set("scope", o.scopes.join(" ")); p.set("token_access_type", "offline"); }
@@ -53,12 +58,14 @@ async function post(url: string, body: URLSearchParams, f: Fetch, who: string, h
 /** Canjea el código por tokens (servidor: usa el secreto de cliente y el verificador PKCE). */
 export async function exchangeCode(provider: OAuthProvider, cfg: ProviderConfig, o: { code: string; redirectUri: string; verifier: string; scopes: string[]; fetchImpl?: Fetch }): Promise<Tokens> {
   const f = o.fetchImpl ?? fetch;
-  const body = new URLSearchParams({ grant_type: "authorization_code", code: o.code, redirect_uri: o.redirectUri, code_verifier: o.verifier, client_id: cfg.clientId, client_secret: cfg.clientSecret });
+  const body = provider === "tiktok"
+    ? new URLSearchParams({ grant_type: "authorization_code", code: o.code, redirect_uri: o.redirectUri, client_key: cfg.clientId, client_secret: cfg.clientSecret })
+    : new URLSearchParams({ grant_type: "authorization_code", code: o.code, redirect_uri: o.redirectUri, code_verifier: o.verifier, client_id: cfg.clientId, client_secret: cfg.clientSecret });
   return parseTokens(await post(ENDPOINTS[provider].token, body, f, `${provider} token`), Date.now(), o.scopes);
 }
 /** Renueva con el refresh token. Google no devuelve refresh nuevo: se conserva el anterior. */
 export async function refreshTokens(provider: OAuthProvider, cfg: ProviderConfig, refreshToken: string, scopes: string[], fetchImpl?: Fetch): Promise<Tokens> {
-  const body = new URLSearchParams({ grant_type: "refresh_token", refresh_token: refreshToken, client_id: cfg.clientId, client_secret: cfg.clientSecret });
+  const body = new URLSearchParams({ grant_type: "refresh_token", refresh_token: refreshToken, [provider === "tiktok" ? "client_key" : "client_id"]: cfg.clientId, client_secret: cfg.clientSecret });
   return parseTokens(await post(ENDPOINTS[provider].token, body, fetchImpl ?? fetch, `${provider} refresh`), Date.now(), scopes, refreshToken);
 }
 /** ¿Hace falta renovar? Con margen de 2 minutos. Sin caducidad conocida (Dropbox sin offline) no se renueva. */
@@ -72,6 +79,11 @@ export async function whoami(provider: OAuthProvider, accessToken: string, fetch
     if (!r.ok) throw new OAuthError(r.status, `google userinfo ${r.status}`);
     const j = (await r.json()) as { email?: string; name?: string }; return j.email ?? j.name ?? "Cuenta de Google";
   }
+  if (provider === "tiktok") {
+    const r = await f(ENDPOINTS.tiktok.whoami, { headers: { Authorization: `Bearer ${accessToken}` } });
+    if (!r.ok) throw new OAuthError(r.status, `tiktok user ${r.status}`);
+    return ((await r.json()) as { data?: { user?: { display_name?: string } } }).data?.user?.display_name ?? "Cuenta de TikTok";
+  }
   const r = await f(ENDPOINTS.dropbox.whoami, { method: "POST", headers: { Authorization: `Bearer ${accessToken}` } });
   if (!r.ok) throw new OAuthError(r.status, `dropbox account ${r.status}`);
   const j = (await r.json()) as { email?: string; name?: { display_name?: string } }; return j.email ?? j.name?.display_name ?? "Cuenta de Dropbox";
@@ -80,6 +92,7 @@ export async function whoami(provider: OAuthProvider, accessToken: string, fetch
 export async function revoke(provider: OAuthProvider, token: string, fetchImpl?: Fetch): Promise<boolean> {
   const f = fetchImpl ?? fetch;
   try {
+    if (provider === "tiktok") return (await f(ENDPOINTS.tiktok.revoke, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ token }) })).ok;
     const r = provider === "google" ? await f(`${ENDPOINTS.google.revoke}?token=${encodeURIComponent(token)}`, { method: "POST" }) : await f(ENDPOINTS.dropbox.revoke, { method: "POST", headers: { Authorization: `Bearer ${token}` } });
     return r.ok;
   } catch { return false; }

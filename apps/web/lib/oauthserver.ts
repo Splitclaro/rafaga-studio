@@ -4,13 +4,13 @@ const SB = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://attrnwbcgascvppncucl
 const KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "sb_publishable_X9ksBV_C-GLc75mGkOPo3g_yltsXTbB";
 
 export function providerConfig(p: OAuthProvider): { clientId: string; clientSecret: string } | null {
-  const id = p === "google" ? process.env.GOOGLE_CLIENT_ID : process.env.DROPBOX_CLIENT_ID;
-  const secret = p === "google" ? process.env.GOOGLE_CLIENT_SECRET : process.env.DROPBOX_CLIENT_SECRET;
+  const id = p === "google" ? process.env.GOOGLE_CLIENT_ID : p === "tiktok" ? process.env.TIKTOK_CLIENT_KEY : process.env.DROPBOX_CLIENT_ID;
+  const secret = p === "google" ? process.env.GOOGLE_CLIENT_SECRET : p === "tiktok" ? process.env.TIKTOK_CLIENT_SECRET : process.env.DROPBOX_CLIENT_SECRET;
   const real = (v: string | undefined) => (v && v.trim() && !v.trim().toUpperCase().startsWith("PEGAR") ? v.trim() : undefined);   // un marcador no cuenta como configurado
   return real(id) && real(secret) ? { clientId: real(id)!, clientSecret: real(secret)! } : null;
 }
 export const redirectUri = (req: Request) => `${process.env.OAUTH_REDIRECT_BASE ?? new URL(req.url).origin}/app/conexiones/callback`;
-export const CAPS: Capability[] = ["import_youtube", "import_drive", "import_dropbox"];
+export const CAPS: Capability[] = ["import_youtube", "import_drive", "import_dropbox", "publish_youtube", "publish_tiktok"];
 export const isCap = (x: unknown): x is Capability => typeof x === "string" && (CAPS as string[]).includes(x);
 export { PROVIDER_OF };
 

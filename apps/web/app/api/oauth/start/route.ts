@@ -11,6 +11,6 @@ export async function POST(req: Request) {
   const b = (await req.json().catch(() => ({}))) as { capability?: unknown; state?: string; challenge?: string };
   if (!isCap(b.capability) || !b.state || !b.challenge) return NextResponse.json({ error: "bad_request" }, { status: 400 });
   const provider = PROVIDER_OF[b.capability], cfg = providerConfig(provider);
-  if (!cfg) return NextResponse.json({ error: "not_configured", message: `Falta configurar ${provider === "google" ? "GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET" : "DROPBOX_CLIENT_ID y DROPBOX_CLIENT_SECRET"} en el servidor.` }, { status: 503 });
+  if (!cfg) return NextResponse.json({ error: "not_configured", message: `Falta configurar ${provider === "google" ? "GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET" : provider === "tiktok" ? "TIKTOK_CLIENT_KEY y TIKTOK_CLIENT_SECRET" : "DROPBOX_CLIENT_ID y DROPBOX_CLIENT_SECRET"} en el servidor.` }, { status: 503 });
   return NextResponse.json({ url: authUrl(provider, { clientId: cfg.clientId, redirectUri: redirectUri(req), scopes: SCOPES[b.capability], state: b.state, challenge: b.challenge }) });
 }

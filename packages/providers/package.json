@@ -7,7 +7,8 @@
     ".": "./src/index.ts",
     "./youtube": "./src/youtube.ts",
     "./oauth": "./src/oauth.ts",
-    "./r2": "./src/r2.ts"
+    "./r2": "./src/r2.ts",
+    "./net": "./src/net.ts"
   },
   "dependencies": {
     "@rafaga/selection": "workspace:*"

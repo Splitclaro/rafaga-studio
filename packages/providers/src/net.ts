@@ -96,3 +96,61 @@ export function parseFeed(xml: string): FeedEntry[] {
     return { guid: guid.slice(0, 500), title: tag(it, "title").slice(0, 200), published: d && !Number.isNaN(d.getTime()) ? d : null, enclosureUrl: url, enclosureType: type };
   }).filter((e) => e.guid);
 }
+
+// ───────── Importación por enlace (paso 17) ─────────
+export type LinkReason = "not_https" | "private_address" | "redirect_private" | "bad_url";
+export class LinkError extends Error { reason: LinkReason; constructor(reason: LinkReason, m: string) { super(m); this.name = "LinkError"; this.reason = reason; } }
+export interface PreflightDeps {
+  /** Resuelve un host a sus IPs (inyectable en pruebas). */
+  resolve?: (host: string) => Promise<string[]>;
+  /** HEAD sin seguir redirecciones: estado y `location` (inyectable en pruebas). */
+  head?: (url: string) => Promise<{ status: number; location?: string | null }>;
+  maxRedirects?: number;
+}
+const defaultResolve = async (host: string) => (await dns.promises.lookup(host, { all: true })).map((a) => a.address);
+const defaultHead = async (url: string) => { const r = await fetch(url, { method: "HEAD", redirect: "manual", headers: { "user-agent": "RafagaStudio/1.0" }, signal: AbortSignal.timeout(10000) }); return { status: r.status, location: r.headers.get("location") }; };
+const reasonOf = (e: unknown, hop: number): LinkReason => {
+  const m = (e as Error).message;
+  if (/https/i.test(m)) return hop ? "redirect_private" : "not_https";
+  if (/URL no válida/.test(m)) return "bad_url";
+  return hop ? "redirect_private" : "private_address";
+};
+/** Valida una URL de usuario ANTES de crear trabajo: https, host público (DNS incluido) y cada salto de redirección igual. */
+export async function preflightLink(raw: string, d: PreflightDeps = {}): Promise<string> {
+  const resolve = d.resolve ?? defaultResolve, head = d.head ?? defaultHead;
+  let cur = raw;
+  for (let hop = 0; hop <= (d.maxRedirects ?? 3); hop++) {
+    let u: URL;
+    try { u = checkUrl(cur); } catch (e) { throw new LinkError(reasonOf(e, hop), (e as Error).message); }
+    const host = u.hostname.replace(/^\[|\]$/g, "");
+    if (!net.isIP(host)) {
+      let ips: string[]; try { ips = await resolve(host); } catch { throw new LinkError(hop ? "redirect_private" : "bad_url", "El dominio no se puede resolver"); }
+      if (!ips.length || ips.some((ip) => !isPublicIp(ip))) throw new LinkError(hop ? "redirect_private" : "private_address", "El dominio resuelve a una dirección no pública");
+    }
+    const h = await head(u.toString());
+    if (h.status >= 300 && h.status < 400 && h.location) { cur = new URL(h.location, u).toString(); continue; }
+    return u.toString();
+  }
+  throw new LinkError("redirect_private", "Demasiadas redirecciones");
+}
+
+export interface OpenResult { status: number; headers: Record<string, string>; stream: NodeJS.ReadableStream & { destroy(e?: Error): void }; finalUrl: string }
+/** GET en flujo (para archivos grandes) con la misma guarda SSRF en cada salto y en el momento de conectar. */
+export async function openStream(url: string, o: { timeoutMs?: number; maxRedirects?: number; headers?: Record<string, string> } = {}): Promise<OpenResult> {
+  let cur = checkUrl(url).toString();
+  for (let hop = 0; hop <= (o.maxRedirects ?? 3); hop++) {
+    const res = await new Promise<OpenResult & { location?: string }>((resolve, reject) => {
+      const req = https.get(cur, { lookup: guardedLookup, timeout: o.timeoutMs ?? 30000, headers: { "user-agent": "RafagaStudio/1.0", accept: "*/*", ...o.headers } }, (r) => {
+        const status = r.statusCode ?? 0, loc = r.headers.location;
+        if (status >= 300 && status < 400 && loc) { r.resume(); return resolve({ status, headers: {}, stream: r, finalUrl: cur, location: loc }); }
+        const headers: Record<string, string> = {}; for (const [k, v] of Object.entries(r.headers)) if (v !== undefined) headers[k] = Array.isArray(v) ? v.join(",") : String(v);
+        resolve({ status, headers, stream: r, finalUrl: cur });
+      });
+      req.on("timeout", () => req.destroy(new SsrfError("Tiempo de espera agotado")));
+      req.on("error", reject);
+    });
+    if (res.location) { cur = checkUrl(new URL(res.location, cur).toString()).toString(); continue; }
+    return res;
+  }
+  throw new SsrfError("Demasiadas redirecciones");
+}

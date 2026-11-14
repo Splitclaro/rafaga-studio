@@ -404,7 +404,7 @@
     ],
     "checkpoint": "rafaga-v2-step-17",
     "files": ["workers/media/src/stages/integrations.ts", "apps/web/app/api/[integration]/[[...rest]]/route.ts", "apps/web/lib/integrations.test.ts", "packages/providers/src/oauth.ts", "apps/web/lib/oauthserver.ts"],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E3-T6",
