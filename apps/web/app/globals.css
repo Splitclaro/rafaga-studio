@@ -1,7 +1,7 @@
 @import "tailwindcss";
-/* Bootzy TM: fuente de los títulos de la interfaz (display) y de los resultados (subtítulos y letras de los clips). El cuerpo usa la fuente del sistema. */
+/* Bootzy TM: fuente SOLO de los resultados (subtítulos y letras de los clips) y de sus vistas previas. La interfaz usa la fuente del sistema. */
 @font-face { font-family: "Bootzy TM"; src: url("https://attrnwbcgascvppncucl.supabase.co/storage/v1/object/public/app-fonts/BootzyTM.woff2") format("woff2"), url("https://attrnwbcgascvppncucl.supabase.co/storage/v1/object/public/app-fonts/BootzyTM.ttf") format("truetype"); font-display: swap; }
-@theme { --font-display: "Bootzy TM", var(--font-heading), ui-sans-serif, system-ui, sans-serif; --font-mono: var(--font-mono-ui), ui-monospace, "SF Mono", Menlo, monospace; }
+@theme { --font-display: var(--font-heading), ui-sans-serif, system-ui, sans-serif; --font-mono: var(--font-mono-ui), ui-monospace, "SF Mono", Menlo, monospace; }
 /* Sistema visual monocromo (AMPLIACION_V2 §4): blanco, superficie #FAFAFA, texto #111, secundario #5C5C5C, bordes #E5E5E5, botón principal negro. Sin degradados decorativos.
    Los colores que el usuario elige para subtítulos/letras NO dependen de estos tokens. */
 :root {
@@ -20,8 +20,7 @@ input[type="range"], input[type="checkbox"], input[type="radio"] { accent-color:
 .tnum { font-variant-numeric: tabular-nums; }
 .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 :focus-visible { outline: none; box-shadow: var(--ring); border-radius: 10px; }
-h1, h2, .font-display { font-family: var(--font-display); font-weight: 700; letter-spacing: -0.01em; color: var(--ink); }
-h3 { font-family: var(--font-heading), ui-sans-serif, system-ui, sans-serif; font-weight: 700; letter-spacing: -0.02em; color: var(--ink); }
+h1, h2, h3, .font-display { font-family: var(--font-display); font-weight: 700; letter-spacing: -0.02em; color: var(--ink); }
 .theme-dark h1, .theme-dark h2, .theme-dark h3 { color: var(--text); }
 
 /* Superficies */

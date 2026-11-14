@@ -37,12 +37,11 @@ export default function NuevoV2() {
             <div className="font-medium">{done.name}</div>
             {!src || src.status === "uploaded" || src.status === "pending" ? <p className="mt-1 text-sm text-[var(--muted)]">Validando y preparando el vídeo… Puedes cerrar la pestaña: el proceso sigue en el servidor.</p>
               : src.status === "failed" ? <p role="alert" className="mt-1 text-sm">El archivo no se pudo validar. Revisa el formato (MP4/MOV con H.264) y vuelve a subirlo.</p>
-              : <p className="mt-1 text-sm text-[var(--muted)]">{src.duration_ms ? clock(src.duration_ms) : "—"} · {src.width}×{src.height} · {src.has_audio === false ? "sin audio (solo modos Manual y Destacados)" : "con audio"} · validado</p>}
+              : <p className="mt-1 text-sm text-[var(--muted)]">{src.duration_ms ? clock(src.duration_ms) : "—"} · {src.width}×{src.height} · {src.has_audio === false ? "sin audio" : "con audio"} · validado</p>}
           </div>
         )}
-        {done && src?.status === "validated" && src.duration_ms && (
-          <CreationPanel projectId={done.project_id} durationMs={src.duration_ms} onCreated={() => router.push(`/app/p/${done.project_id}`)} />
-        )}
+        {/* Como en OpusClip: la receta y todos los ajustes se ven y se pueden configurar ANTES de subir; «Crear» se activa cuando el vídeo está listo. */}
+        <CreationPanel projectId={done && src?.status === "validated" ? done.project_id : null} durationMs={done && src?.status === "validated" ? src.duration_ms : null} onCreated={() => done && router.push(`/app/p/${done.project_id}`)} />
       </section>
     </main>
   );

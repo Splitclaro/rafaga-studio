@@ -17,13 +17,14 @@ const mmss = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor((ms 
 const parse = (s: string) => { const p = s.trim().split(":").map(Number); return p.some((x) => !Number.isFinite(x)) ? NaN : p.reduce((t, x) => t * 60 + x, 0) * 1000; };
 type Est = { minutes: number; units: { processing: number; clipping: number; hook: number; total: number }; balance: number; eta: { p50_s: number; p90_s: number } | null; reusable_analysis: boolean; viable_count: number; requested_count: number | null; summary: string[] };
 
-export default function CreationPanel({ projectId, durationMs, onCreated }: { projectId: string; durationMs: number; onCreated?: (r: { generation_id: string; job_id: string }) => void }) {
+export default function CreationPanel({ projectId, durationMs, onCreated }: { projectId: string | null; durationMs: number | null; onCreated?: (r: { generation_id: string; job_id: string }) => void }) {
   const [recipe, setRecipe] = useState<Recipe>(() => { try { const r = new URLSearchParams(window.location.search).get("receta"); return (RECIPES as readonly string[]).includes(r ?? "") ? (r as Recipe) : "clips"; } catch { return "clips"; } });
   const [mode, setMode] = useState<Mode>("cualquier_momento");
   const [duration, setDuration] = useState<Bucket>("auto");
   const [count, setCount] = useState<string>("");
   const [brief, setBrief] = useState(""), [exclude, setExclude] = useState("");
-  const [from, setFrom] = useState("0:00"), [to, setTo] = useState(mmss(durationMs));
+  const [from, setFrom] = useState("0:00"), [to, setTo] = useState(durationMs ? mmss(durationMs) : "");
+  useEffect(() => { if (durationMs) setTo(mmss(durationMs)); }, [durationMs]);
   const [subs, setSubs] = useState(true), [style, setStyle] = useState<CaptionStyle>(CAPTION_DEFAULT);
   // Con NEXT_PUBLIC_LYRIC_VERSION=v2 el estilo se edita con el MISMO editor que Lyric Studio; `caption_style` conserva su forma validada
   // (preset, font, colores, tamaño, posición) y añade `subtitle_style` = captionToSubtitleStyle(v2) para el motor compartido.
@@ -32,14 +33,14 @@ export default function CreationPanel({ projectId, durationMs, onCreated }: { pr
   const style2 = useMemo(() => ({ ...style, font: cap2.font, color: cap2.color, active_color: cap2.activeColor, size: cap2.size, position: (cap2.position.y < 0.35 ? "top" : cap2.position.y < 0.65 ? "middle" : "bottom") as CaptionStyle["position"], subtitle_style: captionToSubtitleStyle(cap2) }), [style, cap2]);
   const [hook, setHook] = useState(false), [hookN, setHookN] = useState(10), [hookStyle, setHookStyle] = useState<"editorial" | "statement" | "classic">("editorial");
   const [durSet, setDurSet] = useState<Bucket[]>([]), [subLang, setSubLang] = useState(""), [open, setOpen] = useState<null | "picks" | "len" | "prompt" | "premium" | "recipes">(null), [recTab, setRecTab] = useState<"built" | "mine">("built"), [showSettings, setShowSettings] = useState(true), [clipping, setClipping] = useState(true);
-  const [aspect, setAspect] = useState<(typeof ASPECTS)[number]>("9:16"), [template, setTemplate] = useState<string>("titular_video_subtitulos");
+  const [aspect, setAspect] = useState<(typeof ASPECTS)[number]>("9:16"), [template, setTemplate] = useState<string>("hablante_seguimiento");
   const [brandKit, setBrandKit] = useState(""), [kits, setKits] = useState<{ id: string; name: string }[]>([]);
   const [recipes, setRecipes] = useState<{ id: string; name: string; params: Partial<GenerationParams> }[]>([]);
   const [est, setEst] = useState<Est | null>(null), [msg, setMsg] = useState<string | null>(null), [busy, setBusy] = useState(false);
   const idem = useRef<string | null>(null);
 
   const params = useMemo(() => ({ ...(subLang ? { subtitle_language: subLang } : {}),
-    recipe: recipe === "clips" && !clipping ? "captions" : recipe, mode, duration: durSet[0] ?? duration, ...(durSet.length ? { duration_set: durSet } : {}), count: count ? Number(count) : null, range_start_ms: parse(from), range_end_ms: parse(to), language: "auto", brief: [brief.trim(), exclude.trim() ? `Evitar: ${exclude.trim()}` : ""].filter(Boolean).join("\n") || undefined,
+    recipe: recipe === "clips" && !clipping ? "captions" : recipe, mode, duration: durSet[0] ?? duration, ...(durSet.length ? { duration_set: durSet } : {}), count: count ? Number(count) : null, range_start_ms: parse(from), range_end_ms: to ? parse(to) : (durationMs ?? 0), language: "auto", brief: [brief.trim(), exclude.trim() ? `Evitar: ${exclude.trim()}` : ""].filter(Boolean).join("\n") || undefined,
     exclude: exclude.trim() || undefined, aspect, template: recipe === "clips" || recipe === "reframe" ? template : undefined, subtitles: subs, caption_style: subs ? (lyricV2 ? style2 : style) : undefined, hook: hook ? { enabled: true, template: hookStyle, top_n: hookN } : undefined, brand_kit_id: brandKit || undefined,
   }), [recipe, clipping, mode, duration, durSet, subLang, hookStyle, count, from, to, brief, exclude, aspect, template, subs, style, style2, lyricV2, hook, hookN, brandKit]);
 
@@ -51,17 +52,17 @@ export default function CreationPanel({ projectId, durationMs, onCreated }: { pr
 
   // Estimación en vivo (con un pequeño retardo para no llamar en cada tecla).
   useEffect(() => {
-    if (!Number.isFinite(params.range_start_ms) || !Number.isFinite(params.range_end_ms)) { setEst(null); return; }
+    if (!projectId || !durationMs || !Number.isFinite(params.range_start_ms) || !Number.isFinite(params.range_end_ms)) { setEst(null); return; }
     const t = setTimeout(async () => {
       const r = await fetch("/api/generations/estimate", { method: "POST", headers: { Authorization: `Bearer ${await token()}`, "Content-Type": "application/json" }, body: JSON.stringify({ project_id: projectId, params }) });
       const b = await r.json();
       if (r.ok) { setEst(b); setMsg(null); } else { setEst(null); setMsg(b?.error?.message ?? null); }
     }, 400);
     return () => clearTimeout(t);
-  }, [params, projectId]);
+  }, [params, projectId, durationMs]);
 
   const create = async () => {
-    if (busy) return;
+    if (busy || !projectId) return;
     setBusy(true); setMsg(null);
     idem.current ??= `gen-${crypto.randomUUID()}`;       // misma clave en reintentos del mismo envío: nunca duplica trabajo ni cobro
     try {
@@ -151,7 +152,7 @@ export default function CreationPanel({ projectId, durationMs, onCreated }: { pr
                   <input className={field} maxLength={1000} value={exclude} onChange={(e) => setExclude(e.target.value)} placeholder="Ejemplo: el patrocinador, la despedida" /></label>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label><span className="mb-1 block text-xs font-medium text-[var(--muted)]">Desde</span><input className={field} value={from} onChange={(e) => setFrom(e.target.value)} inputMode="numeric" aria-label="Inicio del tramo" /></label>
-                  <label><span className="mb-1 block text-xs font-medium text-[var(--muted)]">Hasta (de {mmss(durationMs)})</span><input className={field} value={to} onChange={(e) => setTo(e.target.value)} inputMode="numeric" aria-label="Final del tramo" /></label></div>
+                  <label><span className="mb-1 block text-xs font-medium text-[var(--muted)]">Hasta{durationMs ? ` (de ${mmss(durationMs)})` : ""}</span><input className={field} value={to} onChange={(e) => setTo(e.target.value)} inputMode="numeric" aria-label="Final del tramo" /></label></div>
               </div>}
             </div>)}
 
@@ -207,7 +208,7 @@ export default function CreationPanel({ projectId, durationMs, onCreated }: { pr
           {est.reusable_analysis && <p className="text-xs text-[var(--muted)]">Ya hay un análisis de este vídeo: no se vuelve a transcribir.</p>}
           <p className="text-xs text-[var(--muted)]">{est.eta ? `Tiempo estimado: entre ${Math.round(est.eta.p50_s / 60) || 1} y ${Math.max(1, Math.round(est.eta.p90_s / 60))} min.` : "Aún no se puede calcular el tiempo: faltan datos de procesos anteriores."}</p>
           {est.requested_count != null && est.requested_count > est.viable_count && <p className="text-xs">Pides {est.requested_count} clips, pero este tramo solo da para {est.viable_count} de esa duración.</p>}
-        </>) : <p className="text-xs text-[var(--muted)]">Calculando…</p>}
+        </>) : <p className="text-xs text-[var(--muted)]">{projectId ? "Calculando…" : "Sube un vídeo para ver el consumo y crear tus clips. Puedes dejar los ajustes listos antes de subirlo."}</p>}
         {msg && <p role="alert" className="text-xs">{msg}</p>}
         <button type="button" className="btn btn-primary w-full" disabled={busy || !est || est.units.total > est.balance} onClick={create}>{busy ? "Creando…" : "Crear"}</button>
         {est && est.units.total > est.balance && <p className="text-xs">Saldo insuficiente: pide más unidades o reduce el tramo.</p>}

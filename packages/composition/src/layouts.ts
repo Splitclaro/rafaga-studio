@@ -53,7 +53,10 @@ export function planLayout(c: CompositionV2, srcW: number, srcH: number): Layout
     }
     case "fit_full": {
       background = c.aspect === "16:9" && srcW / srcH >= 16 / 9 - 0.01 ? "none" : "blur";
-      if (c.band) video = px(c.band, W, H);
+      if (c.band) {   // la banda es un hueco pensado para 16:9: el vídeo se ajusta DENTRO conservando su proporción (antes se estiraba si el origen no era 16:9)
+        const slot = px(c.band, W, H), k = Math.min(slot.w / srcW, slot.h / srcH), w = Math.min(slot.w, even(srcW * k)), h = Math.min(slot.h, even(srcH * k));
+        video = { x: slot.x + Math.floor((slot.w - w) / 4) * 2, y: slot.y + Math.floor((slot.h - h) / 4) * 2, w, h };
+      }
       else { const s = Math.min(W / srcW, H / srcH), w = Math.min(W, even(srcW * s)), h = Math.min(H, even(srcH * s)); video = { x: Math.floor((W - w) / 4) * 2, y: Math.floor((H - h) / 4) * 2, w, h }; }
       break;
     }
