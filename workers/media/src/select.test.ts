@@ -170,3 +170,16 @@ test("cualquier_momento: poca voz (89 palabras) y 5 pedidos → completa hasta 5
   const s = (await SEL.select.run(ctx, row("select", g.gen))).output as { delivered: number };
   assert.equal(s.delivered, 5);
 });
+
+test("cualquier_momento: voz continua de 87 s y 20 pedidos → no se elige un solo tramo gigante: se reparten muchos clips cortos", async () => {
+  const words: TWord[] = []; let t = 0;
+  for (let i = 0; i < 170; i++) { words.push({ text: i % 12 === 11 ? `frase${i}.` : `palabra${i}`, start: +t.toFixed(2), end: +(t + 0.4).toFixed(2) }); t += 0.5; }
+  const g = await setup(words, { range_start_ms: 0, range_end_ms: 87_000, min_s: 10, max_s: 180 }, "cualquier_momento", 20);
+  const giant = async () => [{ startWord: 0, endWord: 168, title: "todo", reason: "x", briefFit: "", scores: { relevance: 6, hook: 6, standalone: 6, closure: 6 } } as RawCandidate];
+  const { ctx } = mk({ propose: giant });
+  await SEL.candidates.run(ctx, row("candidates", g.gen));
+  const s = (await SEL.select.run(ctx, row("select", g.gen))).output as { delivered: number };
+  assert.ok(s.delivered >= 6, `entregados ${s.delivered}`);
+  const cs = (await db.query<{ start_ms: number; end_ms: number }>(`select start_ms, end_ms from clip_candidates where generation_id='${g.gen}' order by start_ms`)).rows;
+  for (const c of cs) assert.ok(c.end_ms - c.start_ms <= 30_000, `clip de ${(c.end_ms - c.start_ms) / 1000} s`);
+});

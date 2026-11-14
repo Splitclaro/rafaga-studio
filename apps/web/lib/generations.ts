@@ -86,5 +86,5 @@ export function summary(p: GenerationParams): string[] {
 
 /** Versiones de los componentes que producen una generación (se guardan para poder explicar y reproducir). */
 export function componentVersions(env: Record<string, string | undefined> = process.env): Record<string, string> {
-  return { asr_model: env.GROQ_STT_MODEL || "whisper-large-v3-turbo", llm_model: env.GROQ_EDITORIAL_MODEL || "openai/gpt-oss-120b", rubric_version: "rubric-v2", selection_pkg: "selection-v2", composition_pkg: "composition-v2" };
+  return { asr_model: env.GROQ_STT_MODEL || "whisper-large-v3", llm_model: env.GROQ_EDITORIAL_MODEL || "openai/gpt-oss-120b", rubric_version: "rubric-v2", selection_pkg: "selection-v2", composition_pkg: "composition-v2" };
 }

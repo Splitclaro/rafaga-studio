@@ -21,7 +21,10 @@ function bounds(gc: Gctx) {
   const min = Number(gc.params.min_s ?? 10), max = Math.max(min + 1, Number(gc.params.max_s ?? 180));
   const p = gc.params as { range_start_ms?: number; range_end_ms?: number }, range = p.range_end_ms != null && p.range_start_ms != null ? (p.range_end_ms - p.range_start_ms) / 1000 : (gc.words.at(-1)?.end ?? 0) - (gc.words[0]?.start ?? 0);
   const want = gc.params.count ? Number(gc.params.count) : Math.max(1, Math.min(20, Math.floor(range / Math.max(min, 1))));
-  return { min, max, want, asked: Math.max(3, Math.min(10, Math.ceil(want * 1.6))) };
+  // «Cualquier momento» con un número pedido: cada clip puede medir como mucho ≈1,5 veces lo que toca por clip (si no, la IA elige un único tramo
+  // que ocupa casi todo el vídeo y no queda hueco para el resto). Nunca por debajo del mínimo + 5 s ni por encima del máximo pedido.
+  const cap = gc.mode === "cualquier_momento" && gc.params.count ? Math.min(max, Math.max(min + 5, Math.round((range / want) * 1.5))) : max;
+  return { min, max: cap, want, asked: Math.max(3, Math.min(10, Math.ceil(want * 1.6))) };
 }
 
 function makePropose(ctx: StageCtx, deps: SelectDeps) {
