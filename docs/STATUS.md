@@ -303,3 +303,8 @@ Probar Lyric Studio con una canción real (canto + instrumental). Siguiente: Sty
 - **Corregido al cerrar:** `translate` apuntaba a un módulo equivocado en el registro de etapas; `transcribe`/`speakers` ya no dependen de que `prepare` corriera en el mismo disco.
 - **Pendiente del propietario:** cuenta y secreto de Modal (`rafaga-worker`); tarifa de Modal en `platform_settings`; variables en Vercel (`WORKER_BACKEND`, `MODAL_DISPATCH_URL`, `WAKE_SECRET`, `NEXT_PUBLIC_PIPELINE_VERSION`, `NEXT_PUBLIC_LYRIC_VERSION`); CORS de R2 y `scripts/r2-multipart-probe.ts`; apps de YouTube/TikTok (los endpoints OAuth de TikTok están sin verificar); revisar valores de zonas seguras; probar en un navegador las pantallas nuevas.
 - **Límites conocidos:** el selector de fuente del editor v2 usa solo el catálogo (no `workspace_fonts`); la sacudida solo afecta al texto, no al fondo.
+
+## Producción: v2 activa (2026-11-14)
+- En Vercel (Production) están puestas `NEXT_PUBLIC_PIPELINE_VERSION=v2` y `NEXT_PUBLIC_LYRIC_VERSION=v2`: la app pública muestra las pantallas nuevas de clipping y de Lyric Studio.
+- **Aviso:** el procesamiento v2 (análisis, selección, render, sincronización de canciones) necesita el worker de Modal. Hasta que se despliegue (`docs/OWNER_SETUP_MODAL_VERCEL.md`), los trabajos v2 se encolan pero no se procesan. Los proyectos v1 siguen verse con su vista anterior.
+- Regla de trabajo: todo lo que se construye se sube a `main` y Vercel lo despliega solo.
