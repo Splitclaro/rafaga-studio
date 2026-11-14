@@ -8,7 +8,8 @@ import { httpApi, localResumeStore, runUpload, type UploadEvent } from "../lib/u
 import type { SyncWord } from "@rafaga/lyrics";
 import LyricSyncEditor from "./LyricSyncEditor";
 import LyricPreview from "./LyricPreview";
-import { validateLyricComposition, type LyricComposition } from "@rafaga/composition";
+import LyricLibrary from "./LyricLibrary";
+import { validateLyricComposition, switchLyricMode, type LyricComposition } from "@rafaga/composition";
 
 const MAX_SONG = 62914560;
 type Song = { id: string; lyrics_text?: string | null; title: string; artist: string | null; status: "pending" | "ready" | "failed"; duration_ms: number | null; error_code: string | null; created_at: string };
@@ -26,6 +27,8 @@ async function sha256Hex(f: File) { return [...new Uint8Array(await crypto.subtl
 export default function LyricStudioV2() {
   const [songs, setSongs] = useState<Song[] | null>(null), [ev, setEv] = useState<UploadEvent | null>(null), [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false), [mode, setMode] = useState<Record<string, string>>({});
+  const [wsId, setWsId] = useState<string | null>(null);
+  useEffect(() => { void supabase.from("workspace_members").select("workspace_id").limit(1).then(({ data }) => setWsId(data?.[0]?.workspace_id ?? null)); }, []);
   const [comp, setComp] = useState<LyricComposition | null>(null);
   const [editing, setEditing] = useState<{ song: Song; url: string; revision: number | null; words: SyncWord[] } | null>(null);
   const ctl = useRef<{ cancel: () => Promise<void> } | null>(null);
@@ -106,7 +109,18 @@ export default function LyricStudioV2() {
                 <button className="btn btn-ghost !min-h-9" onClick={() => void createPiece(s)}>Crear pieza</button></div>}
             </li>))}</ul>}
       </section>
+      {comp && <section className="card space-y-2 p-3 text-sm" aria-label="Modo de la pieza">
+        <div role="radiogroup" aria-label="Modo" className="flex gap-2">{([["letra", "Letra"], ["texto", "Texto"], ["portada", "Portada"]] as const).map(([m, l]) => <button key={m} role="radio" aria-checked={comp.mode === m} className={`rounded-full border px-3 py-1 text-xs ${comp.mode === m ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "hairline"}`} onClick={() => setComp(switchLyricMode(comp, m))}>{l}</button>)}</div>
+        <p className="text-xs text-[var(--muted)]">Cambiar de modo conserva la letra, el estilo y los fondos.</p>
+        {comp.mode === "texto" && <div className="grid gap-2 sm:grid-cols-3"><input className="rounded-lg border hairline px-2 py-1.5 sm:col-span-3" placeholder="Mensaje" maxLength={200} value={comp.message?.text ?? ""} onChange={(e) => setComp({ ...comp, message: { text: e.target.value, start: comp.message?.start ?? 0, end: comp.message?.end ?? 5 } })} aria-label="Mensaje" />
+          <label className="text-xs">Desde (s)<input type="number" min={0} className="ml-1 w-20 rounded border hairline px-1" value={comp.message?.start ?? 0} onChange={(e) => setComp({ ...comp, message: { text: comp.message?.text ?? "", start: Number(e.target.value), end: comp.message?.end ?? 5 } })} /></label>
+          <label className="text-xs">Hasta (s)<input type="number" min={1} className="ml-1 w-20 rounded border hairline px-1" value={comp.message?.end ?? 5} onChange={(e) => setComp({ ...comp, message: { text: comp.message?.text ?? "", start: comp.message?.start ?? 0, end: Number(e.target.value) } })} /></label></div>}
+        {comp.mode === "portada" && <div className="grid gap-2 sm:grid-cols-2"><input className="rounded-lg border hairline px-2 py-1.5" placeholder="Título" maxLength={120} value={comp.cover?.title ?? ""} onChange={(e) => setComp({ ...comp, cover: { ...comp.cover, title: e.target.value } })} aria-label="Título" />
+          <input className="rounded-lg border hairline px-2 py-1.5" placeholder="Artista" maxLength={120} value={comp.cover?.artist ?? ""} onChange={(e) => setComp({ ...comp, cover: { title: comp.cover?.title ?? "", ...comp.cover, artist: e.target.value } })} aria-label="Artista" /></div>}
+        <input className="w-full rounded-lg border hairline px-2 py-1.5" placeholder="Gancho (opcional, franja superior)" maxLength={120} value={comp.hook?.text ?? ""} onChange={(e) => setComp({ ...comp, hook: e.target.value ? { text: e.target.value, dur: comp.hook?.dur ?? 3, start: comp.hook?.start } : null })} aria-label="Gancho" />
+      </section>}
       {comp && <LyricPreview composition={comp} onChange={setComp} />}
+      <LyricLibrary workspaceId={wsId} />
       {editing && <LyricSyncEditor songId={editing.song.id} audioUrl={editing.url} lyrics={editing.song.lyrics_text ?? editing.words.map((w) => w.text).join(" ")} revision={editing.revision} words={editing.words} onSaved={() => void load()} />}
     </main>
   );

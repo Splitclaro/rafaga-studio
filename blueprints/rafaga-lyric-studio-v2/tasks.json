@@ -269,7 +269,7 @@
     ],
     "checkpoint": "rafaga-lyric-v2-step-11",
     "files": ["packages/composition/src/lyricscene.ts", "packages/composition/src/lyricmodes.test.ts", "apps/web/components/LyricLibrary.tsx", "apps/web/components/LyricStudioV2.tsx"],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E2-T6",

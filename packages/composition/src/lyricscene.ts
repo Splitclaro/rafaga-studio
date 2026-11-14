@@ -16,7 +16,7 @@ export interface LyricComposition {
   range: { start: number; end: number }; duration: number; words: LyricWord[]; style: CaptionStyleV2; preset: BehaviourPresetId;
   background: { kind: "media" | "color"; color: string; items: LyricBgItem[]; sequence: number[]; interval: number; order: "aleatorio" | "fijo"; loop: boolean; fit: "preserve" | "fill" | "band" };
   settings: { crop: number; dim: number; filter: LyricFilter; shake: boolean; blend: number; variation: number };
-  hook: { text: string; dur: number } | null; message: { text: string; start: number; end: number } | null; cover: { title: string; artist?: string } | null; seed: number; variant_hash?: string;
+  hook: { text: string; dur: number; start?: number } | null; message: { text: string; start: number; end: number } | null; cover: { title: string; artist?: string; front?: string; back?: string; motion?: "lenta" | "estatica"; lyrics?: boolean } | null; seed: number; variant_hash?: string;
 }
 const num = (v: unknown, lo: number, hi: number, d: number) => (typeof v === "number" && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : d);
 const hex = (v: unknown, d: string) => (typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v) ? v.toUpperCase() : d);
@@ -32,9 +32,9 @@ export function validateLyricComposition(raw: unknown): LyricComposition {
     background: { kind: b.kind === "media" ? "media" : "color", color: hex(b.color, "#000000"), items: Array.isArray(b.items) ? b.items.slice(0, 200) : [], sequence: Array.isArray(b.sequence) ? b.sequence.filter((n: unknown) => Number.isInteger(n)).slice(0, 500) : [],
       interval: num(b.interval, 0.5, 30, 3), order: b.order === "fijo" ? "fijo" : "aleatorio", loop: b.loop !== false, fit: b.fit === "fill" || b.fit === "band" ? b.fit : "preserve" },
     settings: { crop: num(st.crop, 0, 1, 0), dim: num(st.dim, 0, 0.9, 0.2), filter: ["noche", "super8", "bn", "vapor"].includes(st.filter) ? st.filter : "none", shake: !!st.shake, blend: num(st.blend, 0, 2, 0), variation: Math.round(num(st.variation, 0, 100, 0)) },
-    hook: o.hook && typeof o.hook.text === "string" ? { text: o.hook.text.slice(0, 120), dur: num(o.hook.dur, 0.5, 10, 3) } : null,
+    hook: o.hook && typeof o.hook.text === "string" ? { text: o.hook.text.slice(0, 120), dur: num(o.hook.dur, 0.5, 10, 3), ...(o.hook.start != null ? { start: num(o.hook.start, 0, 7200, 0) } : {}) } : null,
     message: o.message && typeof o.message.text === "string" ? { text: o.message.text.slice(0, 200), start: num(o.message.start, 0, 7200, 0), end: num(o.message.end, 0, 7200, 5) } : null,
-    cover: o.cover && typeof o.cover.title === "string" ? { title: o.cover.title.slice(0, 120), ...(typeof o.cover.artist === "string" ? { artist: o.cover.artist.slice(0, 120) } : {}) } : null,
+    cover: o.cover && typeof o.cover.title === "string" ? { title: o.cover.title.slice(0, 120), ...(typeof o.cover.artist === "string" ? { artist: o.cover.artist.slice(0, 120) } : {}), ...(typeof o.cover.front === "string" ? { front: o.cover.front.slice(0, 200) } : {}), ...(typeof o.cover.back === "string" ? { back: o.cover.back.slice(0, 200) } : {}), motion: o.cover.motion === "estatica" ? "estatica" : "lenta", ...(o.cover.lyrics ? { lyrics: true } : {}) } : null,
     seed: Math.round(num(o.seed, 0, 2 ** 31 - 1, 1)), ...(typeof o.variant_hash === "string" ? { variant_hash: o.variant_hash } : {}),
   };
 }
@@ -97,7 +97,9 @@ export function lyricLayout(c: LyricComposition): LyricLayout {
 
 export interface WordTimeline { index: number; vs: number; ve: number; as: number; ae: number }
 /** Fotogramas (relativos al recorte) en que cada palabra es visible y activa. Única fuente para la escena y para el ASS. */
+export const showWords = (c: LyricComposition) => c.mode === "letra" || (c.mode === "portada" && !!c.cover?.lyrics);
 export function lyricTimeline(c: LyricComposition, L = lyricLayout(c)): WordTimeline[] {
+  if (!showWords(c)) return [];
   const out: WordTimeline[] = [], p = BEHAVIOUR_PRESETS[c.preset], typewriter = c.style.entrance === "typewriter" || p.entrance === "typewriter";
   for (const pg of L.pages) {
     const byLine = c.style.entranceBy === "line";
@@ -116,8 +118,38 @@ export function shakeOffset(slice: number, seed: number): { dx: number; dy: numb
   return { dx: (h(slice * 2) % 7) - 3, dy: (h(slice * 2 + 1) % 7) - 3 };
 }
 
+export interface Overlay { id: "hook" | "message" | "title" | "artist"; text: string; box: LyricBox; em: number; startF: number; endF: number }
+const wrapText = (c: LyricComposition, L: LyricLayout, text: string, em: number): string[] => {
+  const maxW = L.frame.width * 0.84, lines: string[] = []; let cur = "";
+  for (const w of text.split(/\s+/).filter(Boolean)) { const t = cur ? `${cur} ${w}` : w; if (cur && measureText(t, L.family, c.style.weight, em) > maxW) { lines.push(cur); cur = w; } else cur = t; }
+  if (cur) lines.push(cur); return lines.slice(0, 4);
+};
+/** Gancho, mensaje, título y artista con su caja e intervalo (fotogramas): única fuente para la escena y para el ASS. */
+export function lyricOverlays(c: LyricComposition, L = lyricLayout(c)): Overlay[] {
+  const out: Overlay[] = [], { width: W, height: H } = L.frame, total = F(c.duration), lh = (em: number) => { const f = fontFor(L.family, c.style.weight); return even((em * (f.ascent - f.descent)) / f.unitsPerEm); };
+  const put = (id: Overlay["id"], text: string, em: number, cy: number, s: number, e: number, left = false) => {
+    const lines = wrapText(c, L, caseOf(c, text), em), h = lh(em); const top = even(Math.max(0, cy - (lines.length * h) / 2));
+    lines.forEach((ln, i) => { const w = measureText(ln, L.family, c.style.weight, em); out.push({ id, text: ln, em, box: { x: even(Math.max(0, left ? 0 : (W - w) / 2)), y: top + i * h, w: even(w + 1), h }, startF: s, endF: e }); });
+  };
+  if (c.hook) { const s = Math.max(0, F((c.hook.start ?? 0))), e = Math.min(total, F((c.hook.start ?? 0) + c.hook.dur)); if (e > s) put("hook", c.hook.text, even(L.em * 0.75), H * 0.12, s, e); }
+  if (c.message && c.mode !== "portada") { const s = Math.max(0, F(c.message.start - c.range.start)), e = Math.min(total, F(c.message.end - c.range.start)); if (e > s) put("message", c.message.text, L.em, c.style.position.y * H, s, e); }
+  if (c.mode === "portada" && c.cover) {
+    const side = even(W * 0.7), bottom = H * 0.4 + side / 2;
+    put("title", c.cover.title, L.em, bottom + L.em * 1.4, 0, total); if (c.cover.artist) put("artist", c.cover.artist, even(L.em * 0.7), bottom + L.em * 2.9, 0, total);
+  }
+  return out;
+}
+/** Portada: imagen y zoom por fotograma, en un cuadrado de 0,7 W centrado a 0,4 H. */
+export function coverAt(c: LyricComposition, k: number) {
+  if (c.mode !== "portada" || !c.cover) return null;
+  const { width: W, height: H } = lyricFrameSize(c), side = even(W * 0.7), total = Math.max(1, F(c.duration)), half = k >= total / 2;
+  return { image: (half ? c.cover.back ?? c.cover.front : c.cover.front) ?? null, side: half ? "back" as const : "front" as const, zoom: c.cover.motion === "estatica" ? 1 : +(1 + 0.06 * Math.min(1, k / Math.max(1, total - 1))).toFixed(4), box: { x: even((W - side) / 2), y: even(H * 0.4 - side / 2), w: side, h: side } };
+}
+/** Cambia de modo sin tocar la letra, el estilo, el fondo, el tramo ni la semilla. */
+export function switchLyricMode(c: LyricComposition, mode: LyricComposition["mode"]): LyricComposition { return { ...c, mode }; }
+
 export interface SceneWord { index: number; text: string; box: LyricBox; alpha: number; scale: number; dx: number; dy: number; active: boolean }
-export interface LyricScene { t: number; frame: number; words: SceneWord[]; hook: string | null; message: string | null; cover: LyricComposition["cover"]; shake: { dx: number; dy: number }; bars: null }
+export interface LyricScene { t: number; frame: number; words: SceneWord[]; overlays: Overlay[]; hook: string | null; message: string | null; cover: ReturnType<typeof coverAt>; shake: { dx: number; dy: number }; bars: null }
 const entranceMs = (c: LyricComposition) => { const d = BEHAVIOUR_PRESETS[c.preset].durationMs; return d; };
 
 /** Escena en el instante `t` (s desde el inicio del recorte): palabras visibles con su caja, opacidad, escala y desplazamiento. */
@@ -134,7 +166,8 @@ export function lyricSceneAt(c: LyricComposition, t: number, L = lyricLayout(c),
     if (act && (c.style.active !== "none" ? c.style.active : p.active) === "scale") scale *= 1.15;
     words.push({ index: w.index, text: L.word[w.index].text, box: L.word[w.index].box, alpha: +alpha.toFixed(3), scale: +scale.toFixed(3), dx: shake.dx, dy: dy + shake.dy, active: act });
   }
-  return { t, frame: k, words, hook: c.hook && t < c.hook.dur ? c.hook.text : null, message: c.message && t >= c.message.start - c.range.start && t < c.message.end - c.range.start ? c.message.text : null, cover: c.cover, shake, bars: null };
+  const overlays = lyricOverlays(c, L).filter((o) => k >= o.startF && k < o.endF);
+  return { t, frame: k, words, overlays, hook: overlays.find((o) => o.id === "hook")?.text ?? null, message: overlays.filter((o) => o.id === "message").map((o) => o.text).join(" ") || null, cover: coverAt(c, k), shake, bars: null };
 }
 
 /** Planos del fondo: deterministas por semilla, intervalo y orden. */
@@ -185,5 +218,6 @@ export function lyricAss(c: LyricComposition): string {
       ev.push(`Dialogue: 1,${assFrame(s)},${assFrame(e)},W,,0,0,0,,{${tags}}${text}`);
     }
   }
+  for (const o of lyricOverlays(c, L)) ev.push(`Dialogue: 2,${assFrame(o.startF)},${assFrame(o.endF)},W,,0,0,0,,{\\an7\\pos(${o.box.x},${o.box.y})\\fs${((o.em * (f.ascent - f.descent)) / f.unitsPerEm).toFixed(2)}}${esc(o.text)}`);
   return head + ev.join("\n") + "\n";
 }
