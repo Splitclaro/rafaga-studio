@@ -4,6 +4,8 @@
 // gancho · formato y plantilla viral · resumen con consumo y estimación · Crear (idempotente).
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
+import { DEFAULT_CAPTION, captionToSubtitleStyle, type BehaviourPresetId, type CaptionStyleV2 } from "@rafaga/composition";
+import CaptionStyleEditor from "./CaptionStyleEditor";
 import {
   MODES, MODE_LABEL, DURATION_BUCKETS, BUCKET_LABEL, RECIPES, RECIPE_LABEL, VIRAL_TEMPLATES, TEMPLATE_LABEL, ASPECTS, CAPTION_PRESETS, CAPTION_DEFAULT,
   type Bucket, type Recipe, type Mode, type CaptionStyle, type GenerationParams,
@@ -23,6 +25,11 @@ export default function CreationPanel({ projectId, durationMs, onCreated }: { pr
   const [brief, setBrief] = useState(""), [exclude, setExclude] = useState("");
   const [from, setFrom] = useState("0:00"), [to, setTo] = useState(mmss(durationMs));
   const [subs, setSubs] = useState(true), [style, setStyle] = useState<CaptionStyle>(CAPTION_DEFAULT);
+  // Con NEXT_PUBLIC_LYRIC_VERSION=v2 el estilo se edita con el MISMO editor que Lyric Studio; `caption_style` conserva su forma validada
+  // (preset, font, colores, tamaño, posición) y añade `subtitle_style` = captionToSubtitleStyle(v2) para el motor compartido.
+  const lyricV2 = process.env.NEXT_PUBLIC_LYRIC_VERSION === "v2";
+  const [cap2, setCap2] = useState<CaptionStyleV2>(DEFAULT_CAPTION), [beh, setBeh] = useState<BehaviourPresetId>("frase_palabra_activa");
+  const style2 = useMemo(() => ({ ...style, font: cap2.font, color: cap2.color, active_color: cap2.activeColor, size: cap2.size, position: (cap2.position.y < 0.35 ? "top" : cap2.position.y < 0.65 ? "middle" : "bottom") as CaptionStyle["position"], subtitle_style: captionToSubtitleStyle(cap2) }), [style, cap2]);
   const [hook, setHook] = useState(false), [hookN, setHookN] = useState(10);
   const [aspect, setAspect] = useState<(typeof ASPECTS)[number]>("9:16"), [template, setTemplate] = useState<string>("titular_video_subtitulos");
   const [brandKit, setBrandKit] = useState(""), [kits, setKits] = useState<{ id: string; name: string }[]>([]);
@@ -32,8 +39,8 @@ export default function CreationPanel({ projectId, durationMs, onCreated }: { pr
 
   const params = useMemo(() => ({
     recipe, mode, duration, count: count ? Number(count) : null, range_start_ms: parse(from), range_end_ms: parse(to), language: "auto", brief: [brief.trim(), exclude.trim() ? `Evitar: ${exclude.trim()}` : ""].filter(Boolean).join("\n") || undefined,
-    exclude: exclude.trim() || undefined, aspect, template: recipe === "clips" || recipe === "reframe" ? template : undefined, subtitles: subs, caption_style: subs ? style : undefined, hook: hook ? { enabled: true, top_n: hookN } : undefined, brand_kit_id: brandKit || undefined,
-  }), [recipe, mode, duration, count, from, to, brief, exclude, aspect, template, subs, style, hook, hookN, brandKit]);
+    exclude: exclude.trim() || undefined, aspect, template: recipe === "clips" || recipe === "reframe" ? template : undefined, subtitles: subs, caption_style: subs ? (lyricV2 ? style2 : style) : undefined, hook: hook ? { enabled: true, top_n: hookN } : undefined, brand_kit_id: brandKit || undefined,
+  }), [recipe, mode, duration, count, from, to, brief, exclude, aspect, template, subs, style, style2, lyricV2, hook, hookN, brandKit]);
 
   const token = async () => (await supabase.auth.getSession()).data.session?.access_token ?? "";
   useEffect(() => { (async () => {
@@ -116,7 +123,8 @@ export default function CreationPanel({ projectId, durationMs, onCreated }: { pr
 
         <fieldset className="space-y-3">
           <legend className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={subs} onChange={(e) => setSubs(e.target.checked)} aria-label="Subtítulos" /> Subtítulos</legend>
-          {subs && (<>
+          {subs && lyricV2 && <CaptionStyleEditor value={cap2} onChange={setCap2} preset={beh} onPreset={setBeh} />}
+          {subs && !lyricV2 && (<>
             <div role="radiogroup" aria-label="Estilo de subtítulos" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {CAPTION_PRESETS.map((p) => (
                 <button key={p} type="button" role="radio" aria-checked={style.preset === p} onClick={() => setStyle({ ...style, preset: p })}

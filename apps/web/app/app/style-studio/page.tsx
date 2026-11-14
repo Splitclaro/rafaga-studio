@@ -7,11 +7,13 @@ import { useWorkspaceFonts } from "../../../lib/fonts";
 import LyricSample from "../../../components/LyricSample";
 import Icon from "../../../components/Icon";
 import BrandTabs from "../../../components/BrandTabs";
+import CaptionStyleEditor from "../../../components/CaptionStyleEditor";
+import { DEFAULT_CAPTION, type BehaviourPresetId, type CaptionStyleV2 } from "@rafaga/composition";
 
 const SAMPLES = ["bajo la luna de abril caminamos", "no me digas que no", "y si el mañana nos espera ya"];
 type Draft = { id: string | null; name: string; style: SubtitleStyle };
 
-export default function StyleStudio() {
+function StyleStudioV1() {
   const { saved, reload } = useTextStyles();
   const { fonts } = useWorkspaceFonts();
   const [draft, setDraft] = useState<Draft>({ id: null, name: "Mi estilo", style: PRESETS.Letra });
@@ -169,3 +171,13 @@ export default function StyleStudio() {
     </>
   );
 }
+
+/** Vista v2: los 9 controles, presets de comportamiento, A/B y hasta 20 estilos guardados. */
+function StyleStudioV2() {
+  const [style, setStyle] = useState<CaptionStyleV2>(DEFAULT_CAPTION), [preset, setPreset] = useState<BehaviourPresetId>("frase_palabra_activa"), [ws, setWs] = useState<string | null>(null);
+  useEffect(() => { void supabase.from("workspace_members").select("workspace_id").limit(1).then(({ data }) => setWs(data?.[0]?.workspace_id ?? null)); }, []);
+  return (<main className="mx-auto max-w-3xl space-y-4 p-6"><h1 className="text-2xl font-bold">Style Studio</h1>
+    <CaptionStyleEditor value={style} onChange={setStyle} preset={preset} onPreset={setPreset} workspaceId={ws} /></main>);
+}
+/** La vista v2 solo aparece con NEXT_PUBLIC_LYRIC_VERSION=v2 (por defecto, la v1 intacta). */
+export default function StyleStudioPage() { return process.env.NEXT_PUBLIC_LYRIC_VERSION === "v2" ? <StyleStudioV2 /> : <StyleStudioV1 />; }

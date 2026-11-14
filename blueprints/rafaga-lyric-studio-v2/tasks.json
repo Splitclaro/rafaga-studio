@@ -217,7 +217,7 @@
     ],
     "checkpoint": "rafaga-lyric-v2-step-09",
     "files": ["apps/web/components/CaptionStyleEditor.tsx", "apps/web/lib/styles.ts", "apps/web/lib/styles.test.ts", "apps/web/app/app/style-studio/page.tsx", "apps/web/components/CreationPanel.tsx"],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E2-T4",
