@@ -105,8 +105,8 @@ export default function CreationPanel({ projectId, durationMs, onCreated }: { pr
   const LANGS: [string, string][] = [["", "Sin traducir"], ["en", "Inglés"], ["es", "Español"], ["fr", "Francés"], ["pt", "Portugués"], ["de", "Alemán"], ["it", "Italiano"]];
   const RECS = RECIPES.map((r) => ({ id: r, name: RECIPE_LABEL[r], desc: RECIPE_HINT[r], tag: r === "clips" ? "Clipping" : r === "captions" ? "Subtítulos" : r === "reframe" ? "Reencuadre" : "Limpieza" }));
   return (
-    <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
-      <div className="card space-y-5 p-5">
+    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="card min-w-0 space-y-5 overflow-hidden p-5">
         <div className="grid gap-3 sm:grid-cols-2">
           <button type="button" onClick={() => { setRecTab("built"); setOpen("recipes"); }} className="flex items-center gap-3 rounded-2xl border hairline bg-[var(--surface)] p-3 text-left hover:bg-[var(--hover)]">
             <span aria-hidden className="grid h-9 w-9 place-items-center rounded-lg bg-[var(--ink)] text-white">▦</span><span className="flex-1 text-sm font-medium">Receta</span><span className="text-sm text-[var(--muted)]">{RECIPE_LABEL[recipe]} ▾</span></button>
@@ -187,7 +187,7 @@ export default function CreationPanel({ projectId, durationMs, onCreated }: { pr
         </div>)}
       </div>
 
-      <aside className="card h-fit space-y-3 p-5 lg:sticky lg:top-4" aria-live="polite">
+      <aside className="card h-fit min-w-0 space-y-3 p-5 lg:sticky lg:top-4" aria-live="polite">
         <h2 className="text-sm font-medium">Resumen</h2>
         {est ? (<>
           <dl className="space-y-1.5 text-sm tnum">

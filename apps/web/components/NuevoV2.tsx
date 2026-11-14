@@ -28,7 +28,7 @@ export default function NuevoV2() {
   }, [done]);
 
   return (
-    <main className="mx-auto max-w-[1100px] px-4 pb-20 pt-6 md:px-8">
+    <main className="mx-auto max-w-[1100px] min-w-0 px-4 pb-20 pt-6 md:px-8">
       <h1 className="text-3xl">Nuevo proyecto</h1>
       <section className="mt-5 space-y-5">
         {!done && <UploadPanel onDone={(d) => setDone(d)} onImported={(id) => router.push(`/app/p/${id}`)} />}
