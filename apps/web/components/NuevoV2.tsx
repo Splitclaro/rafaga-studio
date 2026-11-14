@@ -3,6 +3,7 @@
 // Activo solo con NEXT_PUBLIC_PIPELINE_VERSION=v2; sin esa variable «Nuevo proyecto» es el flujo de siempre.
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import ImportLink from "./ImportLink";
 import UploadPanel from "./UploadPanel";
 import CreationPanel from "./CreationPanel";
 import { supabase } from "../lib/supabase";
@@ -32,6 +33,7 @@ export default function NuevoV2() {
       <h1 className="text-3xl">Nuevo proyecto</h1>
       <section className="mt-5 space-y-5">
         {!done && <UploadPanel onDone={(d) => setDone(d)} />}
+        {!done && <ImportLink onDone={(d) => setDone({ project_id: d.project_id, source_id: "", name: "Importado" })} />}
         {done && (
           <div className="card p-4" aria-live="polite">
             <div className="font-medium">{done.name}</div>

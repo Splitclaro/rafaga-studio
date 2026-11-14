@@ -293,3 +293,13 @@ Probar Lyric Studio con una canción real (canto + instrumental). Siguiente: Sty
 - Verificado en producción: demo de 1:40 → 2 clips con gancho en 53 s.
 - **Pendiente del usuario:** `GH_DISPATCH_TOKEN` en Vercel (pasos en `docs/OPERACION_WORKER.md`). Sin él, arrancar el procesador depende de GitHub o de un «Run workflow» manual.
 - Vídeos de 24 s no pueden dar 10 clips: la app no avisa todavía de que el número pedido es inviable para esa duración (mejora pendiente).
+
+## Construcción v2 (2026-11-14) — estado
+**Beta aún no verificada en el entorno desplegado.** Todo lo siguiente está probado en local (PGlite, ffmpeg real, servicios simulados); nada se ha desplegado ni aplicado en producción.
+
+- **Clipping v2:** 18 pasos hechos y etiquetados `rafaga-v2-step-01…18` (esquema, libro de unidades, motor de etapas, subida reanudable, análisis, selección por modos, composiciones, editor, exportaciones, importación, publicación, ciclo de vida, rendimiento). Migraciones 034–042 **sin aplicar** (las aplica el propietario, en orden).
+- **Lyric Studio v2:** 18 pasos hechos y etiquetados `rafaga-lyric-v2-step-01…18` (canciones, sincronización, fuentes, estilo v2, escena y ASS, modos, fondos, render, variantes, formatos, publicación, demo, transición). Migraciones 100–104 **sin aplicar**. La vista v2 va detrás de `NEXT_PUBLIC_LYRIC_VERSION=v2`; el flujo anterior queda intacto.
+- **Rendimiento (línea base local, no promesa):** `docs/PERF.md` (clipping y Lyric). Los objetivos se fijan tras medir con Modal real.
+- **Corregido al cerrar:** `translate` apuntaba a un módulo equivocado en el registro de etapas; `transcribe`/`speakers` ya no dependen de que `prepare` corriera en el mismo disco.
+- **Pendiente del propietario:** aplicar migraciones; cuenta y secreto de Modal (`rafaga-worker`); tarifa de Modal en `platform_settings`; variables en Vercel (`WORKER_BACKEND`, `MODAL_DISPATCH_URL`, `WAKE_SECRET`, `NEXT_PUBLIC_PIPELINE_VERSION`, `NEXT_PUBLIC_LYRIC_VERSION`); CORS de R2 y `scripts/r2-multipart-probe.ts`; apps de YouTube/TikTok (los endpoints OAuth de TikTok están sin verificar); revisar valores de zonas seguras; probar en un navegador las pantallas nuevas.
+- **Límites conocidos:** el ZIP de un lote de variantes de letra se descarga desde Exportados (no hay ruta propia); el selector de fuente del editor v2 usa solo el catálogo (no `workspace_fonts`); la sacudida solo afecta al texto, no al fondo.

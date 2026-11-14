@@ -19,7 +19,7 @@ const MODULE: Record<StageName, string> = {
   candidates: "./select.ts", select: "./select.ts",
   compose: "./compose.ts", previews: "./compose.ts", checks: "./compose.ts",
   render: "./export.ts", zip: "./export.ts",
-  import: "./integrations.ts", publish: "./integrations.ts", translate: "./integrations.ts",
+  import: "./integrations.ts", publish: "./integrations.ts", translate: "./select.ts",
   song_validate: "./lyric.ts", lyric_sync: "./lyric.ts", media_split: "./lyric.ts",
 };
 

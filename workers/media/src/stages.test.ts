@@ -93,3 +93,8 @@ test("etapa sin módulo todavía → not_implemented", async () => {
   const r = await runOnce(ctx, { load: async () => { throw new StageError("not_implemented"); } });
   assert.equal(r?.status, "failed"); assert.equal(calls.find((c) => c.fn === "finish_stage")!.args.p_error_code, "not_implemented");
 });
+
+test("todas las etapas del registro tienen implementación cargable (translate vivía en select.ts y el registro apuntaba a otro módulo)", async () => {
+  const { loadStage, STAGES } = await import("./stages/registry.ts");
+  for (const s of STAGES) await assert.doesNotReject(loadStage(s), s);
+});

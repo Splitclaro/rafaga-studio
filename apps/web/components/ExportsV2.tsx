@@ -30,6 +30,12 @@ export default function ExportsV2() {
     setBusy(null); void load();
   }
   async function again(r: R, what: "retry" | "renew") { setBusy(r.id); const res = await call(`/${r.id}/${what}`, "POST"); setMsg(res.ok ? "Preparando de nuevo. No consume unidades." : "No se pudo reintentar."); setBusy(null); void load(); }
+  async function publish(r: R, platform: "youtube" | "tiktok") {
+    const title = window.prompt("Título de la publicación", r.clips?.title ?? ""); if (!title?.trim()) return;
+    setBusy(r.id); const { data: s } = await supabase.auth.getSession();
+    const res = await fetch("/api/publish", { method: "POST", headers: { Authorization: `Bearer ${s.session?.access_token ?? ""}`, "Content-Type": "application/json", "Idempotency-Key": `pub-${crypto.randomUUID()}` }, body: JSON.stringify({ export_id: r.id, platform, title: title.trim() }) });
+    const j = await res.json().catch(() => ({})); setMsg(res.ok ? "Publicando en privado. Verás el resultado en Conexiones." : (j?.error?.message ?? "No se pudo publicar.")); setBusy(null);
+  }
   if (!rows?.length) return null;
   return (
     <section className="card mt-6 overflow-x-auto" aria-label="Exportaciones recientes">
@@ -43,6 +49,7 @@ export default function ExportsV2() {
             <td className="tnum p-3">{r.width ? `${r.width}×${r.height}` : "—"}</td><td className="tnum p-3">{dur(r.duration_ms)}</td><td className="tnum p-3">{mb(r.bytes)}</td>
             <td className="p-3">{expired ? "Caducada" : STATE[r.status] ?? r.status}{r.status === "ready" && d != null && d >= 0 && <span className="ml-1 text-xs text-[var(--muted)]">· caduca en {d} d</span>}{r.error_code && <span className="ml-1 text-xs text-[var(--danger)]">· {r.error_code}</span>}</td>
             <td className="p-3 text-right">
+              {r.status === "ready" && !expired && r.kind === "mp4" && <button onClick={() => publish(r, "youtube")} disabled={busy === r.id} className="btn btn-ghost !min-h-9 !py-1">Publicar en YouTube</button>}
               {r.status === "ready" && !expired && <button onClick={() => download(r)} disabled={busy === r.id} className="btn btn-ghost !min-h-9 !py-1"><Icon n="download" className="h-4 w-4" />Descargar</button>}
               {expired && <button onClick={() => again(r, "renew")} disabled={busy === r.id} className="btn btn-ghost !min-h-9 !py-1">Renovar</button>}
               {(r.status === "failed" || r.status === "cancelled") && <button onClick={() => again(r, "retry")} disabled={busy === r.id} className="btn btn-ghost !min-h-9 !py-1">Reintentar</button>}
