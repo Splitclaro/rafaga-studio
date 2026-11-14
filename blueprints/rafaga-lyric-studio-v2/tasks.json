@@ -369,7 +369,7 @@
     ],
     "checkpoint": "rafaga-lyric-v2-step-15",
     "files": ["supabase/migrations/20261201000104_lyric_variants.sql", "apps/web/lib/routes/lyrics.ts", "apps/web/lib/lyrics.test.ts", "apps/web/components/LyricResults.tsx", "apps/web/components/LyricStudioV2.tsx"],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E3-T4",

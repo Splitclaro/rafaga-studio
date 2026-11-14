@@ -136,6 +136,16 @@ export async function handleLyrics(req: Request, slug: string[], d: LyricDeps = 
       return json({ job_id: r.data!.job_id }, 202);
     }
   }
+  if (a === "projects" && m === "POST" && UUID.test(id ?? "") && action === "variants") {
+    const idem = idempotencyKey(req); if (!idem) return json({ error: { code: "missing_idempotency_key", message: "Falta la cabecera Idempotency-Key." } }, 400);
+    const v = body.variants;
+    if (!Array.isArray(v) || v.length < 1 || v.length > 10) return json({ error: { code: "invalid_params", message: "Pide entre 1 y 10 variantes." }, field: "variants" }, 400);
+    const r = await rpc<{ generation_id: string; clip_ids: string[]; export_ids: string[]; batch_id: string | null; job_id: string | null; warnings: unknown[]; replay: boolean }>(token, "request_lyric_variants", { p_project: id, p_variants: v, p_zip: body.zip !== false, p_idem: idem }, f);
+    if (r.error) return dbFail(r.error);
+    if (r.data!.job_id && !r.data!.replay) wake(req, r.data!.job_id);
+    const { replay: _r, ...out } = r.data!; void _r;
+    return json(out, 202);
+  }
   if (a === "projects" && m === "POST" && !id) {
     if (!UUID.test(str(body.song_id))) return json({ error: { code: "invalid_params", message: "Elige una canción." }, field: "song_id" }, 400);
     const r = await rpc<string>(token, "create_lyric_project", { p_song: body.song_id, p_mode: str(body.mode), p_name: str(body.name) || null }, f);

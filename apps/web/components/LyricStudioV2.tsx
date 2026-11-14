@@ -10,7 +10,8 @@ import LyricSyncEditor from "./LyricSyncEditor";
 import LyricPreview from "./LyricPreview";
 import LyricLibrary from "./LyricLibrary";
 import LyricSettings from "./LyricSettings";
-import { validateLyricComposition, switchLyricMode, type LyricComposition } from "@rafaga/composition";
+import LyricResults from "./LyricResults";
+import { validateLyricComposition, switchLyricMode, planLyricVariants, surpriseCaption, type LyricComposition } from "@rafaga/composition";
 
 const MAX_SONG = 62914560;
 type Song = { id: string; lyrics_text?: string | null; title: string; artist: string | null; status: "pending" | "ready" | "failed"; duration_ms: number | null; error_code: string | null; created_at: string };
@@ -30,6 +31,8 @@ export default function LyricStudioV2() {
   const [busy, setBusy] = useState(false), [mode, setMode] = useState<Record<string, string>>({});
   const [wsId, setWsId] = useState<string | null>(null);
   useEffect(() => { void supabase.from("workspace_members").select("workspace_id").limit(1).then(({ data }) => setWsId(data?.[0]?.workspace_id ?? null)); }, []);
+  const [projectId, setProjectId] = useState<string | null>(null), [nVar, setNVar] = useState(3), [res, setRes] = useState<720 | 1080>(720), [outFmt, setOutFmt] = useState<LyricComposition["aspect"]>("9:16");
+  const [locks, setLocks] = useState({ song_range: true, lyrics_sync: true, style: false, background: true, format: true }), [batch, setBatch] = useState<{ export_ids: string[]; generation_id: string } | null>(null);
   const [comp, setComp] = useState<LyricComposition | null>(null);
   const [editing, setEditing] = useState<{ song: Song; url: string; revision: number | null; words: SyncWord[] } | null>(null);
   const ctl = useRef<{ cancel: () => Promise<void> } | null>(null);
@@ -79,6 +82,17 @@ export default function LyricStudioV2() {
     setEditing({ song: s, url: uj.url, revision: aj.revision ?? null, words: aj.words });
     const ws = (aj.words as SyncWord[]); setComp(validateLyricComposition({ aspect: "9:16", range: { start: 0, end: Math.max(5, Math.min(30, ws.at(-1)?.end ?? 30)) }, words: ws.map((w) => ({ text: w.text, start: w.start, end: w.end, line: w.line })) }));
   }
+  /** Planifica N variantes con candados y las envía: 1 generación, N clips y un lote de exportaciones MP4. */
+  async function generate() {
+    if (!comp) return setMsg("Abre una canción con «Editar sincronización» para generar variantes.");
+    let pid = projectId;
+    const t = await token(), H = { Authorization: `Bearer ${t}`, "Content-Type": "application/json" };
+    if (!pid && editing) { const r = await fetch("/api/lyrics/projects", { method: "POST", headers: H, body: JSON.stringify({ song_id: editing.song.id, mode: comp.mode }) }); const j = await r.json().catch(() => ({})); if (!r.ok) return setMsg(j?.error?.message ?? "No se pudo crear la pieza."); pid = j.project_id; setProjectId(pid); }
+    const base = { ...comp, res, aspect: outFmt }, variants = planLyricVariants(base, nVar, locks, { styles: Array.from({ length: nVar }, (_, i) => surpriseCaption(base.seed * 1000 + i)) });
+    const r = await fetch(`/api/lyrics/projects/${pid}/variants`, { method: "POST", headers: { ...H, "Idempotency-Key": `var-${crypto.randomUUID()}` }, body: JSON.stringify({ variants, zip: true }) });
+    const j = await r.json().catch(() => ({})); if (!r.ok) return setMsg(j?.error?.message ?? "No se pudieron generar las variantes.");
+    setBatch({ export_ids: j.export_ids, generation_id: j.generation_id }); setMsg(`Generando ${variants.length} variantes. No consume unidades.`);
+  }
   async function createPiece(s: Song) {
     const t = await token(), m = mode[s.id] ?? "letra";
     const r = await fetch("/api/lyrics/projects", { method: "POST", headers: { Authorization: `Bearer ${t}`, "Content-Type": "application/json" }, body: JSON.stringify({ song_id: s.id, mode: m }) });
@@ -122,6 +136,17 @@ export default function LyricStudioV2() {
       </section>}
       {comp && <LyricPreview composition={comp} onChange={setComp} />}
       {comp && <LyricSettings composition={comp} onChange={setComp} />}
+      {comp && <section className="card space-y-2 p-4 text-sm" aria-label="Generar variantes">
+        <h2 className="font-semibold">Generar N variantes</h2>
+        <div className="flex flex-wrap items-center gap-3">
+          <label>Variantes<input type="number" min={1} max={10} className="ml-1 w-16 rounded border hairline px-1" value={nVar} onChange={(e) => setNVar(Math.min(10, Math.max(1, Number(e.target.value) || 1)))} /></label>
+          <label>Resolución<select className="ml-1 rounded border hairline px-1" value={res} onChange={(e) => setRes(Number(e.target.value) as 720 | 1080)}><option value={720}>720p</option><option value={1080}>1080p</option></select></label>
+          <label>Formato<select className="ml-1 rounded border hairline px-1" value={outFmt} onChange={(e) => setOutFmt(e.target.value as LyricComposition["aspect"])}>{["9:16", "1:1", "4:5", "16:9"].map((a) => <option key={a}>{a}</option>)}</select></label>
+        </div>
+        <fieldset className="flex flex-wrap gap-3 text-xs"><legend className="mb-1 text-[var(--muted)]">Mantener igual en todas</legend>{([["song_range", "Canción y tramo"], ["lyrics_sync", "Letra y sincronización"], ["style", "Estilo"], ["background", "Fondo"], ["format", "Formato"]] as const).map(([k, l]) => <label key={k} className="flex items-center gap-1"><input type="checkbox" checked={locks[k]} onChange={(e) => setLocks({ ...locks, [k]: e.target.checked })} />{l}</label>)}</fieldset>
+        <button className="btn btn-primary !min-h-9" onClick={() => void generate()}>Generar {nVar} variantes</button>
+      </section>}
+      {batch && <LyricResults exportIds={batch.export_ids} generationId={batch.generation_id} />}
       <LyricLibrary workspaceId={wsId} />
       {editing && <LyricSyncEditor songId={editing.song.id} audioUrl={editing.url} lyrics={editing.song.lyrics_text ?? editing.words.map((w) => w.text).join(" ")} revision={editing.revision} words={editing.words} onSaved={() => void load()} />}
     </main>

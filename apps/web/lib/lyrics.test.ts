@@ -5,6 +5,8 @@ import type { PGlite } from "@electric-sql/pglite";
 import { freshDb, A, B } from "../../../supabase/tests/migrate.ts";
 import { fakeSupabaseFetch, tokenFor } from "../../../supabase/tests/fake-supabase.ts";
 import { handleLyrics } from "./routes/lyrics.ts";
+import { handleExports } from "./routes/exports.ts";
+import { validateLyricComposition, planLyricVariants } from "@rafaga/composition";
 
 let db: PGlite, ws: string;
 const ENV = { R2_ACCOUNT_ID: "acc", R2_BUCKET: "b", R2_ACCESS_KEY_ID: "AK", R2_SECRET_ACCESS_KEY: "SK" };
@@ -147,4 +149,54 @@ test("GET /media/items/:id/url: B → 404 sin firmar; POST /demo sin Idempotency
   assert.equal((await call(A, "POST", "/demo", {})).status, 400);
   const d = await call(A, "POST", "/demo", {}, "demo-key-00001"), j = (await d.json()) as { song_id: string; project_id: string; job_id: string };
   assert.equal(d.status, 202); assert.ok(j.song_id && j.project_id && j.job_id);
+});
+
+// ───────── Variantes (paso 15) ─────────
+async function lyricProject() {
+  const s = await readySong(`lyr-up-v${Math.random().toString(36).slice(2, 8)}`), p = (await (await call(A, "POST", "/projects", { song_id: s, mode: "letra" })).json()) as { project_id: string };
+  return p.project_id;
+}
+const baseComp = validateLyricComposition({ aspect: "9:16", res: 720, range: { start: 0, end: 5 }, words: [{ text: "hola", start: 0.5, end: 1, line: 0 }], seed: 2 });
+const plan = (n: number) => planLyricVariants(baseComp, n, { song_range: true, lyrics_sync: true, format: true, background: true }, { styles: [0, 1, 2, 3].map((k) => ({ ...baseComp.style, font: ["Inter", "Oswald", "Anton", "Lobster"][k] })) });
+const cnt = async (t: string) => (await db.query<{ n: number }>(`select count(*)::int n from ${t}`)).rows[0].n;
+const exp = (method: string, path: string, idem?: string) => handleExports(new Request(`https://app/api/exports${path}`, { method, headers: { Authorization: `Bearer ${tokenFor(A)}`, ...(idem ? { "Idempotency-Key": idem } : {}) } }), path.split("/").filter(Boolean), { f: fakeSupabaseFetch(db), env: ENV, wake: () => {} });
+
+test("variantes: 3 llamadas con la misma clave y 3 variantes crean 1 generación, 3 clips v1, 3 exportaciones en un lote y 1 trabajo; mismos identificadores; 0 filas en el libro", async () => {
+  const pid = await lyricProject(), g0 = await cnt("generations"), c0 = await cnt("clips"), cv0 = await cnt("clip_versions"), r0 = await cnt("renders"), j0 = await cnt("jobs"), l0 = await cnt("credit_ledger");
+  const out: { generation_id: string; clip_ids: string[]; export_ids: string[]; batch_id: string; job_id: string }[] = [];
+  for (let i = 0; i < 3; i++) { const r = await call(A, "POST", `/projects/${pid}/variants`, { variants: plan(3) }, "variants-key-0001"); assert.equal(r.status, 202); out.push((await r.json()) as never); }
+  assert.deepEqual(out[1], out[0]); assert.deepEqual(out[2], out[0]);
+  assert.deepEqual([await cnt("generations") - g0, await cnt("clips") - c0, await cnt("clip_versions") - cv0, await cnt("renders") - r0, await cnt("jobs") - j0, await cnt("credit_ledger") - l0], [1, 3, 3, 3, 1, 0]);
+  assert.equal((await db.query<{ n: number }>(`select count(*)::int n from renders where batch_id='${out[0].batch_id}'`)).rows[0].n, 3);
+  assert.equal(out[0].export_ids.length, 3); assert.ok(woken.includes(out[0].job_id));
+});
+
+test("variantes: 0, 11 o una composición que no es de letra → 400 con field variants sin escribir nada", async () => {
+  const pid = await lyricProject(), before = [await cnt("generations"), await cnt("clips"), await cnt("jobs")];
+  for (const v of [[], plan(10).concat(plan(1)), [{ kind: "clip", aspect: "9:16" }]]) {
+    const r = await call(A, "POST", `/projects/${pid}/variants`, { variants: v }, `variants-bad-${Math.random().toString(36).slice(2, 8)}`);
+    assert.equal(r.status, 400); assert.equal(((await r.json()) as { field: string }).field, "variants");
+  }
+  assert.deepEqual([await cnt("generations"), await cnt("clips"), await cnt("jobs")], before);
+});
+
+test("dos variantes con el mismo variant_hash se crean igualmente y añaden near_duplicate a generations.warnings", async () => {
+  const pid = await lyricProject(), a = { ...baseComp, variant_hash: "abcd" }, b = { ...baseComp, variant_hash: "abcd", seed: 5 };
+  const r = await call(A, "POST", `/projects/${pid}/variants`, { variants: [a, b, { ...baseComp, variant_hash: "zzzz" }] }, "variants-dup-0001"), j = (await r.json()) as { generation_id: string; clip_ids: string[]; warnings: { code: string; variants: number[] }[] };
+  assert.equal(r.status, 202); assert.equal(j.clip_ids.length, 3); assert.deepEqual(j.warnings, [{ code: "near_duplicate", variants: [1, 2] }]);
+  assert.deepEqual((await db.query<{ warnings: unknown }>(`select warnings from generations where id='${j.generation_id}'`)).rows[0].warnings, j.warnings);
+});
+
+test("lote con una exportación fallida: las otras 2 se descargan y el reintento reencola solo la fallida; request_exports acepta 4:5, lrc, lrc_word y ass", async () => {
+  const pid = await lyricProject(), r = await call(A, "POST", `/projects/${pid}/variants`, { variants: plan(3) }, "variants-fail-001"), j = (await r.json()) as { export_ids: string[]; clip_ids: string[] };
+  const [ok1, ok2, bad] = j.export_ids;
+  for (const id of [ok1, ok2]) await db.exec(`update renders set status='ready', storage_path='${ws}/x/${id}.mp4', expires_at=now()+interval '5 days' where id='${id}'`);
+  await db.exec(`update renders set status='failed', error_code='render_failed' where id='${bad}'`);
+  for (const id of [ok1, ok2]) assert.equal((await exp("GET", `/${id}/url`)).status, 200);
+  assert.equal((await exp("GET", `/${bad}/url`)).status, 409);
+  const retry = await exp("POST", `/${bad}/retry`, "retry-key-00001"), jr = (await retry.json()) as { job_id: string | null }; assert.equal(retry.status, 202); assert.ok(jr.job_id);
+  assert.equal((await db.query<{ status: string }>(`select status from renders where id='${bad}'`)).rows[0].status, "queued");
+  assert.equal(((await (await exp("POST", `/${ok1}/retry`, "retry-key-00002")).json()) as { job_id: string | null }).job_id, null, "las listas no se reencolan");
+  const items = ["lrc", "lrc_word", "ass"].map((kind) => ({ clip_id: j.clip_ids[0], version: 1, aspect: "4:5", burn_subtitles: false, kind }));
+  const ex = (await as<{ r: { export_ids: string[] } }>(`select public.request_exports('${JSON.stringify(items)}'::jsonb, false, 'fmt-key-000001') r`))[0].r; assert.equal(ex.export_ids.length, 3);
 });
