@@ -17,10 +17,10 @@ Navegación: **Video Studio · Style Studio · Library · Schedule · Hooks**. V
 | Filtros Midnight · Super 8 · Noir · Vaporwave | ✅ (`noche/super8/bn/vapor`) |
 | Tamaño del texto, gancho (hook), ajuste del fondo | ✅ |
 | Exportar 720p/1080p y lote | ✅ (variantes en lote) |
-| Arrastrar la letra en la vista previa | ⬜ Pendiente: hoy la posición se elige con un control |
+| Arrastrar la letra en la vista previa | ✅ (`LyricPreview`: arrastre y flechas, pantalla completa, zonas seguras) |
 | Programación (Schedule) y Hooks | ✅ Calendario y paquetes de ganchos |
 
 ## No clonable
 Los 21 paquetes de vídeo de LyricTune (derechos de terceros: Minecraft, CSGO, San Andreas, etc.), su catálogo de estilos «Creator», marca de agua y cuotas. Las colecciones de Ráfaga se rellenan con medios propios o con licencia del propietario.
 
-Tamaño: **S**. Lo único pendiente de la lista es el arrastre de la letra.
+Tamaño: **S**. Sin huecos funcionales pendientes frente a lo observado; falta solo contenido con licencia para las colecciones oficiales.
