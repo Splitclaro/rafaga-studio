@@ -3,6 +3,7 @@
 //  GET  /api/lyrics/songs/:id/audio     → {url,expires_at} (URL de R2, 3600 s) tras comprobar acceso como el usuario
 //  POST /api/lyrics/projects            {song_id,mode,name?}  → 201 {project_id}
 //  PUT  /api/lyrics/projects/:id        parche de la pieza    → 200 {saved_at}
+import { runAfter } from "../after.ts";
 import { r2FromEnv, r2Url } from "@rafaga/providers/r2";
 import { bearer, rpc, json, mapDbError, idempotencyKey, sessionUser, type Fetch, type DbError } from "../api.ts";
 
@@ -10,7 +11,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 export interface LyricDeps { f?: Fetch; env?: Record<string, string | undefined>; wake?: (req: Request, jobId: string) => void }
 const SYNC_MODEL = "whisper-large-v3-turbo";
 function defaultWake(req: Request, jobId: string) {
-  fetch(new URL("/api/wake", req.url), { method: "POST", headers: { Authorization: req.headers.get("authorization") ?? "", "Content-Type": "application/json" }, body: JSON.stringify({ job_id: jobId }) }).catch(() => {});
+  runAfter(() => fetch(new URL("/api/wake", req.url), { method: "POST", headers: { Authorization: req.headers.get("authorization") ?? "", "Content-Type": "application/json" }, body: JSON.stringify({ job_id: jobId }) }));
 }
 /** Palabras de una revisión: texto 1–80, start/end numéricos crecientes, line entero ≥ 0, manual booleano. */
 export function validWords(w: unknown): boolean {

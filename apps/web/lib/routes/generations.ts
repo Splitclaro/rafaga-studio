@@ -1,5 +1,6 @@
 // POST /api/generations/estimate → estimación (unidades, saldo, tiempo, clips viables)
 // POST /api/generations          → request_generation (reserva + trabajo en una transacción; idempotente por Idempotency-Key)
+import { runAfter } from "../after.ts";
 import { bearer, rpc, rest, json, mapDbError, idempotencyKey, sessionUser, type Fetch } from "../api.ts";
 import { validateParams, estimateUnits, viableCount, summary, componentVersions } from "../generations.ts";
 
@@ -23,7 +24,7 @@ async function context(req: Request, body: { project_id?: string; params?: unkno
 
 export async function handleGenerations(req: Request, slug: string[], d: GenDeps = {}): Promise<Response> {
   const f = d.f ?? fetch, env = d.env ?? process.env;
-  const wake = d.wake ?? ((r: Request, jobId: string) => { fetch(new URL("/api/wake", r.url), { method: "POST", headers: { Authorization: r.headers.get("authorization") ?? "", "Content-Type": "application/json" }, body: JSON.stringify({ job_id: jobId }) }).catch(() => {}); });
+  const wake = d.wake ?? ((r: Request, jobId: string) => { runAfter(() => fetch(new URL("/api/wake", r.url), { method: "POST", headers: { Authorization: r.headers.get("authorization") ?? "", "Content-Type": "application/json" }, body: JSON.stringify({ job_id: jobId }) })); });
   if (!(await sessionUser(req, f))) return json({ error: { code: "no_session", message: "Inicia sesión." } }, 401);
   if (req.method !== "POST") return json({ error: { code: "not_found", message: "No encontrado." } }, 404);
   const body = (await req.json().catch(() => ({}))) as { project_id?: string; params?: unknown };

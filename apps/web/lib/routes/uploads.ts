@@ -7,6 +7,7 @@
 //  POST   /api/uploads/:id/complete            → 202 { job_id } (validate → mezzanine → proxy)
 //  DELETE /api/uploads/:id                     → 204
 //  GET    /api/uploads/sources/:sourceId/proxy → URL de lectura de la copia ligera (3600 s)
+import { runAfter } from "../after.ts";
 import { r2FromEnv, r2Multipart, r2Url, partsKey, type R2Config } from "@rafaga/providers/r2";
 import { bearer, rpc, json, fail, mapDbError, idempotencyKey, sessionUser, type Fetch } from "../api.ts";
 
@@ -20,7 +21,7 @@ type Session = { id: string; workspace_id: string; source_id: string; project_id
 
 const strategyOf = (env: Record<string, string | undefined>) => (env.UPLOAD_STRATEGY === "parts" ? "parts" : "multipart") as "multipart" | "parts";
 function defaultWake(req: Request, jobId: string) {
-  fetch(new URL("/api/wake", req.url), { method: "POST", headers: { Authorization: req.headers.get("authorization") ?? "", "Content-Type": "application/json" }, body: JSON.stringify({ job_id: jobId }) }).catch(() => {});
+  runAfter(() => fetch(new URL("/api/wake", req.url), { method: "POST", headers: { Authorization: req.headers.get("authorization") ?? "", "Content-Type": "application/json" }, body: JSON.stringify({ job_id: jobId }) }));
 }
 
 export async function handle(req: Request, slug: string[], d: UploadDeps = {}): Promise<Response> {

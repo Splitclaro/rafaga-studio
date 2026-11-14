@@ -4,6 +4,7 @@
 // POST /api/publish         {export_id,platform,title,description?,privacy?,scheduled_at?} → 202 {publication_id,state}  (Idempotency-Key)
 // POST /api/publish/:id/cancel → cancela una publicación programada o fallida
 // Cualquier otro valor de [integration] → 404.
+import { runAfter } from "../after.ts";
 import { preflightLink, LinkError, type PreflightDeps } from "@rafaga/providers/net";
 import { bearer, rpc, json, mapDbError, idempotencyKey, sessionUser, type Fetch } from "../api.ts";
 
@@ -13,7 +14,7 @@ const notFound = () => json({ error: { code: "not_found", message: "No encontrad
 const bad = (code: string, message: string, extra: Record<string, unknown> = {}) => json({ error: { code, message }, ...extra }, 400);
 const missingIdem = () => bad("missing_idempotency_key", "Falta la cabecera Idempotency-Key.");
 function defaultWake(req: Request, jobId: string) {
-  fetch(new URL("/api/wake", req.url), { method: "POST", headers: { Authorization: req.headers.get("authorization") ?? "", "Content-Type": "application/json" }, body: JSON.stringify({ job_id: jobId }) }).catch(() => {});
+  runAfter(() => fetch(new URL("/api/wake", req.url), { method: "POST", headers: { Authorization: req.headers.get("authorization") ?? "", "Content-Type": "application/json" }, body: JSON.stringify({ job_id: jobId }) }));
 }
 const LINK_TEXT: Record<string, string> = {
   not_https: "El enlace debe empezar por https://.", private_address: "Ese enlace apunta a una dirección privada o interna; no se puede importar.",

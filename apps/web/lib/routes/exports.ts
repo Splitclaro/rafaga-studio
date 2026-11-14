@@ -2,6 +2,7 @@
 // POST /api/exports/:id/retry  → reintenta solo esa exportación fallida
 // POST /api/exports/:id/renew  → si el archivo se purgó, lo vuelve a renderizar desde su versión (sin coste)
 // GET  /api/exports/:id/url    → URL firmada tras comprobar acceso; marca la primera descarga
+import { runAfter } from "../after.ts";
 import { r2FromEnv, r2Url } from "@rafaga/providers/r2";
 import { bearer, rpc, json, fail, mapDbError, idempotencyKey, sessionUser, type Fetch } from "../api.ts";
 
@@ -9,7 +10,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 export interface ExportDeps { f?: Fetch; env?: Record<string, string | undefined>; wake?: (req: Request, jobId: string) => void }
 const notFound = () => json({ error: { code: "not_found", message: "No encontrado." } }, 404);
 function defaultWake(req: Request, jobId: string) {
-  fetch(new URL("/api/wake", req.url), { method: "POST", headers: { Authorization: req.headers.get("authorization") ?? "", "Content-Type": "application/json" }, body: JSON.stringify({ job_id: jobId }) }).catch(() => {});
+  runAfter(() => fetch(new URL("/api/wake", req.url), { method: "POST", headers: { Authorization: req.headers.get("authorization") ?? "", "Content-Type": "application/json" }, body: JSON.stringify({ job_id: jobId }) }));
 }
 
 export async function handleExports(req: Request, slug: string[], d: ExportDeps = {}): Promise<Response> {
