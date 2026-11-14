@@ -1,11 +1,11 @@
 # Puesta en marcha: Modal y Vercel (pasos del propietario)
 
-Estado a 2026-11-14. **Hecho por Claude (sin secretos):** migraciones 034–042 y 100–105 aplicadas; `platform_settings.modal_rate_card` fijada con los precios de https://modal.com/pricing (0,0000131 USD por núcleo·s y 0,00000222 USD por GiB·s); presupuesto de cómputo en 30 USD. `compute_meter()` responde `rate_card_set = true` y `blocked = false`.
+Estado a 2026-11-14. **Hecho por Claude (sin secretos):** migraciones 034–042 y 100–105 aplicadas; `platform_settings.modal_rate_card` fijada con los precios de https://modal.com/pricing (0,0000131 USD por núcleo·s y 0,00000222 USD por GiB·s); presupuesto de cómputo en **1 USD** (aplicado en producción el 2026-11-14: Modal Starter sin método de pago tiene un tope duro de 1 USD, así que no puede generar cargos; el medidor bloquea trabajos nuevos al 90 %). `compute_meter()` responde `rate_card_set = true` y `blocked = false`.
 
 **Lo que NO hace Claude:** pegar credenciales en Modal o Vercel, ni desplegar. Hazlo tú, en este orden.
 
 ## 1. Modal (LC-1 a LC-3)
-1. Cuenta con método de pago y presupuesto del Workspace = **30 USD** (panel de Modal).
+1. Cuenta Modal Starter **sin añadir método de pago** (tope duro de 1 USD incluido; no se puede cobrar nada). Si algún día añades tarjeta, sube `compute_budget_usd` y fija el límite del Workspace.
 2. Entorno local (ya instalado): `~/.cache/rafaga/modal-venv/bin/modal token new`
 3. Secreto `rafaga-worker` (los valores los pones tú; no los pegues en el chat):
    ```bash
