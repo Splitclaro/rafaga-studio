@@ -1,0 +1,452 @@
+[
+  {
+    "id": "E1-T1",
+    "title": "Requisitos de clipping v2 y esquema Lyric v2 (100)",
+    "epic": "01-canciones-y-sincronizacion",
+    "dependencies": [],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN se ejecutan `git tag -l 'rafaga-v2-step-*'` y `git tag -l 'rafaga-v2-step-0[2-8]' 'rafaga-v2-step-1[467]'` THE SYSTEM SHALL listar 18 y 10 etiquetas respectivamente, y `packages/composition/src/layouts.ts`, `workers/media/src/stages/export.ts`, `workers/media/src/stages/integrations.ts` y `apps/web/lib/uploader.ts` SHALL existir.",
+      "WHEN `freshDb()` aplica todas las migraciones, incluida `20261201000100_lyric_v2.sql`, THE SYSTEM SHALL exponer las tablas `lyric_projects` y `hook_packs`, las columnas `songs.source_id`, `songs.duration_ms`, `song_alignments.revision`, `media_collections.official`, `media_collections.purpose` y `media_items.storage_backend`, y aceptar `projects.mode = 'lyrics'`, `clip_versions.aspect = '4:5'`, `renders.kind` `lrc`, `lrc_word` y `ass`, `job_stages.stage` `song_validate`, `lyric_sync` y `media_split` y `storage_objects.kind = 'media'`.",
+      "WHEN el usuario B consulta `lyric_projects` y `hook_packs` o inserta directamente en ellas con el `workspace_id` de A THE SYSTEM SHALL devolver 0 filas de A y rechazar la inserción.",
+      "WHEN `save_caption_style` recibe un estilo de más de 4000 bytes, un estilo sin `rafagaStyle = 2` o el estilo número 21 del workspace THE SYSTEM SHALL lanzar `style_too_large`, `invalid_style` o `style_limit` sin escribir, y una inserción directa de un estilo v1 en `text_styles` SHALL seguir funcionando.",
+      "WHEN se inserta una canción v1 (`audio/mpeg`, ruta `<ws>/songs/…`, sin `source_id`) y una v2 (`audio/flac`, ruta `<ws>/<source>/original`, con `source_id`) THE SYSTEM SHALL aceptar ambas, y una v2 de más de 62914560 bytes SHALL rechazarse.",
+      "WHEN `save_lyric_project` cambia el modo de una pieza de `letra` a `portada` y vuelve, y `request_lyrics` crea un trabajo v1 THE SYSTEM SHALL conservar `song_id`, estilo y fondos sin cambiar el número de filas de `song_alignments`, y `claim_job()` SHALL entregar el trabajo `lyrics` con `engine = 'v1'`."
+    ],
+    "verify": [
+      "export PATH=\"$HOME/.local/bin:$PATH\" && test \"$(git tag -l 'rafaga-v2-step-*' | wc -l | tr -d ' ')\" = 18",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && test \"$(git tag -l 'rafaga-v2-step-0[2-8]' 'rafaga-v2-step-1[467]' | wc -l | tr -d ' ')\" = 10",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && test -f packages/composition/src/layouts.ts && test -f workers/media/src/stages/export.ts && test -f workers/media/src/stages/integrations.ts && test -f apps/web/lib/uploader.ts",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && node --test supabase/tests/lyric_v2.test.ts",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm test"
+    ],
+    "checkpoint": "rafaga-lyric-v2-step-01",
+    "files": ["supabase/migrations/20261201000100_lyric_v2.sql", "supabase/tests/lyric_v2.test.ts"],
+    "status": "pending"
+  },
+  {
+    "id": "E1-T2",
+    "title": "Ingesta de canciones: etapa song_validate (101)",
+    "epic": "01-canciones-y-sincronizacion",
+    "dependencies": ["E1-T1"],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN `audioKind` recibe cabeceras de MP3 (`ID3` o sincronía `0xFFE`), WAV (`RIFF`…`WAVE`), M4A (`ftyp`), AAC ADTS (`0xFFF1` o `0xFFF9`), FLAC (`fLaC`) y OGG (`OggS`) THE SYSTEM SHALL devolver `mp3`, `wav`, `m4a`, `aac`, `flac` y `ogg`, y `null` para 64 bytes aleatorios.",
+      "WHEN `song_validate` procesa los fixtures `song_wav`, `song_m4a`, `song_flac` y `song_ogg` THE SYSTEM SHALL dejar cada canción `ready` con duración 12 s ±0.1, 44100 Hz (48000 Hz en OGG Opus), 2 canales y sonoridad integrada finita entre −70 y 0 LUFS, la fuente `validated` y `<ws>/<source>/audio.opus` subido al R2 simulado.",
+      "WHEN la canción dura más de 600 s, pesa más de 62914560 bytes o el archivo tiene pista de vídeo o no es audio THE SYSTEM SHALL cerrar la etapa con `too_long`, `too_large` o `unsupported_file`, dejar la canción `failed` con ese `error_code` y no subir nada al R2 simulado.",
+      "WHEN `complete_upload` completa una sesión cuya fuente tiene `mime` de audio THE SYSTEM SHALL crear un único trabajo `ingest` con la sola etapa `song_validate`, y para una fuente de vídeo SHALL seguir creando `validate`, `mezzanine` y `proxy`.",
+      "WHEN `register_song` se llama dos veces con la misma sesión de subida THE SYSTEM SHALL devolver el mismo `song_id` y `project_id`, poner `projects.mode = 'lyrics'` y crear una sola fila en `lyric_projects` con modo `letra`, y con más de 62914560 bytes SHALL lanzar `file_too_large`.",
+      "WHEN se ejecuta `node workers/media/src/stage.ts --list` THE SYSTEM SHALL imprimir `song_validate`, `lyric_sync` y `media_split` después de `translate`."
+    ],
+    "verify": [
+      "export PATH=\"$HOME/.local/bin:$PATH\" && ffmpeg -hide_banner -version",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && node --test workers/media/src/lyric_song.test.ts",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && node workers/media/src/stage.ts --list | grep -qx media_split",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm test"
+    ],
+    "checkpoint": "rafaga-lyric-v2-step-02",
+    "files": ["supabase/migrations/20261201000101_lyric_songs.sql", "workers/media/src/stages/lyric.ts", "workers/media/src/stages/registry.ts", "workers/media/src/fixtures.ts", "workers/media/src/lyric_song.test.ts"],
+    "status": "pending"
+  },
+  {
+    "id": "E1-T3",
+    "title": "API de letra, subida de canciones y Mis canciones",
+    "epic": "01-canciones-y-sincronizacion",
+    "dependencies": ["E1-T2"],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN `POST /api/lyrics/songs` recibe `{ upload_id, title }` de una sesión de audio del usuario THE SYSTEM SHALL responder 201 `{ song_id, project_id }`, y repetida con la misma sesión SHALL devolver los mismos identificadores.",
+      "WHEN la sesión es de un archivo de más de 62914560 bytes o de `mime` que no es de audio THE SYSTEM SHALL responder 413 `{ error: { code: \"file_too_large\" }, limit: 62914560 }` o 415 `{ error: { code: \"unsupported_file\" } }` sin crear canción.",
+      "WHEN el usuario B pide `GET /api/lyrics/songs/:id/audio` de una canción de A THE SYSTEM SHALL responder 404 sin firmar URL, y para A con la canción `ready` SHALL devolver `{ url, expires_at }` con una URL GET de R2 que caduca en 3600 s.",
+      "WHEN `POST /api/lyrics/projects` recibe `{ song_id, mode: \"texto\" }` y después `PUT /api/lyrics/projects/:id` cambia `mode` a `letra` THE SYSTEM SHALL responder 201 `{ project_id }` y 200 `{ saved_at }`, y un `mode` desconocido SHALL responder 400 `{ error: { code: \"invalid_params\" }, field: \"mode\" }`.",
+      "WHEN se ejecutan `grep -q 'NEXT_PUBLIC_LYRIC_VERSION' apps/web/app/app/lyric-studio/page.tsx` y `grep -q 'runUpload' apps/web/components/LyricStudioV2.tsx` THE SYSTEM SHALL salir con 0 en ambos: la vista v2 vive detrás de la bandera y sube con el cargador compartido.",
+      "WHEN se ejecutan `pnpm --filter @rafaga/web typecheck` y `pnpm --filter @rafaga/web build` THE SYSTEM SHALL salir con 0 en ambos."
+    ],
+    "verify": [
+      "export PATH=\"$HOME/.local/bin:$PATH\" && node --test apps/web/lib/lyrics.test.ts",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && grep -q 'NEXT_PUBLIC_LYRIC_VERSION' apps/web/app/app/lyric-studio/page.tsx",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && grep -q 'runUpload' apps/web/components/LyricStudioV2.tsx",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm test",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm --filter @rafaga/web typecheck",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm --filter @rafaga/web build"
+    ],
+    "checkpoint": "rafaga-lyric-v2-step-03",
+    "files": ["apps/web/lib/routes/lyrics.ts", "apps/web/app/api/lyrics/[[...slug]]/route.ts", "apps/web/lib/lyrics.test.ts", "apps/web/components/LyricStudioV2.tsx", "apps/web/app/app/lyric-studio/page.tsx"],
+    "status": "pending"
+  },
+  {
+    "id": "E1-T4",
+    "title": "Motor de sincronización y formatos de letra (puro)",
+    "epic": "01-canciones-y-sincronizacion",
+    "dependencies": ["E1-T1"],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN `resyncKeepingManual` realinea una letra en la que 3 palabras tienen `manual: true` THE SYSTEM SHALL dejar `start` y `end` de esas 3 palabras idénticos y recalcular solo las demás.",
+      "WHEN `alignWithAnchors` alinea una letra aprobada contra un ASR con palabras de más, de menos y distintas THE SYSTEM SHALL devolver exactamente las palabras de la letra en el mismo orden y con el mismo texto, marcar `doubtful` las de confianza menor que 0.5 y `not_heard` las interpoladas, y listar en `extras` las palabras del ASR sin pareja.",
+      "WHEN la letra repite un estribillo y el audio tiene un tramo de más de 4 s sin palabras THE SYSTEM SHALL asignar `occurrence` 1 y 2 a cada repetición con tiempos independientes y listar el tramo en `instrumentals`, y las vocalizaciones (`oh`, `ah`, `la`, `yeah`) y las palabras de más de 1.5 s SHALL marcarse `vocalisation` y `sustained`.",
+      "WHEN `insertWord`, `deleteWord`, `nudgeWord` o `resizeWord` editan una palabra THE SYSTEM SHALL marcar `manual: true` solo en la palabra editada, mantener los tiempos crecientes y dejar idénticas todas las palabras no afectadas, incluidas las corregidas antes.",
+      "WHEN `toLrcEnhanced`, `toLrc`, `toSrtLyrics` y `toVttLyrics` exportan una letra y `importLyrics` la vuelve a leer THE SYSTEM SHALL recuperar las mismas líneas y el inicio de cada palabra (LRC mejorado) o de cada línea (LRC, SRT, VTT) con 10 ms de diferencia como máximo.",
+      "WHEN `toAssKaraoke` exporta una letra THE SYSTEM SHALL escribir un evento `Dialogue` por línea con una etiqueta `{\\kN}` por palabra cuya suma, en centésimas, difiere de la duración de la línea en 1 centésima por palabra como máximo, y las palabras de `DEMO_SONG` SHALL ser crecientes y caber en sus 24 s."
+    ],
+    "verify": [
+      "export PATH=\"$HOME/.local/bin:$PATH\" && node --test packages/lyrics/src/sync.test.ts packages/lyrics/src/formats.test.ts",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm test"
+    ],
+    "checkpoint": "rafaga-lyric-v2-step-04",
+    "files": ["packages/lyrics/src/sync.ts", "packages/lyrics/src/sync.test.ts", "packages/lyrics/src/formats.ts", "packages/lyrics/src/formats.test.ts", "packages/lyrics/src/index.ts"],
+    "status": "pending"
+  },
+  {
+    "id": "E1-T5",
+    "title": "Etapa lyric_sync y API de sincronización (102)",
+    "epic": "01-canciones-y-sincronizacion",
+    "dependencies": ["E1-T3", "E1-T4"],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN `POST /api/lyrics/songs/:id/sync` llega sin ASR en caché para una canción de 180 s THE SYSTEM SHALL responder 202 `{ job_id, units_reserved: 3, cached: false }` y escribir una fila `reserve` de 3 unidades, y con el ASR ya guardado SHALL responder `units_reserved: 0` y `cached: true` sin ninguna fila nueva en `credit_ledger`.",
+      "WHEN la etapa `lyric_sync` se ejecuta con un ASR simulado THE SYSTEM SHALL llamar al ASR una sola vez, guardar sus palabras como fila `asr`, crear la revisión 1 de tipo `aligned` y liquidar las unidades, y una segunda sincronización SHALL hacer 0 llamadas al ASR.",
+      "WHEN el modo es `transcribe` THE SYSTEM SHALL guardar una revisión de tipo `proposal` y dejar `songs.lyrics_text` idéntico, y WHEN el modo es `align` sin letra guardada SHALL responder 409 `{ error: { code: \"lyrics_required\" } }`.",
+      "WHEN una revisión guardada con `PUT /api/lyrics/songs/:id/alignment` tiene palabras con `manual: true` y se vuelve a sincronizar THE SYSTEM SHALL conservar el `start` y el `end` de cada palabra `manual` en la nueva revisión.",
+      "WHEN `PUT /api/lyrics/songs/:id/alignment` llega con un `base_revision` obsoleto o con tiempos decrecientes THE SYSTEM SHALL responder 409 `{ conflict: { current_revision } }` o 400 `{ error: { code: \"invalid_words\" } }` sin crear revisión, y `POST /api/lyrics/songs/:id/alignment/restore` SHALL crear una revisión nueva con las palabras de la primera revisión `aligned`.",
+      "WHEN el usuario B pide `GET /api/lyrics/songs/:id/alignment` o `POST /api/lyrics/songs/:id/sync` sobre una canción de A THE SYSTEM SHALL responder 404."
+    ],
+    "verify": [
+      "export PATH=\"$HOME/.local/bin:$PATH\" && node --test workers/media/src/lyric_sync.test.ts apps/web/lib/lyrics.test.ts",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm test",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm --filter @rafaga/web typecheck"
+    ],
+    "checkpoint": "rafaga-lyric-v2-step-05",
+    "files": ["supabase/migrations/20261201000102_lyric_sync.sql", "workers/media/src/stages/lyric.ts", "workers/media/src/lyric_sync.test.ts", "apps/web/lib/routes/lyrics.ts", "apps/web/lib/lyrics.test.ts"],
+    "status": "pending"
+  },
+  {
+    "id": "E1-T6",
+    "title": "Editor de sincronización",
+    "epic": "01-canciones-y-sincronizacion",
+    "dependencies": ["E1-T5"],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN se mantiene pulsada la tecla o el botón de marcar desde t = 10.00 s hasta t = 10.80 s sobre la palabra actual THE SYSTEM SHALL fijar esa palabra en `start: 10` y `end: 10.8` con `manual: true` y avanzar a la siguiente.",
+      "WHEN se elige la velocidad 0.5 o 0.75 THE SYSTEM SHALL guardar `rate` 0.5 o 0.75 en el estado y los tiempos marcados SHALL seguir expresados en segundos de la canción.",
+      "WHEN se desplaza, se redimensiona, se inserta o se borra una palabra y después se deshace THE SYSTEM SHALL volver al estado anterior idéntico, y las palabras no afectadas SHALL conservar sus tiempos y su marca `manual`.",
+      "WHEN el estado tiene palabras con confianza menor que 0.5 THE SYSTEM SHALL devolver sus índices en `doubtfulIndexes` para resaltarlas.",
+      "WHEN se ejecutan `grep -q 'onMarks' apps/web/components/TapSync.tsx`, `grep -q 'pointerdown' apps/web/components/LyricSyncEditor.tsx` y `grep -q 'LyricSyncEditor' apps/web/components/LyricStudioV2.tsx` THE SYSTEM SHALL salir con 0 en los tres.",
+      "WHEN se ejecutan `pnpm --filter @rafaga/web typecheck` y `pnpm --filter @rafaga/web build` THE SYSTEM SHALL salir con 0 en ambos."
+    ],
+    "verify": [
+      "export PATH=\"$HOME/.local/bin:$PATH\" && node --test apps/web/lib/synceditor.test.ts",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && grep -q 'onMarks' apps/web/components/TapSync.tsx",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && grep -q 'pointerdown' apps/web/components/LyricSyncEditor.tsx",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && grep -q 'LyricSyncEditor' apps/web/components/LyricStudioV2.tsx",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm test",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm --filter @rafaga/web typecheck",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm --filter @rafaga/web build"
+    ],
+    "checkpoint": "rafaga-lyric-v2-step-06",
+    "files": ["apps/web/lib/synceditor.ts", "apps/web/lib/synceditor.test.ts", "apps/web/components/LyricSyncEditor.tsx", "apps/web/components/TapSync.tsx", "apps/web/components/LyricStudioV2.tsx"],
+    "status": "pending"
+  },
+  {
+    "id": "E2-T1",
+    "title": "Fuentes para el contenido generado",
+    "epic": "02-estilo-vista-previa-y-fondos",
+    "dependencies": ["E1-T1"],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN se ejecuta `node scripts/fetch-fonts.ts --check` THE SYSTEM SHALL salir con 0 tras comprobar que cada archivo de `CAPTION_FONTS` existe en `apps/web/public/fonts/caption/`, que su sha256 coincide y que sus anchos de avance coinciden con `readMetrics` sobre el mismo archivo.",
+      "WHEN se lee `CAPTION_FONTS` THE SYSTEM SHALL contener Inter, Roboto, Playfair Display, Oswald, Pacifico, Bebas Neue, Montserrat, Raleway, Space Mono, Dancing Script, Righteous, Anton, Lobster, Nunito y Abril Fatface, cada una con licencia `OFL-1.1` o `Apache-2.0` y `licenceUrl` https, y las fuentes ya existentes Bootzy TM y Liberation Sans con `source: \"sistema\"` sin archivo duplicado.",
+      "WHEN se comprueba la cobertura de `á é í ó ú ü ñ Á É Í Ó Ú Ü Ñ ¿ ¡` THE SYSTEM SHALL registrar `spanish` y la lista `missing` de cada fuente, y `resolveFamilyForText` SHALL devolver `Inter` para un texto con un glifo que la fuente elegida no tiene.",
+      "WHEN `measureText` mide el mismo texto con la misma fuente, peso y tamaño dos veces THE SYSTEM SHALL devolver el mismo ancho, y un texto con más caracteres SHALL medir más que su prefijo."
+    ],
+    "verify": [
+      "export PATH=\"$HOME/.local/bin:$PATH\" && node scripts/fetch-fonts.ts --check",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && node --test apps/web/lib/captionfonts.test.ts",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm test",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm --filter @rafaga/web typecheck"
+    ],
+    "checkpoint": "rafaga-lyric-v2-step-07",
+    "files": ["scripts/fetch-fonts.ts", "packages/composition/src/fontcatalog.ts", "apps/web/public/fonts/caption/**", "apps/web/lib/captionfonts.test.ts", "packages/composition/src/index.ts"],
+    "status": "pending"
+  },
+  {
+    "id": "E2-T2",
+    "title": "Estilo v2 compartido y motor de escena de letra",
+    "epic": "02-estilo-vista-previa-y-fondos",
+    "dependencies": ["E2-T1"],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN `validateCaptionStyle` recibe un estilo con valores fuera de rango, un estilo v1 (`SubtitleStyle`) o basura THE SYSTEM SHALL devolver un `CaptionStyleV2` válido con exactamente los 9 controles (fuente, peso, caja, colores de texto y palabra activa, efecto, entrada, palabra activa, posición y tamaño), y `captionStyleBytes` del resultado SHALL ser menor que 4000.",
+      "WHEN `captionToSubtitleStyle` convierte un `CaptionStyleV2` THE SYSTEM SHALL devolver un `SubtitleStyle` que `buildAss` acepta y que `validateStyle` deja igual, de modo que clipping y letra comparten el mismo esquema.",
+      "WHEN se leen `BEHAVIOUR_PRESETS` THE SYSTEM SHALL contener `frase_palabra_activa`, `palabra_a_palabra`, `escritura_progresiva`, `texto_estatico` y `entrada_deslizada`, cada uno con unidad, agrupación, palabra activa, entrada, salida y duración, y `surpriseCaption(seed)` SHALL devolver el mismo estilo válido para la misma semilla.",
+      "WHEN `lyricAss` genera el ASS de una composición de letra THE SYSTEM SHALL anclar cada palabra con `\\an7\\pos(x,y)` en su caja de `lyricLayout` y fijar cada inicio y fin en el fotograma de 1/30 s que usa `lyricSceneAt`.",
+      "WHEN ffmpeg dibuja con libass y la fuente Inter de `apps/web/public/fonts/caption/` el fotograma de t = 1.0 s de una composición de prueba THE SYSTEM SHALL producir píxeles de texto cuya caja envolvente cae dentro de la caja de la línea de `lyricLayout` ampliada 0.25 em y cubre al menos el 50 % de su ancho, y el fotograma de t = 0.1 s, antes de la primera palabra, SHALL tener luminancia máxima menor que 16.",
+      "WHEN la entrada es `typewriter` por palabra, la palabra activa es `underline` o `box`, o `shake` está activo THE SYSTEM SHALL producir en `lyricSceneAt` y en `lyricAss` el mismo conjunto de palabras visibles en cada fotograma de muestra."
+    ],
+    "verify": [
+      "export PATH=\"$HOME/.local/bin:$PATH\" && ffmpeg -hide_banner -version",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && node --test packages/composition/src/lyricscene.test.ts workers/media/src/lyric_ass.test.ts",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm test",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm --filter @rafaga/web typecheck"
+    ],
+    "checkpoint": "rafaga-lyric-v2-step-08",
+    "files": ["packages/composition/src/style.ts", "packages/composition/src/lyricscene.ts", "packages/composition/src/lyricscene.test.ts", "packages/composition/src/index.ts", "workers/media/src/lyric_ass.test.ts"],
+    "status": "pending"
+  },
+  {
+    "id": "E2-T3",
+    "title": "Style Studio simplificado, presets y A/B",
+    "epic": "02-estilo-vista-previa-y-fondos",
+    "dependencies": ["E2-T2"],
+    "priority": "p1",
+    "acceptance": [
+      "WHEN se guardan 20 estilos v2 en un workspace y se intenta el 21.º con `saveStyle` THE SYSTEM SHALL rechazarlo con `style_limit` y conservar los 20, y borrar uno SHALL permitir guardar otro.",
+      "WHEN `saveStyle` recibe un estilo cuyo JSON supera 4000 bytes THE SYSTEM SHALL rechazarlo con `style_too_large` antes de llamar a la base de datos.",
+      "WHEN se alterna entre los estilos A y B con `toggleAB` THE SYSTEM SHALL conservar el mismo instante `t`, la misma letra y el mismo fondo, y cambiar solo el estilo.",
+      "WHEN `applyPreset` aplica un preset de comportamiento THE SYSTEM SHALL cambiar solo la capa de animación y agrupación y dejar idénticas la capa de fuente (familia, peso, caja, tamaño) y la de posición.",
+      "WHEN se ejecutan `grep -q 'CaptionStyleEditor' apps/web/app/app/style-studio/page.tsx`, `grep -q 'CaptionStyleEditor' apps/web/components/CreationPanel.tsx` y `grep -q 'captionToSubtitleStyle' apps/web/components/CreationPanel.tsx` THE SYSTEM SHALL salir con 0 en los tres: el editor de estilo es el mismo en clipping y en letra.",
+      "WHEN se ejecutan `pnpm --filter @rafaga/web typecheck` y `pnpm --filter @rafaga/web build` THE SYSTEM SHALL salir con 0 en ambos."
+    ],
+    "verify": [
+      "export PATH=\"$HOME/.local/bin:$PATH\" && node --test apps/web/lib/styles.test.ts",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && grep -q 'CaptionStyleEditor' apps/web/app/app/style-studio/page.tsx",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && grep -q 'CaptionStyleEditor' apps/web/components/CreationPanel.tsx",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && grep -q 'captionToSubtitleStyle' apps/web/components/CreationPanel.tsx",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm test",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm --filter @rafaga/web typecheck",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm --filter @rafaga/web build"
+    ],
+    "checkpoint": "rafaga-lyric-v2-step-09",
+    "files": ["apps/web/components/CaptionStyleEditor.tsx", "apps/web/lib/styles.ts", "apps/web/lib/styles.test.ts", "apps/web/app/app/style-studio/page.tsx", "apps/web/components/CreationPanel.tsx"],
+    "status": "pending"
+  },
+  {
+    "id": "E2-T4",
+    "title": "Vista previa de letra y paridad dorada",
+    "epic": "02-estilo-vista-previa-y-fondos",
+    "dependencies": ["E2-T2", "E1-T6"],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN `lyricparity.test.ts` compara, en una composición de 3 líneas por cada formato `9:16`, `4:5`, `1:1` y `16:9`, cada `\\pos` del ASS de `lyricAss` con la caja de `lyricLayout` THE SYSTEM SHALL encontrar diferencias de 2 px como máximo en x y en y.",
+      "WHEN se comparan los inicios y fines de cada evento del ASS con la visibilidad que da `lyricSceneAt` THE SYSTEM SHALL encontrar diferencias de 1 fotograma (1/30 s) como máximo.",
+      "WHEN se arrastra la letra a un punto fuera del lienzo o se mueve con las flechas del teclado THE SYSTEM SHALL guardar `style.position` normalizada y acotada a [0,1] con pasos de 0.01, y el recorte SHALL acotarse a [0,1].",
+      "WHEN el bucle está activo y la reproducción pasa del final del tramo, o se pulsa «Reiniciar» o «Otra variante» THE SYSTEM SHALL volver a `t = 0`, y «Otra variante» SHALL cambiar la semilla sin cambiar la letra ni el estilo.",
+      "WHEN se ejecutan `grep -q 'lyricSceneAt' apps/web/components/LyricPreview.tsx`, `grep -q 'document.fonts.load' apps/web/components/LyricPreview.tsx` y `grep -q 'Escape' apps/web/components/LyricPreview.tsx` THE SYSTEM SHALL salir con 0 en los tres: la vista previa usa el motor de exportación, espera a la fuente antes de maquetar y la pantalla completa se cierra con Esc.",
+      "WHEN se ejecutan `pnpm --filter @rafaga/web typecheck` y `pnpm --filter @rafaga/web build` THE SYSTEM SHALL salir con 0 en ambos."
+    ],
+    "verify": [
+      "export PATH=\"$HOME/.local/bin:$PATH\" && node --test packages/composition/src/lyricparity.test.ts apps/web/lib/lyricpreview.test.ts",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && grep -q 'lyricSceneAt' apps/web/components/LyricPreview.tsx",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && grep -q 'document.fonts.load' apps/web/components/LyricPreview.tsx",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && grep -q 'Escape' apps/web/components/LyricPreview.tsx",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm test",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm --filter @rafaga/web typecheck",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm --filter @rafaga/web build"
+    ],
+    "checkpoint": "rafaga-lyric-v2-step-10",
+    "files": ["apps/web/components/LyricPreview.tsx", "apps/web/lib/lyricpreview.ts", "apps/web/lib/lyricpreview.test.ts", "packages/composition/src/lyricparity.test.ts", "apps/web/components/LyricStudioV2.tsx"],
+    "status": "pending"
+  },
+  {
+    "id": "E2-T5",
+    "title": "Modos Letra, Texto y Portada, ganchos y biblioteca",
+    "epic": "02-estilo-vista-previa-y-fondos",
+    "dependencies": ["E2-T4"],
+    "priority": "p1",
+    "acceptance": [
+      "WHEN la composición está en modo `texto` con un mensaje entre 5 s y 9 s THE SYSTEM SHALL mostrar en `lyricSceneAt` y en `lyricAss` solo ese mensaje y solo en [5, 9) s, sin palabras de la letra.",
+      "WHEN la composición está en modo `portada` con portada delantera y trasera THE SYSTEM SHALL mostrar el título y el artista, la portada delantera en la primera mitad y la trasera en la segunda, con un zoom creciente de 1.00 a 1.06 en modo `lenta` y fijo en `estatica`, y la letra solo si está activada.",
+      "WHEN `switchLyricMode` cambia entre `letra`, `texto` y `portada` THE SYSTEM SHALL conservar `words`, `style`, `background`, `range` y `seed` idénticos.",
+      "WHEN la composición tiene un gancho de un paquete THE SYSTEM SHALL mostrarlo solo dentro de su intervalo y en la franja superior, en `lyricSceneAt` y en `lyricAss`.",
+      "WHEN se ejecutan `grep -q 'save_hook_pack' apps/web/components/LyricLibrary.tsx`, `grep -q 'Paquetes de ganchos' apps/web/components/LyricLibrary.tsx` y `pnpm --filter @rafaga/web build` THE SYSTEM SHALL salir con 0 en los tres."
+    ],
+    "verify": [
+      "export PATH=\"$HOME/.local/bin:$PATH\" && node --test packages/composition/src/lyricmodes.test.ts",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && grep -q 'save_hook_pack' apps/web/components/LyricLibrary.tsx",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && grep -q 'Paquetes de ganchos' apps/web/components/LyricLibrary.tsx",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm test",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm --filter @rafaga/web typecheck",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm --filter @rafaga/web build"
+    ],
+    "checkpoint": "rafaga-lyric-v2-step-11",
+    "files": ["packages/composition/src/lyricscene.ts", "packages/composition/src/lyricmodes.test.ts", "apps/web/components/LyricLibrary.tsx", "apps/web/components/LyricStudioV2.tsx"],
+    "status": "pending"
+  },
+  {
+    "id": "E2-T6",
+    "title": "Paquetes de medios y Crear desde vídeo (103)",
+    "epic": "02-estilo-vista-previa-y-fondos",
+    "dependencies": ["E1-T5"],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN `media_split` propone segmentos de duración objetivo 3 s en el fixture `scenes` (cambios de color en 2 s y 4 s) THE SYSTEM SHALL devolver segmentos que empiezan y terminan en un cambio de escena detectado por `scdet` o en un extremo del intervalo, con 0.1 s de tolerancia, y de duración entre `min_s` y `max_s`.",
+      "WHEN se cortan los segmentos revisados con `cut_mode = \"exacto\"` THE SYSTEM SHALL crear un `media_items` por segmento con duración a 1 fotograma o menos de la pedida, y con `rapido` (copia de flujo sin recodificar) SHALL crearlo con duración a 1.05 s o menos de la pedida; en ambos casos sin pista de audio y con `audio_muted = true`.",
+      "WHEN se excluye un segmento en la revisión THE SYSTEM SHALL no crear su elemento, y cada elemento creado SHALL tener `storage_backend = 'r2'`, clave `<ws>/media/<id>.mp4` y un objeto registrado de tipo `media`.",
+      "WHEN `POST /api/lyrics/media/items` recibe un archivo de más de 209715200 bytes, o uno que con el uso actual supera 10737418240 THE SYSTEM SHALL responder 413 `{ limit: 209715200 }` o 507 `{ quota: 10737418240 }` sin crear el elemento, y con un archivo válido SHALL responder 201 `{ item_id, url, expires_at }` con una URL PUT de R2 de 900 s.",
+      "WHEN `POST /api/lyrics/media/split` o `POST /api/lyrics/media/cut` llega dos veces con la misma `Idempotency-Key` THE SYSTEM SHALL devolver el mismo `job_id`, y una duración objetivo distinta de 3, 5, 10, 15 o 30 s SHALL responder 400 `{ error: { code: \"invalid_params\" }, field: \"length_s\" }`.",
+      "WHEN el usuario B pide `GET /api/lyrics/media/items/:id/url` o `POST /api/lyrics/media/split` sobre recursos de A, o llega `POST /api/lyrics/demo` sin `Idempotency-Key` THE SYSTEM SHALL responder 404, 404 y 400, y `POST /api/lyrics/demo` con clave SHALL responder 202 `{ song_id, project_id, job_id }`."
+    ],
+    "verify": [
+      "export PATH=\"$HOME/.local/bin:$PATH\" && ffmpeg -hide_banner -version",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && node --test workers/media/src/lyric_media.test.ts apps/web/lib/lyrics.test.ts",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm test",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm --filter @rafaga/web typecheck"
+    ],
+    "checkpoint": "rafaga-lyric-v2-step-12",
+    "files": ["supabase/migrations/20261201000103_lyric_media.sql", "workers/media/src/stages/lyric.ts", "workers/media/src/lyric_media.test.ts", "apps/web/lib/routes/lyrics.ts", "apps/web/lib/lyrics.test.ts"],
+    "status": "pending"
+  },
+  {
+    "id": "E3-T1",
+    "title": "Fondos, portadas y ajustes en la interfaz",
+    "epic": "03-render-y-entrega",
+    "dependencies": ["E2-T5", "E2-T6"],
+    "priority": "p1",
+    "acceptance": [
+      "WHEN `validateLyricSettings` recibe recorte 1.4, oscurecer 0.95, intervalo 0.5 s, tamaño fino 2 y un filtro desconocido THE SYSTEM SHALL devolver recorte 1, oscurecer 0.8, intervalo 2 s, tamaño fino 1.6 y filtro `none`.",
+      "WHEN se leen las opciones de filtro THE SYSTEM SHALL ofrecer exactamente `none`, `noche`, `super8`, `bn` y `vapor`, y ninguna etiqueta visible SHALL ser `Midnight`, `Noir` ni `Vaporwave`.",
+      "WHEN `filterByClass` filtra elementos por categoría, movimiento, ánimo y orientación (`vertical`, `horizontal` o `cuadrado`, derivada de ancho y alto) THE SYSTEM SHALL devolver solo los que cumplen todos los filtros elegidos.",
+      "WHEN `officialCollections` recibe 0 colecciones oficiales THE SYSTEM SHALL devolver `empty` con el texto que explica cómo marcar un paquete propio como oficial y ningún elemento.",
+      "WHEN `settingsToComposition` aplica los ajustes a una composición THE SYSTEM SHALL cambiar solo `background` y `settings` y dejar idénticos `words`, `style`, `range` y `seed`.",
+      "WHEN se ejecutan `grep -q 'Crear desde vídeo' apps/web/components/LyricLibrary.tsx`, `grep -q 'Colecciones Ráfaga' apps/web/components/LyricLibrary.tsx` y `pnpm --filter @rafaga/web build` THE SYSTEM SHALL salir con 0 en los tres."
+    ],
+    "verify": [
+      "export PATH=\"$HOME/.local/bin:$PATH\" && node --test apps/web/lib/lyricsettings.test.ts",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && grep -q 'Crear desde vídeo' apps/web/components/LyricLibrary.tsx",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && grep -q 'Colecciones Ráfaga' apps/web/components/LyricLibrary.tsx",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm test",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm --filter @rafaga/web typecheck",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm --filter @rafaga/web build"
+    ],
+    "checkpoint": "rafaga-lyric-v2-step-13",
+    "files": ["apps/web/components/LyricLibrary.tsx", "apps/web/components/LyricSettings.tsx", "apps/web/lib/lyricsettings.ts", "apps/web/lib/lyricsettings.test.ts", "apps/web/components/LyricStudioV2.tsx"],
+    "status": "pending"
+  },
+  {
+    "id": "E3-T2",
+    "title": "Motor de render de letra en el worker",
+    "epic": "03-render-y-entrega",
+    "dependencies": ["E2-T5", "E2-T6"],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN `lyricRenderArgs` genera los argumentos para cada ajuste (recorte, oscurecer, cada filtro, sacudida, fundido, ajuste `preserve`, `fill` y `band`, secuencia y color sólido) THE SYSTEM SHALL producir argumentos sin shell en los que el audio se mapea solo desde la canción, sin filtros de audio, con `-c:a aac -b:a 192k`.",
+      "WHEN `LYRIC_FILTERS` se compara con `FILTERS` de `@rafaga/lyrics` THE SYSTEM SHALL tener `noche`, `super8`, `bn` y `vapor` idénticos a `midnight`, `super8`, `noir` y `vaporwave`, y `FILTERS` de v1 SHALL seguir sin cambios.",
+      "WHEN el worker renderiza a 720p una composición de 3 s con cada ajuste THE SYSTEM SHALL producir un MP4 H.264 yuv420p de 720×1280 en 9:16, el recorte SHALL dejar negras las filas de las barras, oscurecer SHALL bajar la luminancia media y `bn` SHALL dejar la saturación media por debajo de 2.",
+      "WHEN se renderizan dos variantes con estilos y fondos distintos sobre el mismo tramo de la misma canción THE SYSTEM SHALL producir pistas de audio cuyo MD5 de las muestras decodificadas (`ffmpeg -map 0:a -f md5`) es idéntico.",
+      "WHEN `planLyricVariants` planifica N variantes con candados de canción y tramo, letra y sincronización, estilo, colección de fondo y formato THE SYSTEM SHALL devolver exactamente N composiciones con semillas distintas que solo difieren en lo no bloqueado, y `nearDuplicates` SHALL marcar los pares cuyo `variantHash` coincide o cuyo hash perceptivo del primer fotograma dista 4 bits o menos.",
+      "WHEN un lote de 2 variantes de letra tiene una cuyo fondo no existe en el R2 simulado THE SYSTEM SHALL dejar esa exportación `failed` con `render_failed` y la otra `ready` con `probe.ahash` de 16 caracteres hexadecimales, y el lote SHALL quedar `partial`."
+    ],
+    "verify": [
+      "export PATH=\"$HOME/.local/bin:$PATH\" && ffmpeg -hide_banner -version",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && node --test packages/composition/src/lyricrender.test.ts workers/media/src/lyric_render.test.ts",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm test",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm --filter @rafaga/web typecheck"
+    ],
+    "checkpoint": "rafaga-lyric-v2-step-14",
+    "files": ["packages/composition/src/lyricscene.ts", "packages/composition/src/lyricrender.test.ts", "workers/media/src/stages/export.ts", "workers/media/src/stages/lyric.ts", "workers/media/src/lyric_render.test.ts"],
+    "status": "pending"
+  },
+  {
+    "id": "E3-T3",
+    "title": "Variantes N con candados, lotes y reintento (104)",
+    "epic": "03-render-y-entrega",
+    "dependencies": ["E3-T1", "E3-T2"],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN `POST /api/lyrics/projects/:id/variants` llega 3 veces con la misma `Idempotency-Key` y 3 variantes THE SYSTEM SHALL crear 1 generación, 3 clips con su versión 1 inmutable, 3 exportaciones MP4 en un lote y 1 trabajo, y responder 202 con los mismos identificadores las 3 veces.",
+      "WHEN se piden 0 u 11 variantes o una composición que no es de letra THE SYSTEM SHALL responder 400 `{ error: { code: \"invalid_params\" }, field: \"variants\" }` sin escribir nada.",
+      "WHEN dos variantes tienen el mismo `variant_hash` THE SYSTEM SHALL crearlas igualmente y añadir a `generations.warnings` `{ \"code\": \"near_duplicate\", \"variants\": [i, j] }`.",
+      "WHEN una de las 3 exportaciones del lote falla THE SYSTEM SHALL mantener las otras 2 descargables con `GET /api/exports/:id/url`, y `POST /api/exports/:id/retry` SHALL reencolar solo la fallida.",
+      "WHEN se pide un lote de variantes THE SYSTEM SHALL escribir 0 filas en `credit_ledger`, y `request_exports` SHALL aceptar `4:5`, `lrc`, `lrc_word` y `ass` además de los formatos y tipos de clipping.",
+      "WHEN se ejecutan `grep -q 'planLyricVariants' apps/web/components/LyricStudioV2.tsx`, `grep -q 'retry' apps/web/components/LyricResults.tsx` y `pnpm --filter @rafaga/web build` THE SYSTEM SHALL salir con 0 en los tres."
+    ],
+    "verify": [
+      "export PATH=\"$HOME/.local/bin:$PATH\" && node --test apps/web/lib/lyrics.test.ts",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && grep -q 'planLyricVariants' apps/web/components/LyricStudioV2.tsx",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && grep -q 'retry' apps/web/components/LyricResults.tsx",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm test",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm --filter @rafaga/web typecheck",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm --filter @rafaga/web build"
+    ],
+    "checkpoint": "rafaga-lyric-v2-step-15",
+    "files": ["supabase/migrations/20261201000104_lyric_variants.sql", "apps/web/lib/routes/lyrics.ts", "apps/web/lib/lyrics.test.ts", "apps/web/components/LyricResults.tsx", "apps/web/components/LyricStudioV2.tsx"],
+    "status": "pending"
+  },
+  {
+    "id": "E3-T4",
+    "title": "Formatos de letra y publicación",
+    "epic": "03-render-y-entrega",
+    "dependencies": ["E3-T3"],
+    "priority": "p0",
+    "acceptance": [
+      "WHEN el worker exporta una variante de letra como `srt`, `vtt`, `lrc`, `lrc_word`, `ass` y `txt` THE SYSTEM SHALL subir un archivo por formato con su extensión y tipo MIME, y `importLyrics` SHALL leer el SRT, el VTT y los dos LRC con las mismas líneas y tiempos a 10 ms o menos de la composición.",
+      "WHEN se exportan `lrc` y `lrc_word` THE SYSTEM SHALL escribir el LRC de línea `[mm:ss.xx]texto` y el LRC mejorado con `<mm:ss.xx>` antes de cada palabra, y `ass` SHALL llevar una etiqueta `{\\kN}` por palabra.",
+      "WHEN `POST /api/publish` llega para una exportación MP4 de letra hacia YouTube con la plataforma simulada THE SYSTEM SHALL crear la publicación, y la etapa `publish` SHALL enviar `videos.insert` con la privacidad elegida y dejar `private_pending_review` si la respuesta queda en privado cuando se pidió otra.",
+      "WHEN TikTok responde `unaudited_client_can_only_post_to_private_accounts` para una variante de letra THE SYSTEM SHALL dejar la publicación en `requiere_auditoria`, y con `scheduled_at` futuro SHALL quedar `scheduled` sin llamar a la plataforma.",
+      "WHEN se crea una entrega con `create_delivery` con 2 variantes de letra (clip y versión) THE SYSTEM SHALL crear la entrega con sus 2 elementos fijados a la versión 1, y el usuario B SHALL no verla.",
+      "WHEN se ejecutan `grep -q '/api/publish' apps/web/components/LyricResults.tsx`, `grep -q 'create_delivery' apps/web/components/LyricResults.tsx` y `pnpm --filter @rafaga/web build` THE SYSTEM SHALL salir con 0 en los tres."
+    ],
+    "verify": [
+      "export PATH=\"$HOME/.local/bin:$PATH\" && node --test workers/media/src/lyric_formats.test.ts apps/web/lib/lyricshare.test.ts",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && grep -q '/api/publish' apps/web/components/LyricResults.tsx",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && grep -q 'create_delivery' apps/web/components/LyricResults.tsx",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm test",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm --filter @rafaga/web typecheck",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm --filter @rafaga/web build"
+    ],
+    "checkpoint": "rafaga-lyric-v2-step-16",
+    "files": ["workers/media/src/stages/lyric.ts", "workers/media/src/lyric_formats.test.ts", "apps/web/components/LyricResults.tsx", "apps/web/lib/lyricshare.test.ts"],
+    "status": "pending"
+  },
+  {
+    "id": "E3-T5",
+    "title": "Demo de canción y rendimiento",
+    "epic": "03-render-y-entrega",
+    "dependencies": ["E3-T4"],
+    "priority": "p1",
+    "acceptance": [
+      "WHEN `open_lyric_demo` se ejecuta dos veces y el worker procesa ambas THE SYSTEM SHALL crear dos canciones `ready` distintas en el workspace con el audio sintético de `DEMO_SONG` en R2 y su revisión 1 `manual` con las palabras de `DEMO_SONG`, sin ninguna llamada al ASR.",
+      "WHEN se edita la alineación de la primera copia THE SYSTEM SHALL dejar idénticas la alineación de la segunda copia y la constante `DEMO_SONG`.",
+      "WHEN se ejecuta `node scripts/lyric-perf.ts --quick` THE SYSTEM SHALL generar una canción sintética de 180 s, sincronizarla con ASR simulado, renderizar 3 variantes a 1080p en paralelo y escribir en `docs/PERF.md`, entre `<!-- lyric-perf:start -->` y `<!-- lyric-perf:end -->`, `sync_ms`, `preview_ready_ms`, `render_ms_p50` y `render_ms_p95`.",
+      "WHEN `docs/PERF.md` ya tiene la sección de clipping THE SYSTEM SHALL conservarla (`first_clip_ms` sigue presente) y una segunda ejecución SHALL sustituir la sección de letra en lugar de duplicarla."
+    ],
+    "verify": [
+      "export PATH=\"$HOME/.local/bin:$PATH\" && ffmpeg -hide_banner -version",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && node --test workers/media/src/lyric_demo.test.ts",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && node scripts/lyric-perf.ts --quick",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && grep -q 'render_ms_p95' docs/PERF.md",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && grep -q 'first_clip_ms' docs/PERF.md",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && test \"$(grep -c 'lyric-perf:start' docs/PERF.md)\" = 1",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm test"
+    ],
+    "checkpoint": "rafaga-lyric-v2-step-17",
+    "files": ["workers/media/src/stages/lyric.ts", "workers/media/src/lyric_demo.test.ts", "scripts/lyric-perf.ts", "docs/PERF.md"],
+    "status": "pending"
+  },
+  {
+    "id": "E3-T6",
+    "title": "Transición: Looks clásicos, vídeos anteriores y demo",
+    "epic": "03-render-y-entrega",
+    "dependencies": ["E3-T5"],
+    "priority": "p1",
+    "acceptance": [
+      "WHEN `classicPresets()` convierte `archivo`, `diario` y `panoramico` THE SYSTEM SHALL devolver tres presets «Looks clásicos» con un `CaptionStyleV2` válido (caja `lower`, color del look, peso 400 o 700) y ajustes de fondo derivados del look, y `LOOKS` de v1 SHALL seguir sin cambios.",
+      "WHEN `libraryVideos` recibe filas de `lyric_videos` anteriores y exportaciones v2 THE SYSTEM SHALL incluir ambas con su estado y su origen, y las anteriores `ready` SHALL conservar su ruta de descarga de Supabase Storage.",
+      "WHEN una canción no tiene `source_id` THE SYSTEM SHALL marcarla «Clásica» con `songBadge` y no ofrecerla al flujo v2.",
+      "WHEN se ejecutan `grep -q 'Looks clásicos' apps/web/components/CaptionStyleEditor.tsx`, `grep -q '/api/lyrics/demo' apps/web/components/LyricLibrary.tsx` y `grep -q 'lyric_videos' apps/web/components/LyricLibrary.tsx` THE SYSTEM SHALL salir con 0 en los tres.",
+      "WHEN se ejecutan `grep -q 'request_lyrics' apps/web/app/app/lyric-studio/page.tsx`, `pnpm --filter @rafaga/web typecheck` y `pnpm --filter @rafaga/web build` THE SYSTEM SHALL salir con 0 en los tres: la página v1 sigue pidiendo vídeos con `request_lyrics`."
+    ],
+    "verify": [
+      "export PATH=\"$HOME/.local/bin:$PATH\" && node --test apps/web/lib/lyriccutover.test.ts",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && grep -q 'Looks clásicos' apps/web/components/CaptionStyleEditor.tsx",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && grep -q '/api/lyrics/demo' apps/web/components/LyricLibrary.tsx",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && grep -q 'lyric_videos' apps/web/components/LyricLibrary.tsx",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && grep -q 'request_lyrics' apps/web/app/app/lyric-studio/page.tsx",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm test",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm --filter @rafaga/web typecheck",
+      "export PATH=\"$HOME/.local/bin:$PATH\" && pnpm --filter @rafaga/web build"
+    ],
+    "checkpoint": "rafaga-lyric-v2-step-18",
+    "files": ["apps/web/lib/lyriccutover.ts", "apps/web/lib/lyriccutover.test.ts", "apps/web/components/CaptionStyleEditor.tsx", "apps/web/components/LyricLibrary.tsx"],
+    "status": "pending"
+  }
+]
