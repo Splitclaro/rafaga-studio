@@ -308,3 +308,8 @@ Probar Lyric Studio con una canción real (canto + instrumental). Siguiente: Sty
 - En Vercel (Production) están puestas `NEXT_PUBLIC_PIPELINE_VERSION=v2` y `NEXT_PUBLIC_LYRIC_VERSION=v2`: la app pública muestra las pantallas nuevas de clipping y de Lyric Studio.
 - **Aviso:** el procesamiento v2 (análisis, selección, render, sincronización de canciones) necesita el worker de Modal. Hasta que se despliegue (`docs/OWNER_SETUP_MODAL_VERCEL.md`), los trabajos v2 se encolan pero no se procesan. Los proyectos v1 siguen verse con su vista anterior.
 - Regla de trabajo: todo lo que se construye se sube a `main` y Vercel lo despliega solo.
+
+## 2026-11-14 · Modo «Cualquier momento» (selección)
+- Modo por defecto `cualquier_momento`: la IA elige tramos completos de cualquier parte del vídeo y, si no hay voz suficiente (videoclips), `coverageSlots` reparte tramos por toda la duración hasta el número pedido; aviso `coverage_fill` en `generations.warnings`. «Más virales (estimación)» (`automatico`) es ahora una opción.
+- Migración 106 (aditiva) aplicada en producción. Verificado en el entorno desplegado con el mismo videoclip (copia 720p, 2:31): pedido 5 → entregados 5 (tramos de 28 s), etapas v2 en Modal en <2 min.
+- Worker Modal: limpia claves con secuencias de teclado/duplicadas, alias `SUPABASE_SECRET_KEY`, `ASR_PROVIDER=groq`, `WAKE_SECRET` en el secreto `rafaga-wake`.
