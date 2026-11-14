@@ -1,5 +1,5 @@
 {
-  "updated": "2026-11-09",
+  "updated": "2026-11-14",
   "local_project": {
     "path": "/Users/studio/Documents/Codex/rafaga-studio",
     "created_by_this_run": true
@@ -79,5 +79,14 @@
     "deepgram": "console tab open, no key placed in any environment",
     "anthropic": "console tab open, no key placed in any environment",
     "trigger_dev": "cli logged in as app@splitclaro.com"
+  },
+  "modal": {
+    "workspace": "splitclaro",
+    "plan": "Starter (1 USD/mes, sin método de pago, tope duro de Modal)",
+    "app": "workers/modal/app.py",
+    "secret": "rafaga-worker",
+    "status": "pendiente_de_despliegue_por_el_propietario",
+    "compute_budget_usd": 1,
+    "verified_via": "modal.com/settings/splitclaro/usage"
   }
 }
