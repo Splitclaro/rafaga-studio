@@ -244,7 +244,7 @@
     ],
     "checkpoint": "rafaga-lyric-v2-step-10",
     "files": ["apps/web/components/LyricPreview.tsx", "apps/web/lib/lyricpreview.ts", "apps/web/lib/lyricpreview.test.ts", "packages/composition/src/lyricparity.test.ts", "apps/web/components/LyricStudioV2.tsx"],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E2-T5",

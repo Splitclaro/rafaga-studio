@@ -7,6 +7,8 @@ import { supabase } from "../lib/supabase";
 import { httpApi, localResumeStore, runUpload, type UploadEvent } from "../lib/uploader";
 import type { SyncWord } from "@rafaga/lyrics";
 import LyricSyncEditor from "./LyricSyncEditor";
+import LyricPreview from "./LyricPreview";
+import { validateLyricComposition, type LyricComposition } from "@rafaga/composition";
 
 const MAX_SONG = 62914560;
 type Song = { id: string; lyrics_text?: string | null; title: string; artist: string | null; status: "pending" | "ready" | "failed"; duration_ms: number | null; error_code: string | null; created_at: string };
@@ -24,6 +26,7 @@ async function sha256Hex(f: File) { return [...new Uint8Array(await crypto.subtl
 export default function LyricStudioV2() {
   const [songs, setSongs] = useState<Song[] | null>(null), [ev, setEv] = useState<UploadEvent | null>(null), [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false), [mode, setMode] = useState<Record<string, string>>({});
+  const [comp, setComp] = useState<LyricComposition | null>(null);
   const [editing, setEditing] = useState<{ song: Song; url: string; revision: number | null; words: SyncWord[] } | null>(null);
   const ctl = useRef<{ cancel: () => Promise<void> } | null>(null);
   const token = async () => (await supabase.auth.getSession()).data.session?.access_token ?? "";
@@ -70,6 +73,7 @@ export default function LyricStudioV2() {
     if (!u.ok) return setMsg(uj?.error?.message ?? "No se pudo abrir el audio.");
     if (!aj.words?.length) return setMsg("Todavía no hay sincronización. Pulsa «Sincronizar» y espera unos segundos.");
     setEditing({ song: s, url: uj.url, revision: aj.revision ?? null, words: aj.words });
+    const ws = (aj.words as SyncWord[]); setComp(validateLyricComposition({ aspect: "9:16", range: { start: 0, end: Math.max(5, Math.min(30, ws.at(-1)?.end ?? 30)) }, words: ws.map((w) => ({ text: w.text, start: w.start, end: w.end, line: w.line })) }));
   }
   async function createPiece(s: Song) {
     const t = await token(), m = mode[s.id] ?? "letra";
@@ -102,6 +106,7 @@ export default function LyricStudioV2() {
                 <button className="btn btn-ghost !min-h-9" onClick={() => void createPiece(s)}>Crear pieza</button></div>}
             </li>))}</ul>}
       </section>
+      {comp && <LyricPreview composition={comp} onChange={setComp} />}
       {editing && <LyricSyncEditor songId={editing.song.id} audioUrl={editing.url} lyrics={editing.song.lyrics_text ?? editing.words.map((w) => w.text).join(" ")} revision={editing.revision} words={editing.words} onSaved={() => void load()} />}
     </main>
   );
