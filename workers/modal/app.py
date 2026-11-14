@@ -82,7 +82,7 @@ def dispatch(body: dict, x_rafaga_wake: str | None = (Header(default=None) if He
         raise HTTPException(status_code=401, detail="bad_wake_secret")
     return {"accepted": True, "plan": _plan_and_spawn()}
 
-@app.function(image=image, secrets=[secret], timeout=120, schedule=modal.Period(minutes=1))
+@app.function(image=image, secrets=[secret], timeout=120, schedule=modal.Period(minutes=3))
 def sweeper():
     _node("--sweep", timeout=60)  # sweep_stale + enqueue_due_publications
     _plan_and_spawn()
