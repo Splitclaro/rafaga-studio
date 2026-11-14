@@ -121,7 +121,7 @@ export default function Dashboard() {
               <label htmlFor="file" className="flex min-h-11 min-w-0 flex-1 cursor-pointer items-center truncate text-base">
                 {file ? <span className="truncate font-medium">{file.name} <span className="mono text-xs font-normal text-[var(--muted)]">{(file.size / 1048576).toFixed(1)} MB{dur ? ` · ${Math.floor(dur / 60)}:${String(Math.round(dur % 60)).padStart(2, "0")}` : ""}</span></span> : <span className="truncate text-[var(--muted)]">Arrastra tu vídeo aquí o elige un archivo</span>}
               </label>
-              <button type={file ? "submit" : "button"} onClick={() => { if (!file) fileInput.current?.click(); }} disabled={busy} className="inline-flex min-h-12 items-center whitespace-nowrap rounded-full bg-[linear-gradient(180deg,#3B66FF,#1F3FCB)] px-6 text-[15px] font-bold tracking-wide text-white disabled:opacity-60 md:px-[30px]">{busy ? "SUBIENDO…" : file ? (mode === "clips" ? "OBTENER CLIPS" : `CREAR CON ${toolLabel.toUpperCase()}`) : "ELEGIR VÍDEO"}</button>
+              <button type={file ? "submit" : "button"} onClick={() => { if (!file) fileInput.current?.click(); }} disabled={busy} className="inline-flex min-h-12 items-center whitespace-nowrap rounded-full bg-[#111111] px-6 text-[15px] font-bold tracking-wide text-white disabled:opacity-60 md:px-[30px]">{busy ? "SUBIENDO…" : file ? (mode === "clips" ? "OBTENER CLIPS" : `CREAR CON ${toolLabel.toUpperCase()}`) : "ELEGIR VÍDEO"}</button>
             </div>
             <div className="flex flex-wrap justify-center gap-3">
               <button type="button" onClick={() => fileInput.current?.click()} className={pill}><Icon n="upload" className="h-4 w-4 text-[var(--accent)]" />Subir archivo</button>
@@ -149,7 +149,7 @@ export default function Dashboard() {
           </div>
           <div className="flex flex-col gap-2.5">
             <div className="flex items-center gap-3 rounded-[14px] border border-dashed border-[#D4D4D4] bg-white px-4 py-3.5"><span aria-hidden className="grid h-10 w-10 place-items-center rounded-[10px] bg-[#F2F2F2] text-[#111111]">☁</span><span className="flex-1"><b className="text-sm">Importar desde Drive o Dropbox</b><br /><span className="text-[13px] text-[var(--muted)]">Elige un vídeo guardado en tu nube.</span></span><span className="rounded-md bg-[#F0F1F7] px-2 py-0.5 text-[11px] font-semibold text-[var(--muted)]">Próximamente</span></div>
-            <div className="flex items-center gap-3 rounded-[14px] border border-dashed border-[#D4D4D4] bg-white px-4 py-3.5"><span aria-hidden className="grid h-10 w-10 place-items-center rounded-[10px] bg-[#F1E4FF] text-[#7A3FD1]">◉</span><span className="flex-1"><b className="text-sm">Conectar Twitch</b><br /><span className="text-[13px] text-[var(--muted)]">Elige una de tus emisiones.</span></span><span className="rounded-md bg-[#F0F1F7] px-2 py-0.5 text-[11px] font-semibold text-[var(--muted)]">Próximamente</span></div>
+            <div className="flex items-center gap-3 rounded-[14px] border border-dashed border-[#D4D4D4] bg-white px-4 py-3.5"><span aria-hidden className="grid h-10 w-10 place-items-center rounded-[10px] bg-[#F1E4FF] text-[#111111]">◉</span><span className="flex-1"><b className="text-sm">Conectar Twitch</b><br /><span className="text-[13px] text-[var(--muted)]">Elige una de tus emisiones.</span></span><span className="rounded-md bg-[#F0F1F7] px-2 py-0.5 text-[11px] font-semibold text-[var(--muted)]">Próximamente</span></div>
           </div>
         </section>
 
