@@ -318,3 +318,9 @@ Probar Lyric Studio con una canción real (canto + instrumental). Siguiente: Sty
 - Aviso al worker desde el servidor con `after()` (`apps/web/lib/after.ts`) en subidas, generaciones, exportaciones, integraciones y Lyric: Vercel ya no corta el aviso. El barrido de Modal pasa a 3 min (respaldo) para cuidar el tope de 1 USD.
 - `worker.yml` sin cron (GitHub Actions no procesa medios); sigue disponible a mano para autopruebas.
 - **Pendiente solo del propietario:** apps/claves de YouTube y TikTok (publicación y OAuth), Deepgram opcional. Sin gasto en ninguna capa. No verificado en producción tras este cambio: el arranque inmediato por aviso directo (se comprobará en el siguiente proyecto real).
+
+## 2026-11-15 · Réplica Opus/LyricTune y verificación en producción
+- Pantalla de creación con la estructura de Opus (receta + brand kit, gestor de recetas, ajustes por secciones, duración multiselección, resumen con funciones premium y aviso de derechos), Inicio con pestañas y enlace, menú Crear / Lyric Studio / Publicar, nota /100 con subnotas en letra, Exportar XML; Lyric: cursiva, espaciado, duración de entrada y «Estilos populares». Documentación en `replica/`.
+- Verificado en producción (vídeo de 2:31): subir → crear con 5 clips → 5 clips entregados, en un par de minutos, con la transcripción Whisper large-v3 (títulos sacados de la letra real).
+- Seguridad: migraciones 108 y 109 aplicadas (funciones del worker y `enqueue_job` cerrados a usuarios), tope de contenedores en Modal y `/api/wake` que solo despierta con trabajo pendiente. Informe: `docs/audit/AUDIT_OWASP_2026-11-14.md`.
+- Pendiente: filas «Próximamente» de la receta (emojis, B-roll, limpieza de audio, zoom/transiciones, doblaje); texto con degradado, eco, salida y bucles de reposo en Style Studio; «no me gusta» como señal; vocabulario de marca.

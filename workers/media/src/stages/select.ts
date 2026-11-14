@@ -159,7 +159,7 @@ const select: StageImpl = {
         const txt = "Tramo repartido por el vídeo";
         payload.push({ start_ms: Math.round(a * 1000), end_ms: Math.round(z * 1000), title: `Momento a los ${mm}`, brief_fit: "",
           reason: "Tramo elegido para repartir los clips por todo el vídeo: no había suficientes momentos con voz completa.",
-          scores: { overall: 0.5, gancho: 0.5, desarrollo: 0.5, valor: 0.5, afinidad: 0.5, calidad_tecnica: 0.5, coverage: true, mode, relevance: 5, hook: 5, standalone: 5, closure: 5, notes: {},
+          scores: { overall: 50, gancho: 0.5, desarrollo: 0.5, valor: 0.5, afinidad: 0.5, calidad_tecnica: 0.5, coverage: true, mode, relevance: 5, hook: 5, standalone: 5, closure: 5, notes: {},
             reasons: { gancho: txt, desarrollo: txt, valor: txt, afinidad: txt, calidad_tecnica: txt } } });
         filled++;
       }
