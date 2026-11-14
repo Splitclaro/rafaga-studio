@@ -4,10 +4,11 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { aiConfig, groqTranscribe, AiError, transcribe as deepgramTranscribe } from "@rafaga/providers";
+import { aiConfig, groqTranscribe, groqChat, AiError, transcribe as deepgramTranscribe } from "@rafaga/providers";
 import type { TWord } from "@rafaga/selection";
 import { StageError, type StageCtx, type StageImpl, type StageRow } from "./registry.ts";
 import { GroqLimiter, limitsFromEnv } from "../groqlimits.ts";
+import { correctWords } from "../transcriptfix.ts";
 
 export const CHUNK_S = 600, OVERLAP_S = 2;
 export interface Chunk { index: number; start: number; end: number }
@@ -52,7 +53,7 @@ async function extractAudio(ctx: StageCtx, row: StageRow): Promise<{ audio: stri
   const source = String(row.params.source_id), { file, info } = await mezzaninePath(ctx, source), r = range(row), out = join(dirOf(ctx, source), "audio.ogg");
   const duration_s = (r.end ?? (info.duration_ms ?? 0) / 1000) - r.start;
   if (info.has_audio === false) return { audio: out, has_audio: false, duration_s: (info.duration_ms ?? 0) / 1000, no_audio_total: 1 };
-  const args = ["-y", "-v", "error", ...(r.start ? ["-ss", String(r.start)] : []), ...(r.end != null ? ["-t", String(r.end - r.start)] : []), "-i", file, "-vn", "-ac", "1", "-ar", "16000", "-c:a", "libopus", "-b:a", "24k", out];
+  const args = ["-y", "-v", "error", ...(r.start ? ["-ss", String(r.start)] : []), ...(r.end != null ? ["-t", String(r.end - r.start)] : []), "-i", file, "-vn", "-af", "highpass=f=70,loudnorm=I=-16:TP=-1.5:LRA=11", "-ac", "1", "-ar", "16000", "-c:a", "libopus", "-b:a", "32k", out];
   const p = spawnSync("ffmpeg", args, { encoding: "utf8" });
   if (p.status !== 0) throw new StageError("prepare_failed", `ffmpeg: ${p.stderr?.slice(-200)}`);
   return { audio: out, has_audio: true, duration_s, no_audio_total: 0 };
@@ -67,13 +68,13 @@ const prepare: StageImpl = {
   },
 };
 
-export interface AsrDeps { transcribeChunk?: (audio: Uint8Array, chunk: Chunk) => Promise<{ words: TWord[]; language: string | null }>; limiter?: GroqLimiter }
-const asrModel = (ctx: StageCtx) => ctx.componentVersions.asr_model ?? "whisper-large-v3-turbo";
+export interface AsrDeps { fixChat?: (system: string, user: string) => Promise<string>; transcribeChunk?: (audio: Uint8Array, chunk: Chunk) => Promise<{ words: TWord[]; language: string | null }>; limiter?: GroqLimiter }
+const asrModel = (ctx: StageCtx) => ctx.componentVersions.asr_model ?? "whisper-large-v3";
 
 const transcribe: StageImpl = {
   async inputs(ctx, row) {
     const source = String(row.params.source_id), f = join(dirOf(ctx, source), "audio.ogg");
-    return { stage: "transcribe", analysis: row.params.analysis_id ?? null, audio_sha256: existsSync(f) ? sha(f) : String(row.params.audio_sha256 ?? ""), asr_model: asrModel(ctx), language: row.params.language ?? "auto", range: range(row) };
+    return { stage: "transcribe", analysis: row.params.analysis_id ?? null, audio_sha256: existsSync(f) ? sha(f) : String(row.params.audio_sha256 ?? ""), asr_model: asrModel(ctx), asr_fix: 2, language: row.params.language ?? "auto", range: range(row) };
   },
   async run(ctx, row) {
     const source = String(row.params.source_id), dir = dirOf(ctx, source), audio = join(dir, "audio.ogg");
@@ -84,7 +85,7 @@ const transcribe: StageImpl = {
     const chunks = planChunks(total), parts: { chunk: Chunk; words: TWord[] }[] = []; let language: string | null = null, waitMs = 0;
     const lang = String(row.params.language ?? "auto") as "auto" | "es" | "en";
     const call = deps.transcribeChunk ?? (async (a: Uint8Array, c: Chunk) => {
-      const r = await groqTranscribe(a, "audio/ogg", cfg, { language: lang, fetchImpl: ctx.fetch });
+      const r = await groqTranscribe(a, "audio/ogg", cfg, { language: lang, model: asrModel(ctx), glossary: Array.isArray(row.params.glossary) ? (row.params.glossary as string[]) : undefined, fetchImpl: ctx.fetch });
       void c; return { words: r.words, language: r.language };
     });
     const slice = (c: Chunk): Uint8Array => {
@@ -105,11 +106,15 @@ const transcribe: StageImpl = {
       }
     };
     await Promise.all(Array.from({ length: Math.min(3, chunks.length) }, worker));
-    const words = mergeChunks(parts);
+    let words = mergeChunks(parts), fixInfo: { changed: number; failed: number } | null = null;
+    if (words.length && (deps.fixChat || cfg.key) && (ctx.env ?? process.env).TRANSCRIPT_FIX !== "off") {   // pasada de corrección: solo texto, nunca tiempos
+      const chat = deps.fixChat ?? (async (sys: string, usr: string) => { await limiter.wait("llm", Math.ceil(usr.length / 3) + 700); return (await groqChat(cfg, { system: sys, user: usr, json: true, maxTokens: 4000, fetchImpl: ctx.fetch })).text; });
+      try { const r = await correctWords(words, chat, { language }); words = r.words; fixInfo = { changed: r.changed, failed: r.failed }; } catch { /* se conserva la transcripción original */ }
+    }
     if (!words.length && total > 5) throw new StageError("transcription_failed", "La transcripción no devolvió palabras");
     if (!row.params.analysis_id) throw new StageError("bad_params", "Falta analysis_id para guardar la transcripción");
     const transcriptId = await ctx.rpc<string>("save_transcript", { p_analysis: row.params.analysis_id, p_words: words, p_language: language, p_model: asrModel(ctx) });
-    return { output: { words: words.length, language, chunks: chunks.length, wait_ms: waitMs, asr_calls: parts.length, transcript_id: transcriptId } };
+    return { output: { words: words.length, language, chunks: chunks.length, wait_ms: waitMs, asr_calls: parts.length, ...(fixInfo ? { fix_changed: fixInfo.changed, fix_failed: fixInfo.failed } : {}), transcript_id: transcriptId } };
   },
 };
 

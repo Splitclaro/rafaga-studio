@@ -5,7 +5,7 @@ import { aiConfig, groqTranscribe, groqProposeClips, groqDescribeFrames, attachP
 const cfg = aiConfig({ GROQ_API_KEY: "gsk_secret123" });
 const json = (o: unknown, status = 200, h: Record<string, string> = {}) => new Response(JSON.stringify(o), { status, headers: { "content-type": "application/json", ...h } });
 test("configuración: modelos por defecto y sobrescritura por entorno", () => {
-  assert.equal(cfg.sttModel, "whisper-large-v3-turbo"); assert.equal(cfg.sttFallbackModel, "whisper-large-v3");
+  assert.equal(cfg.sttModel, "whisper-large-v3"); assert.equal(cfg.sttFallbackModel, "whisper-large-v3-turbo");
   const c = aiConfig({ GROQ_API_KEY: "k", GROQ_STT_MODEL: "otro-stt", GROQ_EDITORIAL_MODEL: "otro-llm", GROQ_VISION_MODEL: "otro-vis" });
   assert.deepEqual([c.sttModel, c.editorialModel, c.visionModel], ["otro-stt", "otro-llm", "otro-vis"]); assert.equal(AI_MODEL_DEFAULTS.visionModel, aiConfig({}).visionModel);
 });
@@ -19,11 +19,11 @@ test("transcripción: petición multipart con palabra+segmento, glosario y model
     return json({ text: "Hola, mundo.", language: "spanish", duration: 1.2, words: [{ word: "Hola", start: 0, end: 0.5 }, { word: "mundo", start: 0.6, end: 1.1 }] }); }) as unknown as typeof fetch;
   const r = await groqTranscribe(new Uint8Array([1, 2, 3]), "audio/ogg", cfg, { language: "auto", glossary: ["Ráfaga", "Bootzy"], fetchImpl: f });
   assert.equal(seen!.url, "https://api.groq.com/openai/v1/audio/transcriptions"); assert.equal(seen!.auth, "Bearer gsk_secret123");
-  assert.equal(seen!.fd.get("model"), "whisper-large-v3-turbo"); assert.equal(seen!.fd.get("response_format"), "verbose_json");
+  assert.equal(seen!.fd.get("model"), "whisper-large-v3"); assert.equal(seen!.fd.get("response_format"), "verbose_json");
   assert.deepEqual(seen!.fd.getAll("timestamp_granularities[]"), ["word", "segment"]); assert.equal(seen!.fd.get("language"), null, "auto: sin idioma");
   assert.equal(seen!.fd.get("prompt"), "Ráfaga, Bootzy");
   assert.equal(r.language, "es"); assert.deepEqual(r.words.map((w) => w.text), ["Hola,", "mundo."]); assert.equal(r.durationSec, 1.2);
-  const fb = await groqTranscribe(new Uint8Array([1]), "audio/ogg", cfg, { language: "es", model: cfg.sttFallbackModel, fetchImpl: f }); assert.equal(seen!.fd.get("model"), "whisper-large-v3"); assert.equal(seen!.fd.get("language"), "es"); assert.equal(fb.model, "whisper-large-v3");
+  const fb = await groqTranscribe(new Uint8Array([1]), "audio/ogg", cfg, { language: "es", model: cfg.sttFallbackModel, fetchImpl: f }); assert.equal(seen!.fd.get("model"), "whisper-large-v3-turbo"); assert.equal(seen!.fd.get("language"), "es"); assert.equal(fb.model, "whisper-large-v3");
 });
 test("errores: sin clave, 4xx permanente sin reintentos, 429 con retry-after y la clave jamás aparece", async () => {
   await assert.rejects(groqTranscribe(new Uint8Array(1), "audio/ogg", aiConfig({})), /GROQ_API_KEY/);

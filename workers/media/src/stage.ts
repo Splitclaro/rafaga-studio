@@ -12,7 +12,7 @@ import { join } from "node:path";
 
 export const FLAGS = ["--list", "--list-flags", "--drain", "--max-idle-s", "--sweep", "--keep-alive", "--plan", "--purge"];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-export const COMPONENT_VERSIONS = { worker: "stage-v1", asr_model: process.env.GROQ_STT_MODEL || "whisper-large-v3-turbo", llm_model: process.env.GROQ_EDITORIAL_MODEL || "openai/gpt-oss-120b" };
+export const COMPONENT_VERSIONS = { worker: "stage-v1", asr_model: process.env.GROQ_STT_MODEL || "whisper-large-v3", llm_model: process.env.GROQ_EDITORIAL_MODEL || "openai/gpt-oss-120b" };
 
 export interface MainDeps { rpc?: Rpc; out?: (s: string) => void; err?: (s: string) => void; env?: Record<string, string | undefined> }
 
