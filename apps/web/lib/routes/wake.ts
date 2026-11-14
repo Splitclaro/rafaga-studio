@@ -12,6 +12,11 @@ export async function handleWake(req: Request, f: Fetch = fetch, env: Record<str
   if (!token) return Response.json({ error: "no_session" }, { status: 401 });
   const u = await f(`${SB()}/auth/v1/user`, { headers: { apikey: KEY(), Authorization: `Bearer ${token}` } });
   if (!u.ok) return Response.json({ error: "invalid_session" }, { status: 401 });
+  // Solo se despierta al worker si ESTE usuario tiene trabajo pendiente (RLS con su JWT): así nadie puede lanzar contenedores de Modal en vacío (auditoría A06-001).
+  // Si la comprobación falla, no se despierta: el barrido periódico de Modal recoge igualmente lo pendiente.
+  const pend = await f(`${SB()}/rest/v1/jobs?status=not.in.(done,failed,cancelled)&select=id&limit=1`, { headers: { apikey: KEY(), Authorization: `Bearer ${token}` } }).catch(() => null);
+  const hasWork = !!pend && pend.ok && ((await pend.json().catch(() => [])) as unknown[]).length > 0;
+  if (!hasWork) return Response.json({ woken: false, reason: "nothing_queued" });
   const body = (await req.json().catch(() => ({}))) as { job_id?: unknown };
   const jobId = typeof body.job_id === "string" && /^[0-9a-f-]{36}$/.test(body.job_id) ? body.job_id : null;
 

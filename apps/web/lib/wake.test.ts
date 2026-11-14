@@ -7,11 +7,12 @@ import { handleWake } from "./routes/wake.ts";
 
 const JOB = "11111111-2222-3333-4444-555555555555";
 type Call = { url: string; init?: RequestInit };
-function fakeFetch(gh: { running?: number } = {}) {
+function fakeFetch(gh: { running?: number; queued?: boolean } = {}) {
   const calls: Call[] = [];
   const f = (async (u: string, init?: RequestInit) => {
     calls.push({ url: u, init });
     if (u.endsWith("/auth/v1/user")) return Response.json({ id: "u1" });
+    if (u.includes("/rest/v1/jobs")) return Response.json(gh.queued === false ? [] : [{ id: JOB }]);
     if (u.includes("/actions/workflows/worker.yml/runs")) return Response.json({ total_count: u.includes("in_progress") ? (gh.running ?? 0) : 0 });
     if (u.endsWith("/dispatches")) return new Response(null, { status: 204 });
     if (u.startsWith("https://modal.example")) return Response.json({ accepted: true });
@@ -55,4 +56,12 @@ test("app.py: secreto con compare_digest, versiones fijadas, programaciones y so
   const flags = spawnSync(process.execPath, [fileURLToPath(new URL("../../../workers/media/src/stage.ts", import.meta.url)), "--list-flags"], { encoding: "utf8" }).stdout.trim().split("\n");
   const used = [...new Set([...py.matchAll(/"(--[a-z-]+)"/g)].map((m) => m[1]))];
   for (const u of used) assert.ok(flags.includes(u), `app.py usa ${u}, que stage.ts no admite`);
+});
+
+test("sin trabajo pendiente del usuario no se despierta a nadie (ni Modal ni GitHub); si falla la comprobación, tampoco", async () => {
+  const a = fakeFetch({ queued: false });
+  assert.deepEqual(await (await handleWake(req(), a.f, { WORKER_BACKEND: "modal", MODAL_DISPATCH_URL: "https://modal.example/dispatch", WAKE_SECRET: "s" })).json(), { woken: false, reason: "nothing_queued" });
+  assert.equal(a.calls.some((c) => c.url.startsWith("https://modal.example") || c.url.includes("api.github.com")), false);
+  const broken = (async (u: string) => { if (u.endsWith("/auth/v1/user")) return Response.json({ id: "u1" }); throw new Error("db caída"); }) as unknown as typeof fetch;
+  assert.deepEqual(await (await handleWake(req(), broken, { WORKER_BACKEND: "modal", MODAL_DISPATCH_URL: "https://modal.example/dispatch", WAKE_SECRET: "s" })).json(), { woken: false, reason: "nothing_queued" });
 });
