@@ -1,5 +1,7 @@
 "use client";
 import Link from "next/link";
+import { gradeOf } from "../../lib/grades";
+import { clipsToXmeml } from "../../lib/nle";
 import { memo, useEffect, useState } from "react";
 import Icon from "../Icon";
 import { supabase } from "../../lib/supabase";
@@ -32,6 +34,11 @@ function ClipRowBase({ c, index, selected, onSelect, onFavorite, onDiscard, proj
     const words = ((data?.composition as { words?: { text: string }[] } | null)?.words ?? []).map((w) => w.text);
     setText(words.length ? words.join(" ") : "Este clip no tiene transcripción guardada.");
   }
+  function exportXml() {
+    if (c.startMs == null || c.endMs == null) return;
+    const xml = clipsToXmeml({ project: projectName, source: { name: `${projectName}.mp4`, durationMs: c.endMs }, clips: [{ title: c.title, startMs: c.startMs, endMs: c.endMs }] });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([xml], { type: "application/xml" })); a.download = fileName(`${projectName}_${String(index).padStart(2, "0")}-${c.title}`).replace(/\.mp4$/i, "") + ".xml"; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  }
   async function download() {
     if (!c.path) return;
     setErr(null);
@@ -61,11 +68,12 @@ function ClipRowBase({ c, index, selected, onSelect, onFavorite, onDiscard, proj
           <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-3">
             {score != null && (
               <div title="Estimación del selector (IA o reglas). No garantiza viralidad." className="leading-none">
-                <span className="font-[family-name:var(--font-heading)] text-4xl font-bold tracking-tight text-[var(--accent)]">{score.toFixed(1)}</span>
-                <span className="ml-1 text-sm text-[var(--muted)]">/10</span>
+                <span className="font-[family-name:var(--font-heading)] text-4xl font-bold tracking-tight text-[var(--accent)]">{Math.round(score * 10)}</span>
+                <span className="ml-1 text-sm text-[var(--muted)]">/100</span>
                 <span className="mt-1 block text-[11px] font-medium text-[var(--muted)]">ENCAJE ESTIMADO</span>
               </div>
             )}
+            {hasF && <ul aria-label="Subnotas estimadas" className="flex gap-3">{([["Gancho", c.factors?.hook], ["Fluidez", c.factors?.standalone], ["Valor", c.factors?.relevance], ["Cierre", c.factors?.closure]] as [string, number | undefined][]).filter(([, v]) => typeof v === "number").map(([n, v]) => <li key={n} className="text-center leading-tight"><b className="block text-sm">{gradeOf(v as number)}</b><span className="text-[11px] text-[var(--muted)]">{n}</span></li>)}</ul>}
             <StatusLabel status={st.status} note={st.note} />
             {c.startMs != null && c.endMs != null && <span className="tnum text-xs text-[var(--muted)]">Origen {fmtDur(c.startMs)}–{fmtDur(c.endMs)}</span>}
           </div>
@@ -74,6 +82,7 @@ function ClipRowBase({ c, index, selected, onSelect, onFavorite, onDiscard, proj
             <button onClick={download} disabled={!c.path} title={c.path ? "" : "Aún no hay MP4: ábrelo en el editor y pulsa Exportar"} className="btn btn-primary !py-2 !text-sm"><Icon n="download" className="h-4 w-4" />Descargar</button>
             <Link href={`/app/c/${c.id}`} className="btn btn-ghost !py-2 !text-sm"><Icon n="scissors" className="h-4 w-4" />Editar</Link>
             <Link href={`/app/r/${c.id}`} className="btn btn-ghost !py-2 !text-sm">Revisar</Link>
+            {c.startMs != null && c.endMs != null && <button onClick={exportXml} title="Secuencia para Premiere Pro, DaVinci Resolve o Final Cut: apunta al vídeo original por nombre" className="btn btn-ghost !py-2 !text-sm">Exportar XML</button>}
             <button onClick={() => { if (confirm("¿Descartar este clip? Deja de aparecer en el proyecto (los exports hechos se conservan).")) onDiscard(c.id); }} className="btn btn-ghost !py-2 !text-sm text-[var(--muted)]">Descartar</button>
           </div>
           {err && <p role="alert" className="mt-2 text-sm text-[var(--danger)]">{err}</p>}

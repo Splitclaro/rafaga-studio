@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode, Fragment } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabase";
@@ -7,20 +7,20 @@ import Icon from "../../components/Icon";
 import CommandPalette, { type NavItem } from "../../components/CommandPalette";
 
 const NAV: (NavItem & { glyph: string })[] = [
-  { href: "/app", label: "Inicio", icon: "home", glyph: "⌂", ready: true, group: "" },
-  { href: "/app/proyectos", label: "Proyectos", icon: "folder", glyph: "▤", ready: true, group: "" },
-  { href: "/app/exports", label: "Exportados", icon: "download", glyph: "⇪", ready: true, group: "" },
-  { href: "/app/calendario", label: "Calendario", icon: "calendar", glyph: "▦", ready: true, group: "" },
-  { href: "/app/analitica", label: "Analítica", icon: "chart", glyph: "▥", ready: true, group: "" },
-  { href: "/app/brand-kits", label: "Brand kit", icon: "brand", glyph: "◈", ready: true, group: "" },
-  { href: "/app/entregas", label: "Compartidos conmigo", icon: "share", glyph: "⇩", ready: true, group: "" },
-  { href: "/app/lyric-studio", label: "Lyric Studio", icon: "music", glyph: "♪", ready: true, group: "" },
-  { href: "/app/uso", label: "Uso", icon: "chart", glyph: "◔", ready: true, group: "" },
-  { href: "/app/conexiones", label: "Conexiones", icon: "link", glyph: "⚭", ready: true, group: "" },
+  { href: "/app", label: "Inicio", icon: "home", glyph: "⌂", ready: true, group: "Crear" },
+  { href: "/app/proyectos", label: "Proyectos", icon: "folder", glyph: "▤", ready: true, group: "Crear" },
+  { href: "/app/brand-kits", label: "Brand kit", icon: "brand", glyph: "◈", ready: true, group: "Crear" },
+  { href: "/app/style-studio", label: "Style Studio", icon: "type", glyph: "Aa", ready: true, group: "Crear" },
+  { href: "/app/lyric-studio", label: "Lyric Studio", icon: "music", glyph: "♪", ready: true, group: "Lyric Studio" },
+  { href: "/app/calendario", label: "Calendario", icon: "calendar", glyph: "▦", ready: true, group: "Publicar" },
+  { href: "/app/analitica", label: "Analítica", icon: "chart", glyph: "▥", ready: true, group: "Publicar" },
+  { href: "/app/conexiones", label: "Conexiones", icon: "link", glyph: "⚭", ready: true, group: "Publicar" },
+  { href: "/app/exports", label: "Exportados", icon: "download", glyph: "⇪", ready: true, group: "Publicar" },
+  { href: "/app/automatizaciones", label: "Automatizaciones", icon: "bolt", glyph: "⟳", ready: true, group: "Publicar" },
+  { href: "/app/entregas", label: "Compartidos conmigo", icon: "share", glyph: "⇩", ready: true, group: "Cuenta" },
+  { href: "/app/uso", label: "Uso", icon: "chart", glyph: "◔", ready: true, group: "Cuenta" },
 ];
 const OTHER: NavItem[] = [
-  { href: "/app/style-studio", label: "Style Studio", icon: "type", ready: true, group: "Marca" },
-  { href: "/app/automatizaciones", label: "Automatizaciones", icon: "bolt", ready: true, group: "Publicar" },
   { href: "/app/demos", label: "Demos", icon: "play", ready: true, group: "Ayuda" },
   { href: "/app/director", label: "Director IA", icon: "wand", ready: true, group: "Ayuda" },
 ];
@@ -121,15 +121,16 @@ export default function AppShell({ children }: { children: ReactNode }) {
             </div>)}
         </div>
         <div className="flex gap-1 overflow-x-auto md:flex-col md:gap-0.5 md:overflow-visible">
-          {NAV.map((n) => (
-            <Link key={n.href} href={n.href} aria-current={active(n.href) ? "page" : undefined} className={`${itm} ${active(n.href) ? "bg-[var(--accent-soft)] font-semibold text-[var(--accent-ink)]" : "text-[var(--ink)] hover:bg-[var(--hover)]"}`}>
-              <span aria-hidden className={`w-[18px] text-center ${active(n.href) ? "" : "text-[#4A4F66]"}`}>{n.glyph}</span>{n.label}
-            </Link>))}
+          {NAV.map((n, i) => (
+            <Fragment key={n.href}>
+              {n.group && n.group !== NAV[i - 1]?.group && <div aria-hidden className="hidden px-2.5 pb-0.5 pt-3 text-xs font-medium text-[var(--muted)] md:block">{n.group}</div>}
+              <Link href={n.href} aria-current={active(n.href) ? "page" : undefined} className={`${itm} ${active(n.href) ? "bg-[var(--accent-soft)] font-semibold text-[var(--accent-ink)]" : "text-[var(--ink)] hover:bg-[var(--hover)]"}`}>
+                <span aria-hidden className={`w-[18px] text-center ${active(n.href) ? "" : "text-[#4A4F66]"}`}>{n.glyph}</span>{n.label}
+              </Link>
+            </Fragment>))}
         </div>
         <div className="hidden flex-col gap-0.5 md:mt-auto md:flex">
           {usage && <Link href="/app/ajustes" className="mb-2 rounded-xl border hairline bg-[var(--card)] px-3 py-2 hover:bg-[var(--hover)]" aria-label={`Consumo esta semana: ${usage.used} de ${usage.limit} minutos`}><span className="tnum flex justify-between text-xs"><span className="text-[var(--muted)]">Esta semana</span><b>{Math.round(usage.used)} / {usage.limit} min</b></span><span className="mt-1 block h-1 overflow-hidden rounded-full bg-[var(--border)]"><span className="block h-full rounded-full bg-[var(--accent)]" style={{ width: `${Math.min(100, (usage.used / usage.limit) * 100)}%` }} /></span></Link>}
-          <Link href="/app/style-studio" className={`${itm} text-[var(--ink)] hover:bg-[var(--hover)]`}><span aria-hidden className="w-[18px] text-center">Aa</span>Style Studio</Link>
-          <Link href="/app/automatizaciones" className={`${itm} text-[var(--ink)] hover:bg-[var(--hover)]`}><span aria-hidden className="w-[18px] text-center">⟳</span>Automatizaciones</Link>
           <Link href="/app/demos" className={`${itm} text-[var(--ink)] hover:bg-[var(--hover)]`}><span aria-hidden className="w-[18px] text-center">▣</span>Demos y tutoriales</Link>
           <Link href="/app/director" className="mt-2 flex items-center justify-between gap-2 rounded-[14px] border hairline bg-[var(--card)] px-3.5 py-3"><span className="flex items-center gap-2"><span aria-hidden className="text-[var(--accent)]">✦</span><span className="font-display text-base font-bold text-[#111111]">director IA</span><span className="rounded-md bg-[#F0F1F7] px-1.5 text-[10px] font-semibold text-[var(--muted)]">Beta</span></span><span aria-hidden>→</span></Link>
         </div>

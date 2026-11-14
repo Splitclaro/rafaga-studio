@@ -1,0 +1,30 @@
+feature,area,priority,original,clone,notes
+Inicio con 3 entradas (clip largo / auto-edición / editor),inicio,must,yes,yes,Inicio con subida + recetas
+Subir archivo y Google Drive,entrada,must,yes,yes,Subir archivo (R2 multipart); Drive/Dropbox como «próximamente»
+Recetas (Clean up / Captions / Reframe / Social edits / B-roll / Translate),inicio,should,yes,yes,Recetas CRUD + built-in
+Proyectos de demostración,inicio,could,yes,yes,/app/demos
+Encargo en lenguaje natural y número de clips,configuración,must,yes,yes,Brief + modos; «Cualquier momento» por defecto
+Proyecto = cuadrícula de clips por puntuación,resultados,must,yes,yes,ClipWall (detalle/cuadrícula/lista)
+Buscar por palabras o momentos + filtro + orden,resultados,must,yes,yes,ClipWall
+Nota /100 con subnotas Hook-Flow-Value-Trend en letra,resultados,should,yes,yes,/100 + Gancho/Fluidez/Valor/Cierre en letra (estimación)
+Me gusta / no me gusta por clip,resultados,should,yes,partial,Favorito y Descartar; sin señal que mejore la siguiente generación
+Análisis de escena con marcas de tiempo,resultados,could,yes,partial,Motivo + origen (inicio–fin); sin descripción visual por escena (coste de visión)
+Solo transcripción del clip,resultados,should,yes,yes,«Transcripción del clip»
+Programar publicación desde el clip,publicar,should,yes,yes,Calendario
+Descargar MP4 (individual y lote),exportar,must,yes,yes,Descargar + ZIP
+Exportar XML para Premiere/Resolve,exportar,should,yes,yes,xmeml v4 (apps/web/lib/nle.ts)
+Duplicar clip,edición,could,yes,partial,Versiones inmutables en el editor; sin botón «Duplicar» en la ficha
+Editor (subtítulos / encuadre / plantilla),edición,must,yes,yes,/app/c/[id]
+Brand kit (fuentes / intro / B-roll),marca,should,yes,yes,/app/brand-kits
+Biblioteca de assets (fuentes / medios),marca,should,yes,yes,Biblioteca Lyric + Brand kit
+Lista de palabras censuradas (bleep),marca,could,yes,no,Autocensura prevista; sin lista editable
+Vocabulario de marca (reemplazo de palabras),marca,could,yes,no,Mejoraría nombres propios en subtítulos
+Colecciones (Favoritos) y almacenamiento,proyectos,should,yes,partial,Favorito por clip; carpetas de proyecto; medidor en Uso
+Auto-importación,proyectos,could,yes,no,Requiere integración con el canal
+Calendario,publicar,should,yes,yes,/app/calendario
+Analítica,publicar,should,yes,yes,/app/analitica
+Cuentas sociales,publicar,should,yes,partial,Conexiones: YouTube/Drive/Dropbox listos; TikTok pendiente de credenciales
+Créditos y planes,cuenta,could,yes,partial,Unidades internas; sin pasarela de pago (a propósito: 0 €)
+Invitar miembros,cuenta,could,yes,yes,Invitar + roles
+AI Producer (editor por chat),ia,could,yes,no,Producto propietario; fuera de alcance
+API / MCP,desarrollo,could,yes,no,Sin API pública (de pago en la referencia)

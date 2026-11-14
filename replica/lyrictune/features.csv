@@ -1,0 +1,23 @@
+feature,area,priority,original,clone,notes
+Seleccionar canción y letra con auto-sincronía,lyric,must,yes,yes,LyricSyncEditor
+Editar letra y ajuste fino de tiempos / re-sincronizar,lyric,must,yes,yes,
+Estilo de vídeo: Vídeo / Foto,fondo,must,yes,yes,
+Colecciones de la plataforma / propias / color sólido,fondo,must,yes,partial,Estructura hecha; colecciones oficiales sin medios con licencia
+Modos Letra / Texto / Portada (LP cover),modo,must,yes,yes,
+Galería de estilos de texto + crear estilo,estilo,must,yes,yes,Style Studio v2
+Color del texto,estilo,should,yes,yes,
+Modo de fondo en secuencia + intervalo,ajustes,should,yes,yes,
+Variaciones sutiles,ajustes,could,yes,yes,
+Recorte cinematográfico,ajustes,should,yes,yes,settings.crop
+Atenuado del fondo,ajustes,should,yes,yes,settings.dim
+Vibración del texto y mezcla con el vídeo,ajustes,could,yes,yes,
+Filtros (Midnight / Super 8 / Noir / Vaporwave),ajustes,should,yes,yes,
+Tamaño del texto y ajuste del fondo,ajustes,should,yes,yes,
+Gancho (hook) y paquetes de ganchos,ajustes,should,yes,yes,
+Vista previa 9:16 con arrastrar la letra,vista previa,must,yes,yes,LyricPreview
+Exportar 720p / 1080p,exportar,must,yes,yes,
+Exportar en lote,exportar,should,yes,yes,Variantes
+Biblioteca (vídeos / canciones),biblioteca,should,yes,yes,LyricLibrary
+Programación (Schedule),publicar,should,yes,yes,Calendario
+Marca de agua y cuotas gratuitas,cuenta,could,yes,no,No se replica: Ráfaga es privada y sin marca de agua
+Paquetes de vídeo con licencia de terceros,contenido,could,yes,no,No clonable: derechos de terceros
