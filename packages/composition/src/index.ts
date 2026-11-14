@@ -11,3 +11,4 @@ export * from "./cuts.ts";
 export * from "./speakers.ts";
 export * from "./layouts.ts";
 export * from "./safezones.ts";
+export * from "./fontcatalog.ts";

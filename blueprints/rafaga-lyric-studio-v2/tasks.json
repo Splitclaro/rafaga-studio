@@ -166,7 +166,7 @@
     ],
     "checkpoint": "rafaga-lyric-v2-step-07",
     "files": ["scripts/fetch-fonts.ts", "packages/composition/src/fontcatalog.ts", "apps/web/public/fonts/caption/**", "apps/web/lib/captionfonts.test.ts", "packages/composition/src/index.ts"],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E2-T2",
