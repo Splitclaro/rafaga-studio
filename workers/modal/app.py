@@ -67,11 +67,11 @@ def _plan_and_spawn():
         run_legacy.spawn()
     return plan
 
-@app.function(image=image, secrets=[secret], cpu=2.0, memory=4096, timeout=3600)
+@app.function(image=image, secrets=[secret], cpu=2.0, memory=4096, timeout=3600, max_containers=MAX_PARALLEL)   # tope duro de contenedores: protege el presupuesto de 1 USD
 def drain():
     return _node("--drain", "--max-idle-s", "60", timeout=3540).returncode
 
-@app.function(image=image, secrets=[secret], cpu=2.0, memory=4096, timeout=3600)
+@app.function(image=image, secrets=[secret], cpu=2.0, memory=4096, timeout=3600, max_containers=1)
 def run_legacy():  # tipos v1 durante la coexistencia; mismo código que en Actions
     return subprocess.run(["node", "src/run.ts"], cwd="/repo/workers/media", env=_env(), timeout=3540).returncode
 

@@ -18,17 +18,17 @@ const balance = async () => Number((await db.query<{ b: string }>(`select balanc
 
 before(async () => { ({ db, wsA, asUser } = await freshDb()); });
 
-test("el dueño concede saldo; un miembro sin rol de dueño no puede", async () => {
-  const ok = await call(tokenFor(A), "grant_units", { p_ws: wsA, p_units: 1, p_note: "inicial", p_key: "grant-0001" });
+test("solo el servicio concede saldo: ni el dueño ni un miembro pueden acuñarse unidades (auditoría A01-002)", async () => {
+  const ok = await call(SERVICE_TOKEN, "grant_units", { p_ws: wsA, p_units: 1, p_note: "inicial", p_key: "grant-0001" });
   assert.equal(ok.status, 200); assert.equal(await balance(), 1);
-  const bad = await call(tokenFor(B), "grant_units", { p_ws: wsA, p_units: 5, p_note: null, p_key: "grant-0002" });
-  assert.equal(bad.status, 403);
+  for (const who of [A, B]) { const bad = await call(tokenFor(who), "grant_units", { p_ws: wsA, p_units: 5, p_note: null, p_key: `grant-bad-${who.slice(0, 4)}` }); assert.notEqual(bad.status, 200); }
+  assert.equal(await balance(), 1);
 });
 
 test("dos reservas de 1 unidad a la vez contra saldo 1.00: exactamente una entra y el saldo queda en 0", async () => {
   const [r1, r2] = await Promise.all([
-    call(tokenFor(A), "reserve_units", { p_ws: wsA, p_units: 1, p_job: null, p_gen: null, p_key: "reserve-aaaa" }),
-    call(tokenFor(A), "reserve_units", { p_ws: wsA, p_units: 1, p_job: null, p_gen: null, p_key: "reserve-bbbb" }),
+    call(SERVICE_TOKEN, "reserve_units", { p_ws: wsA, p_units: 1, p_job: null, p_gen: null, p_key: "reserve-aaaa" }),
+    call(SERVICE_TOKEN, "reserve_units", { p_ws: wsA, p_units: 1, p_job: null, p_gen: null, p_key: "reserve-bbbb" }),
   ]);
   const st = [r1.status, r2.status].sort();
   assert.deepEqual(st, [200, 400]);
@@ -38,9 +38,9 @@ test("dos reservas de 1 unidad a la vez contra saldo 1.00: exactamente una entra
 });
 
 test("criterio 6: la misma clave 3 veces → 1 fila y el mismo ledger_id", async () => {
-  await call(tokenFor(A), "grant_units", { p_ws: wsA, p_units: 10, p_note: null, p_key: "grant-0003" });
+  await call(SERVICE_TOKEN, "grant_units", { p_ws: wsA, p_units: 10, p_note: null, p_key: "grant-0003" });
   const ids = [];
-  for (let i = 0; i < 3; i++) ids.push((await call(tokenFor(A), "reserve_units", { p_ws: wsA, p_units: 2, p_job: null, p_gen: null, p_key: "reserve-same" })).body.ledger_id);
+  for (let i = 0; i < 3; i++) ids.push((await call(SERVICE_TOKEN, "reserve_units", { p_ws: wsA, p_units: 2, p_job: null, p_gen: null, p_key: "reserve-same" })).body.ledger_id);
   assert.equal(new Set(ids).size, 1);
   const n = (await db.query<{ n: number }>(`select count(*)::int n from credit_ledger where idempotency_key='reserve-same'`)).rows[0].n;
   assert.equal(n, 1);
