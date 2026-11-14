@@ -2,13 +2,14 @@
 // Los modos (qué se busca) están separados de los modelos de IA que los ejecutan (`model`). Sin dispersión artificial de notas.
 import type { TWord } from "./index.ts";
 
-export type ModeId = "automatico" | "por_tema" | "pregunta_respuesta" | "educativo" | "historia" | "destacados" | "manual";
+export type ModeId = "cualquier_momento" | "automatico" | "por_tema" | "pregunta_respuesta" | "educativo" | "historia" | "destacados" | "manual";
 export type FilterId = "sentence_start" | "unresolved_reference" | "closure" | "overlap";
 export interface ModeDef { id: ModeId; label: string; promptId: string; filters: FilterId[]; model: "editorial" | null; hint: string }
 
 const ALL: FilterId[] = ["sentence_start", "unresolved_reference", "closure", "overlap"];
 export const MODES: Record<ModeId, ModeDef> = {
-  automatico: { id: "automatico", label: "Automático", promptId: "auto-v1", filters: ALL, model: "editorial", hint: "Elige los momentos más comprensibles y relevantes por sí solos, sin instrucciones adicionales." },
+  cualquier_momento: { id: "cualquier_momento", label: "Cualquier momento", promptId: "any-v1", filters: ALL, model: "editorial", hint: "Elige tramos completos y comprensibles de cualquier parte del vídeo, repartidos por toda su duración. No busques lo más llamativo ni lo más viral: vale cualquier momento con sentido." },
+  automatico: { id: "automatico", label: "Más virales (estimación)", promptId: "auto-v1", filters: ALL, model: "editorial", hint: "Prioriza los momentos con más gancho, desarrollo y valor. Es una estimación de la IA, no una garantía de viralidad." },
   por_tema: { id: "por_tema", label: "Por tema", promptId: "tema-v1", filters: ALL, model: "editorial", hint: "Busca solo contenido relacionado con lo que pide el usuario en el encargo; descarta lo que no encaje." },
   pregunta_respuesta: { id: "pregunta_respuesta", label: "Pregunta y respuesta", promptId: "qa-v1", filters: ALL, model: "editorial", hint: "Cada momento debe incluir la pregunta (o el contexto necesario) y terminar cuando la respuesta se completa." },
   educativo: { id: "educativo", label: "Educativo", promptId: "edu-v1", filters: ALL, model: "editorial", hint: "Extrae explicaciones, consejos, pasos o conclusiones completas y accionables." },
@@ -143,3 +144,26 @@ export function shortfall(requested: number | null, delivered: number, reasons: 
   return { code: "shortfall", requested, delivered, reasons };
 }
 export const DROP_TEXT: Record<string, string> = { sentence_start: "empezaba a mitad de frase", unresolved_reference: "empezaba con una referencia sin explicar", closure: "terminaba sin cerrar la frase", overlap: "se solapaba con un momento mejor", duration: "duración fuera de rango", indices: "no coincidía con la transcripción", excluded: "contenido excluido por el encargo", scores: "puntuación no válida", previous: "ya estaba entre los clips anteriores" };
+
+export interface Slot { startSec: number; endSec: number }
+/**
+ * Reparte tramos por todo el vídeo para llegar al número pedido cuando no hay suficientes momentos con voz (videoclips, música, directos).
+ * Evita lo ya elegido (con 1 s de margen), usa el objetivo de duración y lo acorta hasta el mínimo si hace falta para que quepan.
+ * Devuelve como mucho `need` tramos, repartidos de forma pareja; si no caben, devuelve los que quepan.
+ */
+export function coverageSlots(rangeStart: number, rangeEnd: number, taken: Slot[], need: number, min: number, max: number, targetSec?: number | null): Slot[] {
+  if (need <= 0 || rangeEnd - rangeStart < min) return [];
+  const gaps: Slot[] = []; let cur = rangeStart;
+  for (const t of [...taken].sort((a, b) => a.startSec - b.startSec)) {
+    if (t.startSec - 1 > cur) gaps.push({ startSec: cur, endSec: t.startSec - 1 });
+    cur = Math.max(cur, t.endSec + 1);
+  }
+  if (rangeEnd > cur) gaps.push({ startSec: cur, endSec: rangeEnd });
+  let len = Math.min(max, Math.max(min, targetSec ?? Math.round((min + max) / 2)));
+  const cut = (l: number) => gaps.flatMap((g) => { const n = Math.floor((g.endSec - g.startSec) / l), out: Slot[] = [];
+    for (let i = 0; i < n; i++) out.push({ startSec: g.startSec + i * l, endSec: g.startSec + (i + 1) * l }); return out; });
+  let slots = cut(len);
+  while (slots.length < need && len > min) { len = Math.max(min, Math.floor(len * 0.85)); slots = cut(len); }
+  if (slots.length <= need) return slots;
+  return Array.from({ length: need }, (_, i) => slots[Math.round((i * (slots.length - 1)) / Math.max(1, need - 1))]);
+}

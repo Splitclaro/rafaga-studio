@@ -20,8 +20,8 @@ const words: TWord[] = []; const first: number[] = [];
 { let t = 0; for (const [i, s] of SENTS.entries()) { first.push(words.length); for (const w of s.split(" ")) { words.push({ text: w, start: +t.toFixed(2), end: +(t + 0.34).toFixed(2) }); t += 0.38; } t += i % 3 === 2 ? 6 : 1.2; } }
 const span = (i: number, j: number) => ({ startWord: first[i], endWord: (first[j + 1] ?? words.length) - 1 });
 
-test("MODES: los 7 modos con prompt, filtros y modelo (null en destacados y manual)", () => {
-  assert.deepEqual([...MODE_IDS].sort(), ["automatico", "destacados", "educativo", "historia", "manual", "por_tema", "pregunta_respuesta"]);
+test("MODES: los 8 modos con prompt, filtros y modelo (null en destacados y manual)", () => {
+  assert.deepEqual([...MODE_IDS].sort(), ["automatico", "cualquier_momento", "destacados", "educativo", "historia", "manual", "por_tema", "pregunta_respuesta"]);
   for (const id of MODE_IDS) { assert.ok(MODES[id].promptId.length > 0); assert.ok(Array.isArray(MODES[id].filters)); }
   assert.equal(MODES.destacados.model, null); assert.equal(MODES.manual.model, null); assert.equal(MODES.automatico.model, "editorial");
 });
@@ -66,4 +66,18 @@ test("shortfall: entrega menos con explicación; 0 → no_moments; sin pedido o 
   assert.deepEqual(shortfall(10, 3, ["a", "b"]), { code: "shortfall", requested: 10, delivered: 3, reasons: ["a", "b"] });
   assert.equal(shortfall(10, 0, ["x"])!.code, "no_moments");
   assert.equal(shortfall(null, 3, []), null); assert.equal(shortfall(3, 3, []), null);
+});
+
+import { coverageSlots } from "./modes.ts";
+test("coverageSlots: reparte N tramos por un vídeo sin voz, sin solaparse y dentro de los límites", () => {
+  const s = coverageSlots(0, 151, [], 5, 10, 180, 45);
+  assert.equal(s.length, 5);
+  for (const x of s) { assert.ok(x.endSec - x.startSec >= 10 && x.endSec <= 151 && x.startSec >= 0); }
+  for (let i = 1; i < s.length; i++) assert.ok(s[i].startSec >= s[i - 1].endSec);
+});
+test("coverageSlots: evita lo ya elegido y devuelve los que quepan si no hay hueco para todos", () => {
+  const s = coverageSlots(0, 60, [{ startSec: 10, endSec: 50 }], 5, 10, 30, 20);
+  assert.ok(s.length < 5);
+  for (const x of s) assert.ok(x.endSec <= 9 || x.startSec >= 51);
+  assert.deepEqual(coverageSlots(0, 5, [], 3, 10, 30), []);
 });

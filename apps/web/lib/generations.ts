@@ -1,7 +1,7 @@
 // Parámetros de una generación: validación, rangos de duración, estimación de unidades y resumen. Pura y sin red.
-export const MODES = ["automatico", "por_tema", "pregunta_respuesta", "educativo", "historia", "destacados", "manual"] as const;
+export const MODES = ["cualquier_momento", "automatico", "por_tema", "pregunta_respuesta", "educativo", "historia", "destacados", "manual"] as const;
 export type Mode = (typeof MODES)[number];
-export const MODE_LABEL: Record<Mode, string> = { automatico: "Automático", por_tema: "Por tema", pregunta_respuesta: "Pregunta y respuesta", educativo: "Educativo", historia: "Historia o anécdota", destacados: "Destacados", manual: "Manual" };
+export const MODE_LABEL: Record<Mode, string> = { cualquier_momento: "Cualquier momento", automatico: "Más virales (estimación)", por_tema: "Por tema", pregunta_respuesta: "Pregunta y respuesta", educativo: "Educativo", historia: "Historia o anécdota", destacados: "Destacados", manual: "Manual" };
 
 /** Rangos de duración de cada clip, en segundos. La etiqueta «Auto» del panel dice «10 s–3 min». */
 export const DURATION_BUCKETS = { auto: [10, 180], lt30: [10, 30], "30_60": [30, 60], "60_90": [60, 90], "90_180": [90, 180] } as const;

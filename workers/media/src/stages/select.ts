@@ -6,7 +6,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { aiConfig, groqProposeClips, groqChat, AiError } from "@rafaga/providers";
 import { validateCandidates, refineBounds, padBounds, lexicalCandidates, transcriptText, windows, type TWord, type RawCandidate } from "@rafaga/selection";
-import { MODES, qualityFilters, scoreAll, shortfall, DROP_TEXT, type ModeId } from "@rafaga/selection/modes";
+import { MODES, qualityFilters, scoreAll, shortfall, coverageSlots, DROP_TEXT, type ModeId } from "@rafaga/selection/modes";
 import { StageError, type StageCtx, type StageImpl, type StageRow } from "./registry.ts";
 import { GroqLimiter, limitsFromEnv } from "../groqlimits.ts";
 
@@ -15,11 +15,11 @@ export interface SelectDeps { propose?: (a: { brief: string; windowText: string;
 const dir = (ctx: StageCtx, gen: string) => { const d = join(ctx.tmpDir ?? "/tmp/rafaga", `gen-${gen}`); mkdirSync(d, { recursive: true }); return d; };
 const candKey = (ws: string, gen: string) => `${ws}/stages/${gen}-candidates.json`;
 const clean = (s: string) => s.replace(/\bviral(es|idad)?\b/gi, "interesante");
-const NO_MODE = (m: string | null): ModeId => (m && m in MODES ? (m as ModeId) : "automatico");
+const NO_MODE = (m: string | null): ModeId => (m && m in MODES ? (m as ModeId) : "cualquier_momento");
 
 function bounds(gc: Gctx) {
   const min = Number(gc.params.min_s ?? 10), max = Math.max(min + 1, Number(gc.params.max_s ?? 180));
-  const range = (gc.words.at(-1)?.end ?? 0) - (gc.words[0]?.start ?? 0);
+  const p = gc.params as { range_start_ms?: number; range_end_ms?: number }, range = p.range_end_ms != null && p.range_start_ms != null ? (p.range_end_ms - p.range_start_ms) / 1000 : (gc.words.at(-1)?.end ?? 0) - (gc.words[0]?.start ?? 0);
   const want = gc.params.count ? Number(gc.params.count) : Math.max(1, Math.min(20, Math.floor(range / Math.max(min, 1))));
   return { min, max, want, asked: Math.max(3, Math.min(10, Math.ceil(want * 1.6))) };
 }
@@ -67,10 +67,11 @@ const candidates: StageImpl = {
     const gen = String(row.params.generation_id), gc = await ctx.rpc<Gctx>("generation_context", { p_generation: gen });
     if (!gc) throw new StageError("not_found", "La generación no existe");
     const mode = NO_MODE(gc.mode), b = bounds(gc), words = gc.words;
-    if (!words.length && mode !== "manual") throw new StageError("no_speech", "No hay habla que analizar");
+    if (!words.length && mode !== "manual" && mode !== "cualquier_momento") throw new StageError("no_speech", "No hay habla que analizar");
     let raw: RawCandidate[] = [], aiWindows = "0/0", err = "";
     if (mode === "manual") raw = [];
     else if (MODES[mode].model === null) raw = highlightCandidates(words, gc.audio_signals, gc.scenes, b.min, b.max, b.want);
+    else if (!words.length) raw = [];
     else { const r = await askAll(words, mode, gc.params.brief, b, makePropose(ctx, (ctx.deps ?? {}) as SelectDeps)); raw = r.raw; aiWindows = `${r.ok}/${r.total}`; err = r.lastErr; }
     if (!ctx.r2) throw new StageError("not_configured", "R2 no está configurado en el worker");
     const f = join(dir(ctx, gen), "candidates.json"); writeFileSync(f, JSON.stringify({ raw, mode, ai_windows: aiWindows }));
@@ -79,6 +80,8 @@ const candidates: StageImpl = {
   },
 };
 
+/** n elementos repartidos de forma pareja (ya ordenados por inicio). */
+function spreadPick<T>(xs: T[], n: number): T[] { return xs.length <= n ? xs : Array.from({ length: n }, (_, i) => xs[Math.round((i * (xs.length - 1)) / Math.max(1, n - 1))]); }
 const overlaps = (a: { s: number; e: number }, b: { s: number; e: number }) => Math.min(a.e, b.e) - Math.max(a.s, b.s) > 0;
 
 const select: StageImpl = {
@@ -130,7 +133,10 @@ const select: StageImpl = {
       if (merged.length) { acc = merged; relaxed = `${rMin}-${rMax}`; }
     }
     // 5) puntuar, ordenar por nota y quedarse con los pedidos; guardar en orden temporal
-    const scored = scoreAll(words, acc, { brief, minSec: b.min, maxSec: b.max }).slice(0, b.want).sort((x, y) => x.startSec - y.startSec);
+    const byStart = (x: { startSec: number }, y: { startSec: number }) => x.startSec - y.startSec;
+    const ranked = scoreAll(words, acc, { brief, minSec: b.min, maxSec: b.max });
+    // «Cualquier momento» no prima lo llamativo: reparte los elegidos por todo el vídeo; los demás modos se quedan con los de mejor nota.
+    const scored = (mode === "cualquier_momento" ? spreadPick(ranked.sort(byStart), b.want) : ranked.slice(0, b.want)).sort(byStart);
     const payload = scored.map((c) => {
       const p = padBounds(words, c.startWord, c.endWord), s = c.score, r = s.reasons;
       const top = (Object.keys(r) as (keyof typeof r)[]).sort((x, y) => r[y].score - r[x].score).slice(0, 2).map((k) => r[k].text);
@@ -140,12 +146,32 @@ const select: StageImpl = {
           reasons: Object.fromEntries((Object.keys(r) as (keyof typeof r)[]).map((k) => [k, r[k].text])), notes: s.notes, mode,
           relevance: Math.round(r.afinidad.score * 10), hook: Math.round(r.gancho.score * 10), standalone: Math.round(r.desarrollo.score * 10), closure: Math.round(r.calidad_tecnica.score * 10) } };
     });
+    // 5b) «Cualquier momento»: si no hay suficientes momentos con voz (videoclips, música), se reparten tramos por el vídeo hasta llegar al número pedido
+    let filled = 0;
+    if (mode === "cualquier_momento" && payload.length < b.want) {
+      const gp = gc.params as { range_start_ms?: number; range_end_ms?: number; target_s?: number };
+      const rs = gp.range_start_ms != null ? gp.range_start_ms / 1000 : (words[0]?.start ?? 0), re = gp.range_end_ms != null ? gp.range_end_ms / 1000 : (words.at(-1)?.end ?? 0);
+      const taken = [...payload.map((c) => ({ startSec: c.start_ms / 1000, endSec: c.end_ms / 1000 })), ...prev.map((q) => ({ startSec: q.s, endSec: q.e }))];
+      const snapStart = (t: number) => { const w = words.find((x) => x.start <= t && x.end > t); return w ? w.start : t; };
+      const snapEnd = (t: number) => { const w = words.find((x) => x.start < t && x.end >= t); return w ? w.end : t; };
+      for (const sl of coverageSlots(rs, re, taken, b.want - payload.length, b.min, b.max, gp.target_s ?? null)) {
+        const a = snapStart(sl.startSec), z = snapEnd(sl.endSec), mm = `${Math.floor(a / 60)}:${String(Math.floor(a % 60)).padStart(2, "0")}`;
+        const txt = "Tramo repartido por el vídeo";
+        payload.push({ start_ms: Math.round(a * 1000), end_ms: Math.round(z * 1000), title: `Momento a los ${mm}`, brief_fit: "",
+          reason: "Tramo elegido para repartir los clips por todo el vídeo: no había suficientes momentos con voz completa.",
+          scores: { overall: 0.5, gancho: 0.5, desarrollo: 0.5, valor: 0.5, afinidad: 0.5, calidad_tecnica: 0.5, coverage: true, mode, relevance: 5, hook: 5, standalone: 5, closure: 5, notes: {},
+            reasons: { gancho: txt, desarrollo: txt, valor: txt, afinidad: txt, calidad_tecnica: txt } } });
+        filled++;
+      }
+      payload.sort((x, y) => x.start_ms - y.start_ms);
+      if (filled) warnings.push({ code: "coverage_fill", message: `${filled} de los ${payload.length} clips son tramos repartidos por el vídeo, porque no había suficientes momentos con voz completa.` });
+    }
     const reasons = Object.entries(dropCount).map(([k, n]) => `${n} ${n === 1 ? "momento" : "momentos"}: ${DROP_TEXT[k] ?? k}`);
     const sf = shortfall(gc.requested_count ?? gc.params.count ?? null, payload.length, reasons);
     if (sf) warnings.push(sf);
     if (aiWindows.startsWith("0/") && aiWindows !== "0/0" && MODES[mode].model) warnings.push({ code: "selector_fallback", message: "La IA no respondió; se usaron reglas de respaldo." });
     await ctx.rpc("save_selection", { p_generation: gen, p_candidates: payload, p_warnings: warnings, p_requested: gc.requested_count ?? gc.params.count ?? null });
-    return { output: { delivered: payload.length, requested: gc.requested_count ?? gc.params.count ?? null, ai_windows: aiWindows, ...(secondPass ? { second_pass: secondPass } : {}), ...(topup ? { topup } : {}), ...(relaxed ? { relaxed } : {}), warnings: warnings.length },
+    return { output: { delivered: payload.length, requested: gc.requested_count ?? gc.params.count ?? null, ai_windows: aiWindows, ...(secondPass ? { second_pass: secondPass } : {}), ...(topup ? { topup } : {}), ...(filled ? { coverage: filled } : {}), ...(relaxed ? { relaxed } : {}), warnings: warnings.length },
       ...(payload.length === 0 ? { units_actual: 0 } : {}) };      // 0 útiles: se devuelve la selección; el análisis se mantiene
   },
 };

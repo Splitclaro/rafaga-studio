@@ -147,3 +147,26 @@ test("translate conserva el inicio y el fin de cada grupo de subtítulos", async
   const broken = await translateGroups(groups.slice(0, 3), "en", async () => "no es json");
   assert.deepEqual(broken, groups.slice(0, 3), "si la respuesta no es válida se conserva el original");
 });
+
+// ── «Cualquier momento»: entrega todos los clips pedidos aunque el vídeo casi no tenga voz (videoclips) ──
+test("cualquier_momento: videoclip de 151 s sin voz → 5 clips repartidos, sin solaparse, con aviso coverage_fill", async () => {
+  const g = await setup([], { range_start_ms: 0, range_end_ms: 151_000, min_s: 10, max_s: 180 }, "cualquier_momento", 5);
+  const { ctx } = mk({ propose: async () => [] });
+  await SEL.candidates.run(ctx, row("candidates", g.gen));
+  const s = (await SEL.select.run(ctx, row("select", g.gen))).output as { delivered: number; coverage?: number };
+  assert.equal(s.delivered, 5); assert.equal(s.coverage, 5);
+  const cs = (await db.query<{ start_ms: number; end_ms: number }>(`select start_ms, end_ms from clip_candidates where generation_id='${g.gen}' order by start_ms`)).rows;
+  assert.equal(cs.length, 5);
+  for (let i = 0; i < cs.length; i++) { assert.ok(cs[i].end_ms - cs[i].start_ms >= 10_000 && cs[i].end_ms <= 151_000); if (i) assert.ok(cs[i].start_ms >= cs[i - 1].end_ms); }
+  const gen = (await db.query<{ delivered_count: number; warnings: { code: string }[] }>(`select delivered_count, warnings from generations where id='${g.gen}'`)).rows[0];
+  assert.equal(gen.delivered_count, 5); assert.ok(gen.warnings.some((w) => w.code === "coverage_fill"));
+});
+test("cualquier_momento: poca voz (89 palabras) y 5 pedidos → completa hasta 5 con tramos repartidos", async () => {
+  const words: TWord[] = []; let t = 20;
+  for (let i = 0; i < 89; i++) { words.push({ text: i % 9 === 8 ? "palabra." : "palabra", start: +t.toFixed(2), end: +(t + 0.3).toFixed(2) }); t += 0.5; }
+  const g = await setup(words, { range_start_ms: 0, range_end_ms: 151_000, min_s: 10, max_s: 180 }, "cualquier_momento", 5);
+  const { ctx } = mk({ propose: async () => [] });
+  await SEL.candidates.run(ctx, row("candidates", g.gen));
+  const s = (await SEL.select.run(ctx, row("select", g.gen))).output as { delivered: number };
+  assert.equal(s.delivered, 5);
+});
