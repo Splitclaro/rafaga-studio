@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { BEHAVIOUR_PRESETS, CAPTION_FONTS, CAPTION_FAMILIES, surpriseCaption, validateCaptionStyle, type BehaviourPresetId, type CaptionStyleV2 } from "@rafaga/composition";
 import { supabase } from "../lib/supabase";
+import { classicPresets } from "../lib/lyriccutover";
 import { applyPreset, deleteStyle, listStylesV2, saveStyle, toggleAB, abState, currentStyle, type RpcFn } from "../lib/styles";
 
 const field = "w-full rounded-lg border hairline bg-white px-2 py-1.5 text-sm", lbl = "mb-1 block text-xs text-[var(--muted)]";
@@ -43,6 +44,8 @@ export default function CaptionStyleEditor({ value, onChange, preset, onPreset, 
         <button type="button" className="btn btn-ghost !min-h-8" onClick={() => setAb((s) => toggleAB({ ...s, lyrics: sample, background }))} aria-pressed={ab.which === "b"}>Ver {ab.which === "a" ? "B" : "A"}</button>
         <span className="text-[var(--muted)]">Mostrando {ab.which.toUpperCase()} · misma letra y fondo</span>
       </div>
+      <div role="group" aria-label="Looks clásicos" className="flex flex-wrap items-center gap-2 text-xs"><span className="text-[var(--muted)]">Looks clásicos:</span>
+        {classicPresets().map((p) => <button key={p.id} type="button" title={p.description} className="rounded-full border hairline px-3 py-1" onClick={() => onChange(p.style)}>{p.name}</button>)}</div>
       <div role="radiogroup" aria-label="Comportamiento" className="grid grid-cols-2 gap-2 sm:grid-cols-5">
         {Object.values(BEHAVIOUR_PRESETS).map((p) => (
           <button key={p.id} type="button" role="radio" aria-checked={preset === p.id} onClick={() => { onPreset(p.id); onChange(applyPreset(value, p.id)); }}

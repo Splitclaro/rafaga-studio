@@ -447,6 +447,6 @@
     ],
     "checkpoint": "rafaga-lyric-v2-step-18",
     "files": ["apps/web/lib/lyriccutover.ts", "apps/web/lib/lyriccutover.test.ts", "apps/web/components/CaptionStyleEditor.tsx", "apps/web/components/LyricLibrary.tsx"],
-    "status": "pending"
+    "status": "done"
   }
 ]

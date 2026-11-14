@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { listStylesV2 } from "../lib/styles";
 import { officialCollections } from "../lib/lyricsettings";
+import { libraryVideos, songBadge } from "../lib/lyriccutover";
 
 const TABS = ["Mis vídeos", "Mis canciones", "Paquetes de ganchos", "Paquetes de medios", "Crear desde vídeo", "Colecciones Ráfaga", "Estilos de texto", "Portadas"] as const;
 type Tab = (typeof TABS)[number];
@@ -20,8 +21,11 @@ export default function LyricLibrary({ workspaceId }: { workspaceId: string | nu
 
   const load = useCallback(async () => {
     setRows(null);
-    if (tab === "Mis vídeos") { const { data } = await supabase.from("renders").select("id,status,kind,created_at,clips(title)").eq("kind", "mp4").order("created_at", { ascending: false }).limit(30); setRows((data ?? []).map((r: any) => ({ id: r.id, title: r.clips?.title ?? "Vídeo", sub: `${r.status} · ${new Date(r.created_at).toLocaleDateString("es")}` }))); }
-    else if (tab === "Mis canciones") { const { data } = await supabase.from("songs").select("id,title,artist,status").not("source_id", "is", null).order("created_at", { ascending: false }); setRows((data ?? []).map((s: any) => ({ id: s.id, title: s.title, sub: `${s.artist ?? "Sin artista"} · ${s.status}` }))); }
+    if (tab === "Mis vídeos") {
+      const [{ data: v2 }, { data: old }] = await Promise.all([supabase.from("renders").select("id,status,kind,created_at,clips(title)").eq("kind", "mp4").order("created_at", { ascending: false }).limit(30), supabase.from("lyric_videos").select("id,variant,status,storage_path,songs(title)").order("created_at", { ascending: false }).limit(30)]);
+      setRows(libraryVideos((old ?? []).map((r: any) => ({ id: r.id, variant: r.variant, status: r.status, storage_path: r.storage_path, song_title: r.songs?.title })), (v2 ?? []).map((r: any) => ({ id: r.id, status: r.status, title: r.clips?.title }))).map((v) => ({ id: v.id, title: v.title, sub: `${v.status} · ${v.origin === "v2" ? "Nuevo" : "Flujo anterior"}` })));
+    }
+    else if (tab === "Mis canciones") { const { data } = await supabase.from("songs").select("id,title,artist,status,source_id").order("created_at", { ascending: false }); setRows((data ?? []).map((s: any) => ({ id: s.id, title: s.title, sub: `${s.artist ?? "Sin artista"} · ${s.status}${songBadge(s) ? ` · ${songBadge(s)} (solo en el flujo anterior)` : ""}` }))); }
     else if (tab === "Paquetes de ganchos") { const { data } = await supabase.from("hook_packs").select("id,name,hooks").order("created_at"); setPacks((data ?? []) as Hook[]); setRows([]); }
     else if (tab === "Estilos de texto") { const { data } = await supabase.from("text_styles").select("id,name,style"); setRows(listStylesV2((data ?? []) as never).map((s) => ({ id: s.id, title: s.name, sub: `${s.style.font} · ${s.preset}` }))); }
     else if (tab === "Colecciones Ráfaga") { const { data } = await supabase.from("media_collections").select("id,name,official").eq("purpose", "backgrounds"); const o = officialCollections((data ?? []) as { id: string; name: string; official: boolean }[]); setOfficialEmpty(o.empty); setRows(o.items.map((c) => ({ id: c.id, title: c.name }))); }
@@ -73,6 +77,11 @@ export default function LyricLibrary({ workspaceId }: { workspaceId: string | nu
     setMsg(error ? (error.message.includes("duplicate") ? "Ya tienes un paquete con ese nombre." : "No se pudo crear el paquete.") : "Paquete creado."); void load();
   }
   const [target, setTarget] = useState("");
+  /** «Probar con la canción de demostración»: cada apertura crea su propia copia en tu espacio. */
+  async function openDemo() {
+    setBusy(true); const r = await fetch("/api/lyrics/demo", { method: "POST", headers: await hdr(`demo-${crypto.randomUUID()}`) }); setBusy(false);
+    setMsg(r.ok ? "Preparando la canción de demostración. En unos segundos aparecerá en Mis canciones." : "No se pudo abrir la demostración."); if (r.ok) void load();
+  }
   async function savePack() {
     if (!workspaceId) return setMsg("No se encontró tu espacio de trabajo.");
     const hooks = text.split("\n").map((l) => l.trim()).filter(Boolean);
@@ -111,6 +120,7 @@ export default function LyricLibrary({ workspaceId }: { workspaceId: string | nu
         <select aria-label="Subir a" className="rounded-lg border hairline px-2 py-1.5" value={target} onChange={(e) => setTarget(e.target.value)}><option value="">Subir a…</option>{(rows ?? []).map((r) => <option key={r.id} value={r.id}>{r.title}</option>)}</select>
         <input type="file" accept={tab === "Portadas" ? "image/jpeg,image/png,image/webp" : "video/mp4,video/quicktime,video/webm,image/jpeg,image/png,image/webp"} disabled={!target || busy} onChange={(e) => { const f = e.target.files?.[0]; if (f && target) void uploadMedia(f, target); e.target.value = ""; }} aria-label="Archivo" />
         <button className="btn btn-ghost !min-h-9" onClick={() => void newCollection(tab === "Portadas" ? "artwork" : "backgrounds")}>Nuevo paquete</button></div>}
+      {tab === "Mis canciones" && <div><button className="btn btn-ghost !min-h-9" disabled={busy} onClick={() => void openDemo()}>Probar con la canción de demostración</button></div>}
       {msg && <p role="status" className="text-sm">{msg}</p>}
     </section>
   );
