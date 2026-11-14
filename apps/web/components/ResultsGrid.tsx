@@ -18,6 +18,7 @@ const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).
 const WARN: Record<string, (w: Gen["warnings"][number]) => string> = {
   shortfall: (w) => `Pediste ${w.requested} clips y hay ${w.delivered} que valen la pena${w.reasons?.length ? `: ${w.reasons.join("; ")}` : ""}.`,
   no_moments: (w) => `No se encontraron momentos que cumplan lo pedido${w.reasons?.length ? ` (${w.reasons.join("; ")})` : ""}. Prueba otro tema, modo o duración.`,
+  coverage_fill: (w) => w.message ?? "Algunos clips son tramos repartidos por el vídeo, porque no había suficientes momentos con voz completa.",
   selector_fallback: (w) => w.message ?? "Se usaron reglas de respaldo.", safe_zone: () => "Algún texto invade la zona de la interfaz de la plataforma.",
 };
 
@@ -81,7 +82,7 @@ export default function ResultsGrid({ projectId, sourceId }: { projectId: string
           </div>
           <button type="button" className="btn btn-primary !py-1.5 !text-xs" onClick={() => setNewGen((x) => !x)}>{newGen ? "Cerrar" : "Nueva generación"}</button>
         </div>
-        {latest?.warnings?.length ? <ul className="mt-3 space-y-1 text-sm" role="status">{latest.warnings.map((w, i) => <li key={i} className="rounded-lg bg-[var(--surface)] px-3 py-2">{(WARN[w.code] ?? (() => w.code))(w)}</li>)}</ul> : null}
+        {latest?.warnings?.length ? <ul className="mt-3 space-y-1 text-sm" role="status">{latest.warnings.map((w, i) => <li key={i} className="rounded-lg bg-[var(--surface)] px-3 py-2">{(WARN[w.code] ?? (() => w.message ?? "Aviso de la generación."))(w)}</li>)}</ul> : null}
       </div>
       {newGen && src && <div className="mt-4"><CreationPanel projectId={projectId} durationMs={src.duration_ms} onCreated={() => { setNewGen(false); router.refresh(); load(); }} /></div>}
 

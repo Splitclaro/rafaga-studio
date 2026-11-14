@@ -92,7 +92,7 @@ export default function PreviewPlayer({ clips, index, onIndex, onClose, proxyUrl
   const aspect = comp ? RATIO_SIZE[comp.aspect] : { width: 1080, height: 1920 }, ratio = aspect.width / aspect.height;
   const panel = (
     <div className={`flex min-w-0 flex-col gap-3 ${fullscreen ? "w-[320px] shrink-0 overflow-y-auto p-5 text-white" : ""}`}>
-      <div><h2 className="text-lg font-semibold leading-tight">{clip.title}</h2>
+      <div><h2 className="text-lg font-semibold leading-tight !text-white">{clip.title}</h2>
         <p className="mt-1 text-sm opacity-80">{clip.overall != null ? `Encaje estimado ${clip.overall}/100 · ` : ""}{Math.round(dur)} s · {index + 1} de {clips.length}</p></div>
       {clip.reason && <p className="text-sm opacity-90">{clip.reason}</p>}
       {clip.reasons && <ul className="space-y-1 text-xs opacity-80">{Object.values(clip.reasons).map((r) => <li key={r}>{r}</li>)}</ul>}
