@@ -15,6 +15,7 @@ const NAV: (NavItem & { glyph: string })[] = [
   { href: "/app/brand-kits", label: "Brand kit", icon: "brand", glyph: "◈", ready: true, group: "" },
   { href: "/app/entregas", label: "Compartidos conmigo", icon: "share", glyph: "⇩", ready: true, group: "" },
   { href: "/app/lyric-studio", label: "Lyric Studio", icon: "music", glyph: "♪", ready: true, group: "" },
+  { href: "/app/uso", label: "Uso", icon: "chart", glyph: "◔", ready: true, group: "" },
   { href: "/app/conexiones", label: "Conexiones", icon: "link", glyph: "⚭", ready: true, group: "" },
 ];
 const OTHER: NavItem[] = [

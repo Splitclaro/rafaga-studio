@@ -111,3 +111,10 @@ test("criterio 3 (análisis): transcribe dos veces sobre el mismo audio y modelo
   const t = (await db.query<{ words: unknown[]; language: string }>(`select t.words, t.language from analyses a join transcripts t on t.id = a.transcript_id where a.id='${analysis}'`)).rows[0];
   assert.equal(t.words.length, 2); assert.equal(t.language, "es");
 });
+
+test("transcribe en otro contenedor (sin audio.ogg en su disco): regenera el audio desde la mezzanine y transcribe, sin caer en no_audio", async () => {
+  let asr = 0;
+  const other = ctx({ env: {}, deps: { transcribeChunk: async () => { asr++; return { words: [{ text: "Hola", start: 0.2, end: 0.6 }], language: "es" }; } } });   // tmpDir nuevo: prepare no corrió aquí
+  const out = (await AN.transcribe.run(other, row("transcribe", { duration_s: 6 }))).output as { words: number; no_audio?: boolean };
+  assert.equal(out.no_audio, undefined); assert.equal(out.words, 1); assert.equal(asr, 1);
+});

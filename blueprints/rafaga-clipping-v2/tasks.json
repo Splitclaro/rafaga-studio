@@ -431,6 +431,6 @@
     ],
     "checkpoint": "rafaga-v2-step-18",
     "files": ["workers/media/src/stages/purge.ts", "workers/media/src/lifecycle.test.ts", "apps/web/app/app/uso/page.tsx", "scripts/perf-run.ts", "docs/PERF.md"],
-    "status": "pending"
+    "status": "done"
   }
 ]

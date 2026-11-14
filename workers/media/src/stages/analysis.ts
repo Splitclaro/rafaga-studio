@@ -46,16 +46,24 @@ export async function mezzaninePath(ctx: StageCtx, source: string): Promise<{ fi
 const sha = (p: string) => createHash("sha256").update(readFileSync(p)).digest("hex");
 const range = (row: StageRow) => ({ start: Number(row.params.range_start_s ?? (row.params.range_start_ms != null ? Number(row.params.range_start_ms) / 1000 : 0)), end: row.params.range_end_s != null ? Number(row.params.range_end_s) : row.params.range_end_ms != null ? Number(row.params.range_end_ms) / 1000 : null });
 
+/** Extrae el audio de trabajo (opus mono 16 kHz) de la mezzanine. Lo usan `prepare` y, si el audio no está en este disco
+ *  (otro contenedor o reinicio), `transcribe` y `speakers`: así ninguna etapa depende de que la anterior corriera aquí. */
+async function extractAudio(ctx: StageCtx, row: StageRow): Promise<{ audio: string; has_audio: boolean; duration_s: number; no_audio_total: number }> {
+  const source = String(row.params.source_id), { file, info } = await mezzaninePath(ctx, source), r = range(row), out = join(dirOf(ctx, source), "audio.ogg");
+  const duration_s = (r.end ?? (info.duration_ms ?? 0) / 1000) - r.start;
+  if (info.has_audio === false) return { audio: out, has_audio: false, duration_s: (info.duration_ms ?? 0) / 1000, no_audio_total: 1 };
+  const args = ["-y", "-v", "error", ...(r.start ? ["-ss", String(r.start)] : []), ...(r.end != null ? ["-t", String(r.end - r.start)] : []), "-i", file, "-vn", "-ac", "1", "-ar", "16000", "-c:a", "libopus", "-b:a", "24k", out];
+  const p = spawnSync("ffmpeg", args, { encoding: "utf8" });
+  if (p.status !== 0) throw new StageError("prepare_failed", `ffmpeg: ${p.stderr?.slice(-200)}`);
+  return { audio: out, has_audio: true, duration_s, no_audio_total: 0 };
+}
+
 const prepare: StageImpl = {
   inputs: (_c, row) => ({ stage: "prepare", source: row.params.source_id, range: range(row) }),
   async run(ctx, row) {
-    const source = String(row.params.source_id), { file, info } = await mezzaninePath(ctx, source);
-    if (info.has_audio === false) return { output: { duration_s: (info.duration_ms ?? 0) / 1000, no_audio: true } };
-    const r = range(row), out = join(dirOf(ctx, source), "audio.ogg");
-    const args = ["-y", "-v", "error", ...(r.start ? ["-ss", String(r.start)] : []), ...(r.end != null ? ["-t", String(r.end - r.start)] : []), "-i", file, "-vn", "-ac", "1", "-ar", "16000", "-c:a", "libopus", "-b:a", "24k", out];
-    const p = spawnSync("ffmpeg", args, { encoding: "utf8" });
-    if (p.status !== 0) throw new StageError("prepare_failed", `ffmpeg: ${p.stderr?.slice(-200)}`);
-    return { output: { audio_sha256: sha(out), bytes: statSync(out).size, duration_s: (r.end ?? (info.duration_ms ?? 0) / 1000) - r.start, no_audio: false } };
+    const x = await extractAudio(ctx, row);
+    if (!x.has_audio) return { output: { duration_s: x.duration_s, no_audio: true } };
+    return { output: { audio_sha256: sha(x.audio), bytes: statSync(x.audio).size, duration_s: x.duration_s, no_audio: false } };
   },
 };
 
@@ -69,7 +77,7 @@ const transcribe: StageImpl = {
   },
   async run(ctx, row) {
     const source = String(row.params.source_id), dir = dirOf(ctx, source), audio = join(dir, "audio.ogg");
-    if (!existsSync(audio)) return { output: { words: 0, language: null, no_audio: true } };
+    if (!existsSync(audio) && !(await extractAudio(ctx, row)).has_audio) return { output: { words: 0, language: null, no_audio: true } };
     const cfg = aiConfig(ctx.env ?? process.env), deps = (ctx.deps ?? {}) as AsrDeps;
     const limiter = deps.limiter ?? new GroqLimiter(limitsFromEnv(ctx.env ?? process.env));
     const total = Number(row.params.duration_s ?? 0) || Number((spawnSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", audio], { encoding: "utf8" }).stdout || "0").trim());
@@ -151,6 +159,7 @@ const speakers: StageImpl = {
   async run(ctx, row) {
     const source = String(row.params.source_id), dir = dirOf(ctx, source), audio = join(dir, "audio.ogg"), deps = (ctx.deps ?? {}) as SpeakerDeps;
     const key = (ctx.env ?? process.env).DEEPGRAM_API_KEY;
+    if (key && !existsSync(audio)) await extractAudio(ctx, row).catch(() => undefined);
     if (key && existsSync(audio)) {
       try {
         const dg = deps.deepgram ?? (async (a: Uint8Array, k: string) => deepgramTranscribe(a, "audio/ogg", k, "auto"));
