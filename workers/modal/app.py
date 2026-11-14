@@ -38,6 +38,7 @@ image = (
 )
 app = modal.App("rafaga-worker")
 secret = modal.Secret.from_name("rafaga-worker")
+wake_secret = modal.Secret.from_name("rafaga-wake")  # solo WAKE_SECRET; el último secreto prevalece
 
 def _node(*args, timeout):  # solo opciones que imprime `stage.ts --list-flags`
     return subprocess.run(["node", "workers/media/src/stage.ts", *args], cwd="/repo", env={**os.environ, **FN_ENV},
@@ -60,7 +61,7 @@ def drain():
 def run_legacy():  # tipos v1 durante la coexistencia; mismo código que en Actions
     return subprocess.run(["node", "src/run.ts"], cwd="/repo/workers/media", env={**os.environ, **FN_ENV}, timeout=3540).returncode
 
-@app.function(image=image, secrets=[secret], timeout=60)
+@app.function(image=image, secrets=[secret, wake_secret], timeout=60)
 @modal.fastapi_endpoint(method="POST")
 def dispatch(body: dict, x_rafaga_wake: str | None = (Header(default=None) if Header else None)):
     if not hmac.compare_digest((x_rafaga_wake or "").encode(), os.environ["WAKE_SECRET"].encode()):

@@ -85,8 +85,13 @@
     "plan": "Starter (1 USD/mes, sin método de pago, tope duro de Modal)",
     "app": "workers/modal/app.py",
     "secret": "rafaga-worker",
-    "status": "pendiente_de_despliegue_por_el_propietario",
+    "status": "desplegado",
     "compute_budget_usd": 1,
-    "verified_via": "modal.com/settings/splitclaro/usage"
+    "verified_via": "modal.com/settings/splitclaro/usage",
+    "dispatch_url": "https://splitclaro--rafaga-worker-dispatch.us-east.modal.run",
+    "secrets": [
+      "rafaga-worker",
+      "rafaga-wake"
+    ]
   }
 }
