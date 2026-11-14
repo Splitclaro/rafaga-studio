@@ -52,9 +52,8 @@ export async function handleClips(req: Request, slug: string[], f: Fetch = fetch
     const idem = idempotencyKey(req); if (!idem) return json({ error: { code: "invalid_params", field: "Idempotency-Key", message: "Falta la cabecera Idempotency-Key." } }, 400);
     const groups = body.groups, lang = String(body.target_language ?? "");
     if (!Array.isArray(groups) || !groups.length || !/^[a-z]{2}(-[A-Z]{2})?$/.test(lang) || JSON.stringify(groups).length > 7000) return json({ error: { code: "invalid_params", message: "Grupos o idioma no válidos." } }, 400);
-    const minutes = Math.max(0.1, (groups as { end: number; start: number }[]).reduce((t, g) => t + Math.max(0, g.end - g.start), 0) / 60), units = Math.round(minutes * 0.1 * 100) / 100;
-    const r = await rpc<{ job_id: string }>(token, "enqueue_job", { p_ws: clip.workspace_id, p_kind: "translate", p_stages: [{ stage: "translate", seq: 1, units, params: { groups, target_language: lang, clip_id: id } }], p_idem: idem, p_params: { clip_id: id, target_language: lang }, p_project: clip.project_id, p_generation: null }, f);
-    return r.error ? mapDbError(r.error) : json({ job_id: r.data!.job_id, units }, 202);
+    const r = await rpc<{ job_id: string; units: number }>(token, "request_translate", { p_clip: id, p_lang: lang, p_groups: groups, p_idem: idem }, f);
+    return r.error ? mapDbError(r.error) : json({ job_id: r.data!.job_id, units: r.data!.units }, 202);
   }
   return json({ error: { code: "not_found", message: "No encontrado." } }, 404);
 }

@@ -83,3 +83,10 @@ test("solo la migración 035 escribe en credit_ledger", () => {
   for (const d of ["supabase/migrations", "apps/web", "workers", "packages"]) walk(join(root, d));
   assert.deepEqual(hits, ["supabase/migrations/20261113000035_credit_ledger.sql"]);
 });
+
+test("enqueue_job ya no es invocable por un usuario: ni con unidades 0 ni con etapas libres (auditoría A01-003)", async () => {
+  const before = (await db.query<{ n: number }>("select count(*)::int n from jobs")).rows[0].n;
+  const r = await call(tokenFor(A), "enqueue_job", { p_ws: wsA, p_kind: "generation", p_stages: [{ stage: "transcribe", seq: 1, units: 0, params: { source_id: "00000000-0000-0000-0000-000000000000" } }], p_idem: "free-stage-0001", p_params: {}, p_project: null, p_generation: null });
+  assert.notEqual(r.status, 200);
+  assert.equal((await db.query<{ n: number }>("select count(*)::int n from jobs")).rows[0].n, before, "no se creó ningún trabajo");
+});
