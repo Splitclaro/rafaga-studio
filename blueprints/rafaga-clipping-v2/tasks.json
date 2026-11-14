@@ -19,7 +19,7 @@
     ],
     "checkpoint": "rafaga-v2-step-01",
     "files": ["supabase/tests/migrate.ts", "supabase/tests/migrate.test.ts", "supabase/tests/rls.test.ts"],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E1-T2",
@@ -41,7 +41,7 @@
     ],
     "checkpoint": "rafaga-v2-step-02",
     "files": ["supabase/migrations/20261113000034_clipping_v2_core.sql", "supabase/tests/v2_core.test.ts"],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E1-T3",
@@ -63,7 +63,7 @@
     ],
     "checkpoint": "rafaga-v2-step-03",
     "files": ["supabase/migrations/20261113000035_credit_ledger.sql", "supabase/tests/ledger.test.ts", "supabase/tests/fake-supabase.ts", "apps/web/lib/api.ts", "apps/web/lib/api.test.ts"],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E1-T4",
@@ -86,7 +86,7 @@
     ],
     "checkpoint": "rafaga-v2-step-04",
     "files": ["supabase/migrations/20261113000036_job_stages.sql", "supabase/tests/job_stages.test.ts", "apps/web/app/api/jobs/[[...slug]]/route.ts", "apps/web/lib/jobs.test.ts", "apps/web/components/ProjectList.tsx"],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E1-T5",
@@ -112,7 +112,7 @@
     ],
     "checkpoint": "rafaga-v2-step-05",
     "files": ["workers/media/src/stage.ts", "workers/media/src/stages/registry.ts", "workers/media/src/stages/runner.ts", "workers/media/src/stages/hash.ts", "workers/media/src/stages.test.ts"],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E1-T6",
@@ -137,7 +137,7 @@
     ],
     "checkpoint": "rafaga-v2-step-06",
     "files": ["workers/modal/app.py", "workers/modal/requirements.txt", "workers/modal/README.md", "apps/web/app/api/wake/route.ts", "apps/web/lib/wake.test.ts"],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E2-T1",
@@ -160,7 +160,7 @@
     ],
     "checkpoint": "rafaga-v2-step-07",
     "files": ["packages/providers/src/r2.ts", "packages/providers/src/r2.test.ts", "supabase/migrations/20261113000037_upload_storage.sql", "apps/web/app/api/uploads/[[...slug]]/route.ts", "apps/web/lib/uploads.test.ts"],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E2-T2",
@@ -185,7 +185,7 @@
     ],
     "checkpoint": "rafaga-v2-step-08",
     "files": ["apps/web/lib/uploader.ts", "apps/web/lib/uploader.test.ts", "apps/web/lib/hash.worker.ts", "apps/web/components/UploadPanel.tsx", "scripts/r2-multipart-probe.ts"],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E2-T3",
@@ -208,7 +208,7 @@
     ],
     "checkpoint": "rafaga-v2-step-09",
     "files": ["workers/media/src/stages/validate.ts", "workers/media/src/fixtures.ts", "workers/media/src/validate.test.ts", "apps/web/lib/progress.ts", "apps/web/lib/progress.test.ts"],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E2-T4",
@@ -233,7 +233,7 @@
     ],
     "checkpoint": "rafaga-v2-step-10",
     "files": ["workers/media/src/stages/analysis.ts", "workers/media/src/groqlimits.ts", "workers/media/src/analysis.test.ts", "apps/web/components/ProcessingPanel.tsx", "apps/web/app/app/p/[id]/page.tsx"],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E2-T5",
@@ -257,7 +257,7 @@
     ],
     "checkpoint": "rafaga-v2-step-11",
     "files": ["apps/web/app/api/generations/[[...slug]]/route.ts", "apps/web/lib/generations.ts", "apps/web/lib/generations.test.ts", "apps/web/components/CreationPanel.tsx", "apps/web/app/app/nuevo/page.tsx"],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E2-T6",
@@ -279,7 +279,7 @@
     ],
     "checkpoint": "rafaga-v2-step-12",
     "files": ["packages/selection/package.json", "packages/selection/src/modes.ts", "packages/selection/src/modes.test.ts", "workers/media/src/stages/select.ts", "workers/media/src/select.test.ts"],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E3-T1",
@@ -302,7 +302,7 @@
     ],
     "checkpoint": "rafaga-v2-step-13",
     "files": ["packages/composition/src/layouts.ts", "packages/composition/src/safezones.ts", "packages/composition/src/index.ts", "workers/media/src/stages/compose.ts", "workers/media/src/compose.test.ts"],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E3-T2",
@@ -330,7 +330,7 @@
     ],
     "checkpoint": "rafaga-v2-step-14",
     "files": ["packages/composition/src/layouts.ts", "packages/composition/src/parity.test.ts", "apps/web/components/PreviewPlayer.tsx", "apps/web/components/ResultsGrid.tsx", "apps/web/app/app/p/[id]/page.tsx"],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E3-T3",
@@ -355,7 +355,7 @@
     ],
     "checkpoint": "rafaga-v2-step-15",
     "files": ["apps/web/lib/editor.ts", "apps/web/lib/editor.test.ts", "apps/web/app/api/clips/[[...slug]]/route.ts", "apps/web/app/app/c/[id]/page.tsx", "apps/web/app/app/demos/page.tsx"],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E3-T4",
