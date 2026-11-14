@@ -190,7 +190,7 @@
     ],
     "checkpoint": "rafaga-lyric-v2-step-08",
     "files": ["packages/composition/src/style.ts", "packages/composition/src/lyricscene.ts", "packages/composition/src/lyricscene.test.ts", "packages/composition/src/index.ts", "workers/media/src/lyric_ass.test.ts"],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E2-T3",
