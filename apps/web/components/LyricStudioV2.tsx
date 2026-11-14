@@ -9,6 +9,7 @@ import type { SyncWord } from "@rafaga/lyrics";
 import LyricSyncEditor from "./LyricSyncEditor";
 import LyricPreview from "./LyricPreview";
 import LyricLibrary from "./LyricLibrary";
+import LyricSettings from "./LyricSettings";
 import { validateLyricComposition, switchLyricMode, type LyricComposition } from "@rafaga/composition";
 
 const MAX_SONG = 62914560;
@@ -120,6 +121,7 @@ export default function LyricStudioV2() {
         <input className="w-full rounded-lg border hairline px-2 py-1.5" placeholder="Gancho (opcional, franja superior)" maxLength={120} value={comp.hook?.text ?? ""} onChange={(e) => setComp({ ...comp, hook: e.target.value ? { text: e.target.value, dur: comp.hook?.dur ?? 3, start: comp.hook?.start } : null })} aria-label="Gancho" />
       </section>}
       {comp && <LyricPreview composition={comp} onChange={setComp} />}
+      {comp && <LyricSettings composition={comp} onChange={setComp} />}
       <LyricLibrary workspaceId={wsId} />
       {editing && <LyricSyncEditor songId={editing.song.id} audioUrl={editing.url} lyrics={editing.song.lyrics_text ?? editing.words.map((w) => w.text).join(" ")} revision={editing.revision} words={editing.words} onSaved={() => void load()} />}
     </main>
