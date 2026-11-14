@@ -119,18 +119,7 @@ export default function Dashboard() {
         </section>
 
         {/* Qué buscar + conexiones */}
-        <section aria-label="Qué buscar y conexiones" className="grid gap-4 lg:grid-cols-[3fr_2fr]">
-          <div className="card flex flex-col gap-3 p-5">
-            <div><b className="font-display text-base">Di qué buscar</b><br /><span className="text-sm text-[var(--muted)]">Opcional. Sin encargo, Ráfaga elige los mejores momentos por sí sola.</span></div>
-            <div className="flex flex-wrap gap-2">{LOOKS.map((t) => <button key={t} type="button" onClick={() => toggleLook(t)} aria-pressed={has(t)} className="chip">{t}</button>)}</div>
-            <label className="flex flex-wrap items-center gap-2.5 text-sm text-[var(--muted)]">Número de clips
-              <select value={count} onChange={(e) => setCount(Number(e.target.value))} className="input !w-auto">{[3, 4, 5, 6, 8, 10].map((n) => <option key={n} value={n}>{n}</option>)}</select>
-              <span className="mx-1">Duración</span>
-              <select value={maxLen} onChange={(e) => setMaxLen(e.target.value)} className="input !w-auto">{DURATIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
-            <details className="text-sm"><summary className="cursor-pointer text-[var(--muted)]">Más detalles del encargo y tramo</summary>
-              <div className="mt-3"><BriefFields value={bd} onChange={setBd} compact /></div>
-              <div className="mt-3 grid gap-3 sm:grid-cols-2"><label>Tramo desde<input value={from} onChange={(e) => setFrom(e.target.value)} placeholder="0:00" className="input mono mt-1" inputMode="numeric" /></label><label>Tramo hasta<input value={to} onChange={(e) => setTo(e.target.value)} placeholder="fin del vídeo" className="input mono mt-1" inputMode="numeric" /></label></div></details>
-          </div>
+        <section aria-label="Qué buscar y conexiones" className="grid gap-4 lg:grid-cols-2">
           <div className="flex flex-col gap-2.5">
             <div className="flex items-center gap-3 rounded-[14px] border border-dashed border-[#D4D4D4] bg-white px-4 py-3.5"><span aria-hidden className="grid h-10 w-10 place-items-center rounded-[10px] bg-[#F2F2F2] text-[#111111]">☁</span><span className="flex-1"><b className="text-sm">Importar desde Drive o Dropbox</b><br /><span className="text-[13px] text-[var(--muted)]">Elige un vídeo guardado en tu nube.</span></span><span className="rounded-md bg-[#F0F1F7] px-2 py-0.5 text-[11px] font-semibold text-[var(--muted)]">Próximamente</span></div>
             <div className="flex items-center gap-3 rounded-[14px] border border-dashed border-[#D4D4D4] bg-white px-4 py-3.5"><span aria-hidden className="grid h-10 w-10 place-items-center rounded-[10px] bg-[#F1E4FF] text-[#111111]">◉</span><span className="flex-1"><b className="text-sm">Conectar Twitch</b><br /><span className="text-[13px] text-[var(--muted)]">Elige una de tus emisiones.</span></span><span className="rounded-md bg-[#F0F1F7] px-2 py-0.5 text-[11px] font-semibold text-[var(--muted)]">Próximamente</span></div>
