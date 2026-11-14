@@ -72,7 +72,7 @@
     ],
     "checkpoint": "rafaga-lyric-v2-step-03",
     "files": ["apps/web/lib/routes/lyrics.ts", "apps/web/app/api/lyrics/[[...slug]]/route.ts", "apps/web/lib/lyrics.test.ts", "apps/web/components/LyricStudioV2.tsx", "apps/web/app/app/lyric-studio/page.tsx"],
-    "status": "pending"
+    "status": "done"
   },
   {
     "id": "E1-T4",

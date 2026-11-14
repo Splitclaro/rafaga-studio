@@ -13,6 +13,7 @@ import { useSearchParams } from "next/navigation";
 import LookPreview, { sampleWords } from "../../../components/LookPreview";
 import TapSync from "../../../components/TapSync";
 import BeatAnalysis from "../../../components/BeatAnalysis";
+import LyricStudioV2 from "../../../components/LyricStudioV2";
 
 type Overrides = Record<string, DeepPartial<LyricLook>>;
 type StudioSettings = { styles?: string[]; overrides?: Overrides; res?: 1080 | 720; native?: boolean; variation?: number; ratio?: string; settings?: Partial<BgSettings> };
@@ -43,7 +44,7 @@ function Step({ n: k, title, children }: { n: number; title: string; children: R
   );
 }
 
-export default function LyricStudio() {
+function LyricStudioV1() {
   const params = useSearchParams();
   const { cols, reload: reloadCols } = useCollections();
   const { saved: myStyles } = useTextStyles();
@@ -454,3 +455,6 @@ export default function LyricStudio() {
     </main>
   );
 }
+
+/** La vista v2 solo aparece con NEXT_PUBLIC_LYRIC_VERSION=v2 (por defecto, el flujo v1 intacto). */
+export default function LyricStudioPage() { return process.env.NEXT_PUBLIC_LYRIC_VERSION === "v2" ? <LyricStudioV2 /> : <LyricStudioV1 />; }

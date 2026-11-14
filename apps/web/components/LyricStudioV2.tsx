@@ -1,0 +1,87 @@
+"use client";
+// Lyric Studio v2 · Mis canciones: subir con el cargador compartido, ver el estado de validación y crear piezas.
+// Flujo de subida: sesión (/api/uploads) → registrar canción (/api/lyrics/songs) → subir partes (runUpload) → completar.
+// Si registrar falla, se cancela la sesión para no dejar una subida huérfana.
+import { useCallback, useEffect, useRef, useState } from "react";
+import { supabase } from "../lib/supabase";
+import { httpApi, localResumeStore, runUpload, type UploadEvent } from "../lib/uploader";
+
+const MAX_SONG = 62914560;
+type Song = { id: string; title: string; artist: string | null; status: "pending" | "ready" | "failed"; duration_ms: number | null; error_code: string | null; created_at: string };
+const ERR: Record<string, string> = {
+  too_long: "La canción dura más de 10 minutos. Recórtala y súbela de nuevo.",
+  too_large: "La canción pesa más de 60 MiB. Expórtala en MP3 o M4A y súbela de nuevo.",
+  unsupported_file: "El archivo no es un audio compatible o trae vídeo. Sube MP3, WAV, M4A, AAC, FLAC u OGG.",
+};
+const MODES = [["letra", "Letra"], ["texto", "Texto"], ["portada", "Portada"]] as const;
+const dur = (ms: number | null) => (ms ? `${Math.floor(ms / 60000)}:${String(Math.round(ms / 1000) % 60).padStart(2, "0")}` : "—");
+const fmt = (n: number) => `${(n / 1048576).toFixed(1)} MB`;
+
+async function sha256Hex(f: File) { return [...new Uint8Array(await crypto.subtle.digest("SHA-256", await f.arrayBuffer()))].map((b) => b.toString(16).padStart(2, "0")).join(""); }
+
+export default function LyricStudioV2() {
+  const [songs, setSongs] = useState<Song[] | null>(null), [ev, setEv] = useState<UploadEvent | null>(null), [msg, setMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false), [mode, setMode] = useState<Record<string, string>>({});
+  const ctl = useRef<{ cancel: () => Promise<void> } | null>(null);
+  const token = async () => (await supabase.auth.getSession()).data.session?.access_token ?? "";
+
+  const load = useCallback(async () => {
+    const { data } = await supabase.from("songs").select("id,title,artist,status,duration_ms,error_code,created_at").not("source_id", "is", null).order("created_at", { ascending: false });
+    setSongs((data ?? []) as Song[]);
+  }, []);
+  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { if (!songs?.some((s) => s.status === "pending")) return; const t = setInterval(() => void load(), 4000); return () => clearInterval(t); }, [songs, load]);
+
+  async function upload(f: File) {
+    setMsg(null); setEv(null);
+    if (!f.type.startsWith("audio/")) return setMsg("Sube un archivo de audio: MP3, WAV, M4A, AAC, FLAC u OGG.");
+    if (f.size > MAX_SONG) return setMsg(`La canción pesa ${fmt(f.size)}. El máximo es 60 MB: expórtala en MP3 o M4A.`);
+    setBusy(true);
+    const t = await token(), H = { Authorization: `Bearer ${t}`, "Content-Type": "application/json" };
+    let uploadId = "";
+    try {
+      const title = f.name.replace(/\.[^.]+$/, "");
+      const s = await fetch("/api/uploads", { method: "POST", headers: { ...H, "Idempotency-Key": `lyr-${crypto.randomUUID()}` }, body: JSON.stringify({ name: title, bytes: f.size, mime: f.type, force: true }) });
+      const sj = await s.json(); if (!s.ok) throw new Error(sj?.error?.message ?? "No se pudo empezar la subida.");
+      uploadId = sj.upload_id;
+      const r = await fetch("/api/lyrics/songs", { method: "POST", headers: H, body: JSON.stringify({ upload_id: uploadId, title }) });
+      if (!r.ok) { await fetch(`/api/uploads/${uploadId}`, { method: "DELETE", headers: H }).catch(() => {}); const rj = await r.json().catch(() => ({})); throw new Error(rj?.error?.message ?? "No se pudo registrar la canción."); }
+      const hash = await sha256Hex(f);
+      const up = runUpload({ uploadId, file: f, api: httpApi(t), store: localResumeStore, sha256: async () => hash, onEvent: setEv });
+      ctl.current = up; await up.promise; ctl.current = null;
+      setMsg("Canción subida. Se está validando; en unos segundos podrás crear una pieza.");
+      await load();
+    } catch (e) { setMsg((e as Error).message); } finally { setBusy(false); }
+  }
+  async function createPiece(s: Song) {
+    const t = await token(), m = mode[s.id] ?? "letra";
+    const r = await fetch("/api/lyrics/projects", { method: "POST", headers: { Authorization: `Bearer ${t}`, "Content-Type": "application/json" }, body: JSON.stringify({ song_id: s.id, mode: m }) });
+    const j = await r.json().catch(() => ({})); setMsg(r.ok ? `Pieza creada en modo ${m}.` : (j?.error?.message ?? "No se pudo crear la pieza."));
+  }
+
+  return (
+    <main className="mx-auto max-w-3xl space-y-6 p-6">
+      <h1 className="text-2xl font-bold">Lyric Studio · Mis canciones</h1>
+      <section className="card p-4" aria-label="Subir una canción">
+        <label className="block text-sm font-medium" htmlFor="song-file">Subir una canción</label>
+        <p className="text-xs text-[var(--muted)]">MP3, WAV, M4A, AAC, FLAC u OGG · hasta 60 MB y 10 minutos.</p>
+        <input id="song-file" type="file" accept="audio/*" disabled={busy} className="mt-2 text-sm" onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); e.target.value = ""; }} />
+        {ev && busy && <div className="mt-3 text-sm" aria-live="polite"><div className="h-2 overflow-hidden rounded-full bg-[var(--hairline)]"><div className="h-full bg-[var(--accent)]" style={{ width: `${Math.round((100 * ev.bytesSent) / Math.max(1, ev.totalBytes))}%` }} /></div>
+          <p className="tnum mt-1 text-xs text-[var(--muted)]">{fmt(ev.bytesSent)} de {fmt(ev.totalBytes)}</p>
+          <button className="btn btn-ghost mt-2 !min-h-9" onClick={() => void ctl.current?.cancel().then(() => { setBusy(false); setMsg("Subida cancelada. No se ha guardado nada."); })}>Cancelar</button></div>}
+        {msg && <p role="status" className="mt-3 text-sm">{msg}</p>}
+      </section>
+      <section aria-label="Canciones">
+        {songs === null ? <p className="text-sm text-[var(--muted)]">Cargando canciones…</p> : !songs.length ? <p className="card p-4 text-sm text-[var(--muted)]">Aún no hay canciones. Sube la primera para empezar.</p> :
+          <ul className="space-y-2">{songs.map((s) => (
+            <li key={s.id} className="card flex flex-wrap items-center justify-between gap-3 p-3 text-sm">
+              <div><p className="font-medium">{s.title}{s.artist ? ` · ${s.artist}` : ""}</p>
+                <p className="text-xs text-[var(--muted)]">{s.status === "pending" ? "Validando…" : s.status === "ready" ? `Lista · ${dur(s.duration_ms)}` : (ERR[s.error_code ?? ""] ?? "No se pudo validar el archivo.")}</p></div>
+              {s.status === "ready" && <div className="flex items-center gap-2">
+                <select aria-label="Modo de la pieza" className="input !min-h-9" value={mode[s.id] ?? "letra"} onChange={(e) => setMode((m) => ({ ...m, [s.id]: e.target.value }))}>{MODES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
+                <button className="btn btn-ghost !min-h-9" onClick={() => void createPiece(s)}>Crear pieza</button></div>}
+            </li>))}</ul>}
+      </section>
+    </main>
+  );
+}
