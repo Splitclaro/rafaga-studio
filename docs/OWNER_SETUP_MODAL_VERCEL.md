@@ -1,5 +1,7 @@
 # Puesta en marcha: Modal y Vercel (pasos del propietario)
 
+> **Actualización 2026-11-14 — HECHO:** Modal desplegado (apps `rafaga-worker`; secretos `rafaga-worker` y `rafaga-wake`), variables de Vercel `WORKER_BACKEND=modal`, `MODAL_DISPATCH_URL`, `WAKE_SECRET`, `NEXT_PUBLIC_PIPELINE_VERSION=v2`, `NEXT_PUBLIC_LYRIC_VERSION=v2` puestas, y el cron de GitHub Actions retirado. Verificado en producción con un videoclip real (5 pedidos → 5 entregados). **Sigue pendiente del propietario solo:** apps de YouTube/TikTok (LC-10) y claves `TIKTOK_*`/`YOUTUBE_API_KEY`; Deepgram es opcional (la transcripción usa Groq, gratis). Los pasos de abajo son el historial.
+
 Estado a 2026-11-14. **Hecho por Claude (sin secretos):** migraciones 034–042 y 100–105 aplicadas; `platform_settings.modal_rate_card` fijada con los precios de https://modal.com/pricing (0,0000131 USD por núcleo·s y 0,00000222 USD por GiB·s); presupuesto de cómputo en **1 USD** (aplicado en producción el 2026-11-14: Modal Starter sin método de pago tiene un tope duro de 1 USD, así que no puede generar cargos; el medidor bloquea trabajos nuevos al 90 %). `compute_meter()` responde `rate_card_set = true` y `blocked = false`.
 
 **Lo que NO hace Claude:** pegar credenciales en Modal o Vercel, ni desplegar. Hazlo tú, en este orden.

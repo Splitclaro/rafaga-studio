@@ -1,6 +1,6 @@
 name: media-worker
 on:
-  schedule: [{ cron: "*/5 * * * *" }]
+  # Sin cron desde 2026-11-14: el procesado de medios corre en Modal (GitHub Actions no procesa medios de usuario). Solo ejecución manual y autopruebas.
   workflow_dispatch:
     inputs:
       mode: { description: "worker | selftest | lyrics-selftest | looks-selftest | reframe-selftest | perf-selftest", default: "worker", required: false }
