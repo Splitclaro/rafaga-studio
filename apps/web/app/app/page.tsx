@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import HomeHero from "../../components/HomeHero";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import BriefFields, { EMPTY_BRIEF, briefText } from "../../components/BriefFields";
@@ -113,24 +114,7 @@ export default function Dashboard() {
         {/* Hero */}
         <section aria-label="Crear clips" className="flex flex-col items-center gap-5 rounded-[18px] bg-[#FAFAFA] border border-[#E5E5E5] px-5 py-8 md:px-8">
           <h1 className="text-center text-[28px] font-bold leading-[1.15] md:text-[34px]">Convierte tu vídeo largo en <span className="underline decoration-[3px] underline-offset-[6px]">clips listos para publicar</span></h1>
-          <form onSubmit={submit} className="flex w-full max-w-[640px] flex-col items-center gap-3">
-            <input ref={fileInput} id="file" type="file" accept="video/*,.mp4,.mov,.webm,.m4v,.mkv" className="sr-only" onChange={(e) => pick(e.target.files?.[0] ?? null)} />
-            <div onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)} onDrop={(e) => { e.preventDefault(); setDrag(false); pick(e.dataTransfer.files?.[0] ?? null); }}
-              className={`flex w-full items-center gap-2 rounded-full bg-white py-1.5 pl-5 pr-1.5 shadow-[0_1px_0_rgba(27,29,42,.04)] ${drag ? "ring-2 ring-[var(--accent)]" : ""}`}>
-              <Icon n="upload" className="h-[18px] w-[18px] shrink-0 text-[var(--accent)]" />
-              <label htmlFor="file" className="flex min-h-11 min-w-0 flex-1 cursor-pointer items-center truncate text-base">
-                {file ? <span className="truncate font-medium">{file.name} <span className="mono text-xs font-normal text-[var(--muted)]">{(file.size / 1048576).toFixed(1)} MB{dur ? ` · ${Math.floor(dur / 60)}:${String(Math.round(dur % 60)).padStart(2, "0")}` : ""}</span></span> : <span className="truncate text-[var(--muted)]">Arrastra tu vídeo aquí o elige un archivo</span>}
-              </label>
-              <button type={file ? "submit" : "button"} onClick={() => { if (!file) fileInput.current?.click(); }} disabled={busy} className="inline-flex min-h-12 items-center whitespace-nowrap rounded-full bg-[#111111] px-6 text-[15px] font-bold tracking-wide text-white disabled:opacity-60 md:px-[30px]">{busy ? "SUBIENDO…" : file ? (mode === "clips" ? "OBTENER CLIPS" : `CREAR CON ${toolLabel.toUpperCase()}`) : "ELEGIR VÍDEO"}</button>
-            </div>
-            <div className="flex flex-wrap justify-center gap-3">
-              <button type="button" onClick={() => fileInput.current?.click()} className={pill}><Icon n="upload" className="h-4 w-4 text-[var(--accent)]" />Subir archivo</button>
-              <Link href="/app/lyric-studio" className={pill}><Icon n="music" className="h-4 w-4 text-[#0F7B4F]" />Crear vídeo con letra</Link>
-              <Link href="/app/nuevo" className={pill}><Icon n="layers" className="h-4 w-4 text-[var(--accent)]" />Paso a paso</Link>
-            </div>
-            {mode !== "clips" && <p className="chip">Herramienta: <b>{toolLabel}</b><button type="button" aria-label="Quitar herramienta" onClick={() => { setMode("clips"); setFile(null); }} className="ml-1 text-[var(--muted)]">✕</button></p>}
-            <p role="status" aria-live="polite" className="min-h-5 text-center text-sm text-[var(--muted)]">{msg ?? (file ? (mode === "clips" && !brief ? "Sin encargo: Ráfaga elige los mejores momentos por sí sola." : "") : "")}</p>
-          </form>
+          <HomeHero />
           <div className="flex w-full max-w-[560px] items-center gap-3.5 rounded-xl border border-[#EEEEF4] bg-white px-3.5 py-2"><span aria-hidden className="text-[var(--accent)]">✦</span><span className="flex-1 text-sm text-[var(--muted)]">Cuéntalo con tus palabras. El Director IA lo prepara.</span><Link href="/app/director" className="inline-flex min-h-11 items-center whitespace-nowrap text-sm font-semibold text-[var(--accent-ink)]">Probar Director IA →</Link></div>
         </section>
 

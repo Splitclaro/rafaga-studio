@@ -58,7 +58,7 @@ export function lyricLayout(c: LyricComposition): LyricLayout {
   const frame = lyricFrameSize(c), em = lyricEm(c), p = BEHAVIOUR_PRESETS[c.preset], family = resolveFamilyForText(c.style.font, c.style.weight, allText(c));
   const f = fontFor(family, c.style.weight), lineHeight = even((em * (f.ascent - f.descent)) / f.unitsPerEm), maxW = frame.width * 0.84;
   const visible = c.words.map((w, i) => ({ w, i })).filter(({ w }) => w.end > c.range.start && w.start < c.range.end);
-  const wpx = (i: number) => measureText(caseOf(c, c.words[i].text), family, c.style.weight, em), space = measureText(" ", family, c.style.weight, em);
+  const tr = (c.style.tracking ?? 0) * em, wpx = (i: number) => measureText(caseOf(c, c.words[i].text), family, c.style.weight, em) + tr * caseOf(c, c.words[i].text).length, space = measureText(" ", family, c.style.weight, em) + tr;
   // 1) páginas: se cierran al cambiar de línea de letra, al pasar el máximo de palabras o de líneas
   const groups: number[][] = []; let cur: number[] = [], curLines = 1, lineW = 0;
   for (const { w, i } of visible) {
@@ -150,7 +150,7 @@ export function switchLyricMode(c: LyricComposition, mode: LyricComposition["mod
 
 export interface SceneWord { index: number; text: string; box: LyricBox; alpha: number; scale: number; dx: number; dy: number; active: boolean }
 export interface LyricScene { t: number; frame: number; words: SceneWord[]; overlays: Overlay[]; hook: string | null; message: string | null; cover: ReturnType<typeof coverAt>; shake: { dx: number; dy: number }; bars: null }
-const entranceMs = (c: LyricComposition) => { const d = BEHAVIOUR_PRESETS[c.preset].durationMs; return d; };
+const entranceMs = (c: LyricComposition) => (c.style.entranceMs && c.style.entranceMs > 0 ? c.style.entranceMs : BEHAVIOUR_PRESETS[c.preset].durationMs);
 
 /** Escena en el instante `t` (s desde el inicio del recorte): palabras visibles con su caja, opacidad, escala y desplazamiento. */
 export function lyricSceneAt(c: LyricComposition, t: number, L = lyricLayout(c), TL = lyricTimeline(c, L)): LyricScene {
@@ -197,7 +197,7 @@ export function lyricAss(c: LyricComposition): string {
   const L = lyricLayout(c), TL = lyricTimeline(c, L), p = BEHAVIOUR_PRESETS[c.preset], f = fontFor(L.family, c.style.weight), fontsize = (L.em * (f.ascent - f.descent)) / f.unitsPerEm;
   const active = c.style.active !== "none" ? c.style.active : p.active, ent = c.style.entrance !== "none" ? c.style.entrance : p.entrance, dur = entranceMs(c);
   const outline = c.style.effect === "stroke" ? Math.max(2, Math.round(L.em * 0.08)) : c.style.effect === "glow" ? 3 : 0, shadow = c.style.effect === "shadow" ? Math.max(2, Math.round(L.em * 0.05)) : 0;
-  const head = `[Script Info]\nScriptType: v4.00+\nPlayResX: ${L.frame.width}\nPlayResY: ${L.frame.height}\nWrapStyle: 2\nScaledBorderAndShadow: yes\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: W,${L.family},${fontsize.toFixed(2)},${bgr(c.style.color)},${bgr(c.style.color)},&H00000000,&H64000000,${c.style.weight === 700 ? -1 : 0},0,0,0,100,100,0,0,${c.style.effect === "box" ? 3 : 1},${c.style.effect === "box" ? 8 : outline},${shadow},7,0,0,0,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n`;
+  const head = `[Script Info]\nScriptType: v4.00+\nPlayResX: ${L.frame.width}\nPlayResY: ${L.frame.height}\nWrapStyle: 2\nScaledBorderAndShadow: yes\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: W,${L.family},${fontsize.toFixed(2)},${bgr(c.style.color)},${bgr(c.style.color)},&H00000000,&H64000000,${c.style.weight === 700 ? -1 : 0},${c.style.italic ? -1 : 0},0,0,100,100,${((c.style.tracking ?? 0) * L.em).toFixed(2)},0,${c.style.effect === "box" ? 3 : 1},${c.style.effect === "box" ? 8 : outline},${shadow},7,0,0,0,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n`;
   const ev: string[] = [];
   for (const w of TL) {
     const b = L.word[w.index].box, text = esc(L.word[w.index].text), cuts = new Set<number>([w.vs, w.ve]);

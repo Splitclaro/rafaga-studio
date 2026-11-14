@@ -11,7 +11,19 @@ const fmtEta = (s: number | null) => (s == null ? "calculando…" : s >= 3600 ? 
 type Done = { project_id: string; source_id: string; job_id: string; name: string };
 type Pending = { upload_id: string; project_id: string; source_id: string; name: string; size: number };
 
-export default function UploadPanel({ workspaceId, onDone }: { workspaceId?: string; onDone?: (d: Done) => void }) {
+export default function UploadPanel({ workspaceId, onDone, onImported }: { workspaceId?: string; onDone?: (d: Done) => void; onImported?: (projectId: string) => void }) {
+  const [url, setUrl] = useState(""), [linkBusy, setLinkBusy] = useState(false);
+  async function importLink() {
+    if (!url.trim() || linkBusy) return;
+    setLinkBusy(true); setMsg(null);
+    try {
+      const t = (await supabase.auth.getSession()).data.session?.access_token ?? "";
+      const r = await fetch("/api/import/link", { method: "POST", headers: { Authorization: `Bearer ${t}`, "Content-Type": "application/json", "Idempotency-Key": `imp-${crypto.randomUUID()}` }, body: JSON.stringify({ url: url.trim() }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { setMsg(j?.error?.message ?? "No se pudo importar el enlace."); return; }
+      if (j.project_id) onImported?.(j.project_id); else setMsg("Importando. Seguirá en el servidor aunque cierres la pestaña.");
+    } finally { setLinkBusy(false); }
+  }
   const [file, setFile] = useState<File | null>(null);
   const [ev, setEv] = useState<UploadEvent | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -76,11 +88,15 @@ export default function UploadPanel({ workspaceId, onDone }: { workspaceId?: str
         onDrop={(e) => { e.preventDefault(); setDrag(false); pick(e.dataTransfer.files?.[0]); }}
         className={`grid place-items-center rounded-xl border border-dashed p-6 text-center text-sm ${drag ? "bg-[var(--surface-2,#f2f2f5)]" : ""}`}>
         <p>Suelta aquí tu vídeo o elige cómo subirlo</p>
+        <form className="mt-3 flex w-full max-w-[560px] items-center gap-2 rounded-full border hairline bg-[var(--card)] py-1.5 pl-4 pr-1.5" onSubmit={(e) => { e.preventDefault(); void importLink(); }}>
+          <span aria-hidden className="text-[var(--muted)]">⛓</span>
+          <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="Pega un enlace de vídeo (https://…)" aria-label="Enlace del vídeo" className="min-w-0 flex-1 bg-transparent text-sm outline-none" />
+          <button type="submit" className="btn btn-primary !min-h-9 !rounded-full !px-4 !text-sm" disabled={!url.trim() || linkBusy}>{linkBusy ? "Comprobando…" : "Obtener clips"}</button>
+        </form>
         <div className="mt-3 flex flex-wrap justify-center gap-2">
-          <button type="button" className="btn btn-primary" disabled={busy} onClick={() => input.current?.click()}>Subir archivo</button>
-          <button type="button" className="btn btn-ghost" disabled title="Disponible cuando se active la importación">Google Drive</button>
-          <button type="button" className="btn btn-ghost" disabled title="Disponible cuando se active la importación">Dropbox</button>
-          <button type="button" className="btn btn-ghost" disabled title="Disponible cuando se active la importación">Enlace directo</button>
+          <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => input.current?.click()}>Subir</button>
+          <button type="button" className="btn btn-ghost" disabled title="Disponible cuando conectes Google Drive en Conexiones">Google Drive</button>
+          <a href="/app/demos" className="btn btn-ghost">Probar un proyecto de muestra</a>
         </div>
         <input ref={input} type="file" accept="video/*,.mov,.mp4,.mkv,.webm" className="hidden" onChange={(e) => pick(e.target.files?.[0])} />
         <p className="mt-2 text-xs text-[var(--muted)]">Hasta 4 GB y 60 minutos.{quota ? ` Espacio usado: ${fmtBytes(quota.used_bytes)} de ${fmtBytes(quota.quota_bytes)}.` : ""}</p>

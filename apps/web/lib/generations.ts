@@ -4,9 +4,9 @@ export type Mode = (typeof MODES)[number];
 export const MODE_LABEL: Record<Mode, string> = { cualquier_momento: "Cualquier momento", automatico: "Más virales (estimación)", por_tema: "Por tema", pregunta_respuesta: "Pregunta y respuesta", educativo: "Educativo", historia: "Historia o anécdota", destacados: "Destacados", manual: "Manual" };
 
 /** Rangos de duración de cada clip, en segundos. La etiqueta «Auto» del panel dice «10 s–3 min». */
-export const DURATION_BUCKETS = { auto: [10, 180], lt30: [10, 30], "30_60": [30, 60], "60_90": [60, 90], "90_180": [90, 180] } as const;
+export const DURATION_BUCKETS = { auto: [10, 180], lt30: [10, 30], "30_60": [30, 60], "60_90": [60, 90], "90_180": [90, 180], "180_300": [180, 300] } as const;
 export type Bucket = keyof typeof DURATION_BUCKETS;
-export const BUCKET_LABEL: Record<Bucket, string> = { auto: "Auto (10 s–3 min)", lt30: "Menos de 30 s", "30_60": "30–60 s", "60_90": "60–90 s", "90_180": "90 s–3 min" };
+export const BUCKET_LABEL: Record<Bucket, string> = { auto: "Auto (10 s–3 min)", lt30: "Menos de 30 s", "30_60": "30–60 s", "60_90": "60–90 s", "90_180": "90 s–3 min", "180_300": "3–5 min" };
 
 export const RECIPES = ["clips", "captions", "reframe", "cleanup"] as const;
 export type Recipe = (typeof RECIPES)[number];
@@ -26,7 +26,7 @@ export interface GenerationParams {
   recipe: Recipe; mode: Mode; count: number | null; duration: Bucket; range_start_ms: number; range_end_ms: number;
   language: "auto" | "es" | "en"; subtitle_language?: string; brief?: string; exclude?: string; aspect: (typeof ASPECTS)[number]; template?: string;
   subtitles: boolean; caption_style?: CaptionStyle; hook?: { enabled: boolean; top_n: number; template?: string }; brand_kit_id?: string;
-  component_versions?: Record<string, string>; min_s?: number; max_s?: number;
+  component_versions?: Record<string, string>; min_s?: number; max_s?: number; duration_set?: Bucket[];
 }
 
 export interface Invalid { field: string; message: string }
@@ -57,10 +57,13 @@ export function validateParams(p: unknown, sourceDurationS: number): { ok: true;
   }
   const h = x.hook as { enabled?: boolean; top_n?: number; template?: string } | undefined;
   const hook = h ? { enabled: h.enabled === true, top_n: Math.max(0, Math.min(20, Math.floor(Number(h.top_n ?? 0)))), ...(h.template ? { template: String(h.template).slice(0, 40) } : {}) } : undefined;
-  const [min_s, max_s] = DURATION_BUCKETS[duration];
+  // Selección múltiple de duraciones (como OpusClip): se admite la unión de los rangos elegidos. «Auto» no se combina con otros.
+  const set = Array.isArray(x.duration_set) ? (x.duration_set as unknown[]).filter((b): b is Bucket => typeof b === "string" && b in DURATION_BUCKETS && b !== "auto") : [];
+  const ranges = set.length ? set.map((b) => DURATION_BUCKETS[b] as readonly [number, number]) : [DURATION_BUCKETS[duration] as readonly [number, number]];
+  const min_s = Math.min(...ranges.map((r) => r[0])), max_s = Math.max(...ranges.map((r) => r[1]));
   return { ok: true, params: { recipe, mode, count, duration, range_start_ms: Math.round(start), range_end_ms: Math.round(end), language: language as GenerationParams["language"], ...(typeof x.subtitle_language === "string" ? { subtitle_language: x.subtitle_language.slice(0, 8) } : {}),
     ...(brief ? { brief } : {}), ...(exclude ? { exclude } : {}), aspect: aspect as GenerationParams["aspect"], ...(template ? { template } : {}), subtitles: x.subtitles !== false, ...(caption_style ? { caption_style } : {}), ...(hook ? { hook } : {}),
-    ...(typeof x.brand_kit_id === "string" && /^[0-9a-f-]{36}$/.test(x.brand_kit_id) ? { brand_kit_id: x.brand_kit_id } : {}), min_s, max_s } };
+    ...(typeof x.brand_kit_id === "string" && /^[0-9a-f-]{36}$/.test(x.brand_kit_id) ? { brand_kit_id: x.brand_kit_id } : {}), min_s, max_s, ...(set.length ? { duration_set: set } : {}) } };
 }
 
 const r2 = (n: number) => Math.round(n * 100) / 100;

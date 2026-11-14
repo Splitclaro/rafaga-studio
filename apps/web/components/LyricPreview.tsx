@@ -18,7 +18,7 @@ export default function LyricPreview({ composition, onChange }: { composition: L
     if (c.settings.dim > 0) { ctx.fillStyle = `rgba(0,0,0,${c.settings.dim})`; ctx.fillRect(0, 0, frame.width, frame.height); }
     const s = lyricSceneAt(c, t, L, TL);
     for (const w of s.words) {
-      ctx.save(); ctx.globalAlpha = w.alpha; ctx.font = `${c.style.weight} ${L.em}px '${L.family}'`; ctx.textBaseline = "top";
+      ctx.save(); ctx.globalAlpha = w.alpha; ctx.font = `${c.style.italic ? "italic " : ""}${c.style.weight} ${L.em}px '${L.family}'`; (ctx as unknown as { letterSpacing: string }).letterSpacing = `${(c.style.tracking ?? 0) * L.em}px`; ctx.textBaseline = "top";
       const cx = w.box.x + w.box.w / 2 + w.dx, cy = w.box.y + w.dy; ctx.translate(cx, cy + w.box.h / 2); ctx.scale(w.scale, w.scale); ctx.translate(-cx, -(cy + w.box.h / 2));
       if (c.style.effect === "shadow") { ctx.shadowColor = "rgba(0,0,0,.7)"; ctx.shadowBlur = 6; } else if (c.style.effect === "glow") { ctx.shadowColor = c.style.activeColor; ctx.shadowBlur = 16; }
       ctx.fillStyle = w.active && (c.style.active === "color" || c.style.active === "underline") ? c.style.activeColor : c.style.color;

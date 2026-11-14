@@ -31,7 +31,7 @@ export default function NuevoV2() {
     <main className="mx-auto max-w-[1100px] px-4 pb-20 pt-6 md:px-8">
       <h1 className="text-3xl">Nuevo proyecto</h1>
       <section className="mt-5 space-y-5">
-        {!done && <UploadPanel onDone={(d) => setDone(d)} />}
+        {!done && <UploadPanel onDone={(d) => setDone(d)} onImported={(id) => router.push(`/app/p/${id}`)} />}
         {done && (
           <div className="card p-4" aria-live="polite">
             <div className="font-medium">{done.name}</div>

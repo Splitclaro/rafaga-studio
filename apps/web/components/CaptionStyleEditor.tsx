@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { BEHAVIOUR_PRESETS, CAPTION_FONTS, CAPTION_FAMILIES, surpriseCaption, validateCaptionStyle, type BehaviourPresetId, type CaptionStyleV2 } from "@rafaga/composition";
 import { supabase } from "../lib/supabase";
 import { classicPresets } from "../lib/lyriccutover";
+import { TRENDING_STYLES } from "../lib/trendingstyles";
 import { applyPreset, deleteStyle, listStylesV2, saveStyle, toggleAB, abState, currentStyle, type RpcFn } from "../lib/styles";
 
 const field = "w-full rounded-lg border hairline bg-white px-2 py-1.5 text-sm", lbl = "mb-1 block text-xs text-[var(--muted)]";
@@ -22,7 +23,7 @@ export default function CaptionStyleEditor({ value, onChange, preset, onPreset, 
   const shown = ab.which === "a" ? value : currentStyle(ab);
   const preview = useMemo(() => {
     const s = shown, px = { S: 22, M: 30, L: 40 }[s.size] * s.sizeFine;
-    return { fontFamily: `'${s.font}', Inter, sans-serif`, fontWeight: s.weight, fontSize: px, color: s.color, textTransform: s.case === "upper" ? "uppercase" : s.case === "lower" ? "lowercase" : "none",
+    return { fontFamily: `'${s.font}', Inter, sans-serif`, fontWeight: s.weight, fontSize: px, color: s.color, textTransform: s.case === "upper" ? "uppercase" : s.case === "lower" ? "lowercase" : "none", fontStyle: s.italic ? "italic" : "normal", letterSpacing: `${s.tracking ?? 0}em`,
       textShadow: s.effect === "shadow" ? "0 2px 4px rgba(0,0,0,.7)" : s.effect === "glow" ? `0 0 8px ${s.activeColor}` : s.effect === "stroke" ? "0 0 2px #000, 0 0 2px #000, 0 0 3px #000" : "none",
       background: s.effect === "box" ? "rgba(0,0,0,.8)" : "transparent", padding: s.effect === "box" ? "4px 10px" : 0, borderRadius: 6 } as const;
   }, [shown]);
@@ -44,6 +45,8 @@ export default function CaptionStyleEditor({ value, onChange, preset, onPreset, 
         <button type="button" className="btn btn-ghost !min-h-8" onClick={() => setAb((s) => toggleAB({ ...s, lyrics: sample, background }))} aria-pressed={ab.which === "b"}>Ver {ab.which === "a" ? "B" : "A"}</button>
         <span className="text-[var(--muted)]">Mostrando {ab.which.toUpperCase()} · misma letra y fondo</span>
       </div>
+      <div role="group" aria-label="Estilos populares" className="space-y-1.5"><span className="block text-xs font-medium text-[var(--muted)]">Estilos populares</span>
+        <ul className="flex gap-2 overflow-x-auto pb-1">{TRENDING_STYLES.map((t) => <li key={t.id}><button type="button" title={t.name} onClick={() => { onPreset(t.preset); onChange(t.style); }} className="rounded-xl border hairline px-3 py-2 text-sm hover:bg-[var(--hover)]" style={{ fontFamily: `'${t.style.font}', Inter, sans-serif`, fontWeight: t.style.weight, fontStyle: t.style.italic ? "italic" : "normal", textTransform: t.style.case === "upper" ? "uppercase" : t.style.case === "lower" ? "lowercase" : "none", letterSpacing: `${t.style.tracking ?? 0}em` }}>{t.name}</button></li>)}</ul></div>
       <div role="group" aria-label="Looks clásicos" className="flex flex-wrap items-center gap-2 text-xs"><span className="text-[var(--muted)]">Looks clásicos:</span>
         {classicPresets().map((p) => <button key={p.id} type="button" title={p.description} className="rounded-full border hairline px-3 py-1" onClick={() => onChange(p.style)}>{p.name}</button>)}</div>
       <div role="radiogroup" aria-label="Comportamiento" className="grid grid-cols-2 gap-2 sm:grid-cols-5">
@@ -52,14 +55,23 @@ export default function CaptionStyleEditor({ value, onChange, preset, onPreset, 
             className={`rounded-xl border px-2 py-2 text-xs ${preset === p.id ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "hairline"}`}>{p.label}</button>))}
       </div>
       <div className="grid gap-3 sm:grid-cols-3">
+        <h3 className="col-span-full pt-2 text-xs font-medium text-[var(--muted)]">Tipografía</h3>
         <label><span className={lbl}>Fuente</span><select className={field} value={value.font} onChange={(e) => set({ font: e.target.value })}>{CAPTION_FAMILIES.map((f) => <option key={f}>{f}</option>)}</select></label>
         <label><span className={lbl}>Peso</span><select className={field} value={value.weight} onChange={(e) => set({ weight: Number(e.target.value) as 400 | 700 })}><option value={400}>Normal</option><option value={700}>Negrita</option></select></label>
         <label><span className={lbl}>Caja</span><select className={field} value={value.case} onChange={(e) => set({ case: e.target.value as CaptionStyleV2["case"] })}><option value="asis">Como se escribe</option><option value="upper">MAYÚSCULAS</option><option value="lower">minúsculas</option></select></label>
+        <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={!!value.italic} onChange={(e) => set({ italic: e.target.checked })} />Cursiva</label>
+        <label className="sm:col-span-2"><span className={lbl}>Espaciado entre letras ({(value.tracking ?? 0).toFixed(2)} em)</span><input type="range" min={-0.05} max={0.3} step={0.01} value={value.tracking ?? 0} onChange={(e) => set({ tracking: Number(e.target.value) })} className="w-full" /></label>
+        <h3 className="col-span-full pt-2 text-xs font-medium text-[var(--muted)]">Color</h3>
         <label className="flex items-center gap-2 text-xs"><input type="color" value={value.color} onChange={(e) => set({ color: e.target.value.toUpperCase() })} aria-label="Color del texto" />Texto</label>
         <label className="flex items-center gap-2 text-xs"><input type="color" value={value.activeColor} onChange={(e) => set({ activeColor: e.target.value.toUpperCase() })} aria-label="Color de la palabra activa" />Palabra activa</label>
+        <h3 className="col-span-full pt-2 text-xs font-medium text-[var(--muted)]">Efectos</h3>
         <label><span className={lbl}>Efecto</span><select className={field} value={value.effect} onChange={(e) => set({ effect: e.target.value as CaptionStyleV2["effect"] })}>{[["none", "Ninguno"], ["shadow", "Sombra"], ["glow", "Brillo"], ["stroke", "Contorno"], ["box", "Caja"]].map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
+        <h3 className="col-span-full pt-2 text-xs font-medium text-[var(--muted)]">Entrada</h3>
         <label><span className={lbl}>Entrada</span><select className={field} value={value.entrance} onChange={(e) => set({ entrance: e.target.value as CaptionStyleV2["entrance"] })}>{[["none", "Sin animación"], ["fade", "Aparecer"], ["slide", "Deslizar"], ["pop", "Rebote"], ["typewriter", "Máquina de escribir"]].map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
+        <label className="sm:col-span-2"><span className={lbl}>Duración de la entrada ({value.entranceMs ? `${value.entranceMs} ms` : "la del comportamiento"})</span><input type="range" min={0} max={2000} step={50} value={value.entranceMs ?? 0} onChange={(e) => set({ entranceMs: Number(e.target.value) })} className="w-full" /></label>
+        <h3 className="col-span-full pt-2 text-xs font-medium text-[var(--muted)]">Palabra activa</h3>
         <label><span className={lbl}>Palabra activa</span><select className={field} value={value.active} onChange={(e) => set({ active: e.target.value as CaptionStyleV2["active"] })}>{[["none", "Ninguna"], ["color", "Color"], ["scale", "Agrandar"], ["underline", "Subrayar"], ["box", "Caja"]].map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
+        <h3 className="col-span-full pt-2 text-xs font-medium text-[var(--muted)]">Diseño</h3>
         <label><span className={lbl}>Tamaño</span><select className={field} value={value.size} onChange={(e) => set({ size: e.target.value as CaptionStyleV2["size"] })}><option value="S">Pequeño</option><option value="M">Mediano</option><option value="L">Grande</option></select></label>
         <label><span className={lbl}>Ajuste fino de tamaño ({value.sizeFine})</span><input type="range" min={0.6} max={1.6} step={0.05} value={value.sizeFine} onChange={(e) => set({ sizeFine: Number(e.target.value) })} className="w-full" /></label>
         <label><span className={lbl}>Posición vertical ({Math.round(value.position.y * 100)} %)</span><input type="range" min={0.1} max={0.92} step={0.01} value={value.position.y} onChange={(e) => set({ position: { ...value.position, y: Number(e.target.value) } })} className="w-full" /></label>
