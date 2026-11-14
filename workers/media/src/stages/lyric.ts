@@ -6,6 +6,8 @@ import { join } from "node:path";
 import { aiConfig, groqTranscribe, AiError } from "@rafaga/providers";
 import { parseLyrics, alignWithAnchors, transcriptionProposal, type AsrWord, type SyncWord } from "@rafaga/lyrics";
 import { GroqLimiter, limitsFromEnv } from "../groqlimits.ts";
+import { randomUUID } from "node:crypto";
+import { mezzaninePath } from "./analysis.ts";
 import { StageError, type StageCtx, type StageImpl } from "./registry.ts";
 
 export const SONG_MAX_BYTES = 62914560, SONG_MAX_S = 600;
@@ -132,4 +134,63 @@ const lyricSync: StageImpl = {
   },
 };
 
-export const STAGE_IMPLS: Record<string, StageImpl> = { song_validate: songValidate, lyric_sync: lyricSync };
+// ───────── media_split: «Crear desde vídeo» (proponer segmentos en cambios de escena y cortarlos sin audio) ─────────
+export interface Segment { start_ms: number; end_ms: number }
+/** Segmentos de duración ≈ `target` entre `min` y `max`, que empiezan y terminan en un corte de escena o en un extremo del intervalo. */
+export function planSegments(cuts: number[], startS: number, endS: number, target: number, min = 1.5, max = target * 1.5): Segment[] {
+  const marks = [startS, ...cuts.filter((c) => c > startS + 1e-6 && c < endS - 1e-6), endS].sort((a, b) => a - b), out: Segment[] = [];
+  let i = 0;
+  while (i < marks.length - 1 && out.length < 60) {
+    let best = -1;
+    for (let j = i + 1; j < marks.length; j++) { const d = marks[j] - marks[i]; if (d > max + 1e-6) break; if (d >= min - 1e-6 && (best < 0 || Math.abs(d - target) < Math.abs(marks[best] - marks[i] - target) - 1e-9)) best = j; }
+    if (best < 0) {                                                       // sin corte en [min, max]: se corta a la duración objetivo dentro del plano
+      const e = Math.min(marks[i] + target, endS); if (e - marks[i] < min - 1e-6) break;
+      out.push({ start_ms: Math.round(marks[i] * 1000), end_ms: Math.round(e * 1000) }); marks.splice(i + 1, 0, e); i++; continue;
+    }
+    out.push({ start_ms: Math.round(marks[i] * 1000), end_ms: Math.round(marks[best] * 1000) }); i = best;
+  }
+  return out;
+}
+const sceneCuts = (file: string, startS: number, endS: number): number[] => {
+  const r = spawnSync("ffmpeg", ["-hide_banner", "-nostats", "-ss", String(startS), "-t", String(endS - startS), "-i", file, "-an", "-vf", "scdet=threshold=10,metadata=print:file=-", "-f", "null", "-"], { encoding: "utf8", maxBuffer: 1 << 26 });
+  return [...(r.stdout + r.stderr).matchAll(/lavfi\.scd\.time=([\d.]+)/g)].map((m) => +m[1] + startS);
+};
+const mediaProbe = (file: string) => {
+  const r = spawnSync("ffprobe", ["-v", "error", "-show_entries", "stream=codec_type,width,height:format=duration", "-of", "json", file], { encoding: "utf8" });
+  const j = JSON.parse(r.stdout || "{}") as { streams?: { codec_type: string; width?: number; height?: number }[]; format?: { duration?: string } };
+  const v = j.streams?.find((s) => s.codec_type === "video");
+  return { duration: Number(j.format?.duration ?? 0), width: v?.width ?? 0, height: v?.height ?? 0, hasAudio: !!j.streams?.some((s) => s.codec_type === "audio") };
+};
+
+const mediaSplit: StageImpl = {
+  inputs: (_c, row) => ({ stage: "media_split", params: row.params, v: 1 }),
+  async run(ctx, row) {
+    const p = row.params as { mode: "propose" | "cut"; source_id: string; collection_id: string; length_s?: number; min_s?: number; max_s?: number; start_ms?: number; end_ms?: number; segments?: Segment[]; cut_mode?: "rapido" | "exacto" };
+    const { file, info } = await mezzaninePath(ctx, p.source_id);
+    if (p.mode === "propose") {
+      const a = (p.start_ms ?? 0) / 1000, b = (p.end_ms ?? info.duration_ms ?? 0) / 1000, length = Number(p.length_s ?? 5);
+      const segments = planSegments(sceneCuts(file, a, b), a, b, length, p.min_s ?? 1.5, p.max_s ?? length * 1.5);
+      return { output: { segments, count: segments.length } };
+    }
+    if (!ctx.r2) throw new StageError("not_configured", "R2 no está configurado en el worker");
+    const c = await ctx.rpc<{ workspace_id: string; created_by: string | null } | null>("media_split_context", { p_source: p.source_id });
+    if (!c) throw new StageError("not_found", "La fuente no existe");
+    const dir = join(ctx.tmpDir ?? "/tmp/rafaga", `split-${p.source_id}`); mkdirSync(dir, { recursive: true });
+    const ids: string[] = [];
+    for (const seg of p.segments ?? []) {
+      const id = randomUUID(), out = join(dir, `${id}.mp4`), len = (seg.end_ms - seg.start_ms) / 1000;
+      const args = p.cut_mode === "exacto"
+        ? ["-y", "-v", "error", "-ss", String(seg.start_ms / 1000), "-i", file, "-t", String(len), "-map", "0:v:0", "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", "-an", "-movflags", "+faststart", out]
+        : ["-y", "-v", "error", "-ss", String(seg.start_ms / 1000), "-i", file, "-t", String(len), "-map", "0:v:0", "-c", "copy", "-an", "-movflags", "+faststart", out];
+      const r = spawnSync("ffmpeg", args, { encoding: "utf8" }); if (r.status !== 0) throw new StageError("cut_failed", `ffmpeg: ${r.stderr?.slice(-200)}`);
+      const m = mediaProbe(out), key = `${c.workspace_id}/media/${id}.mp4`;
+      if (m.hasAudio) throw new StageError("cut_failed", "El recorte conserva audio");
+      await ctx.r2.upload(key, out, "video/mp4");
+      await ctx.rpc("add_split_item", { p_collection: p.collection_id, p_source: p.source_id, p_item: id, p_start_ms: seg.start_ms, p_end_ms: seg.end_ms, p_cut_mode: p.cut_mode, p_key: key, p_bytes: statSync(out).size, p_duration_ms: Math.round(m.duration * 1000), p_width: m.width, p_height: m.height, p_created_by: c.created_by });
+      rmSync(out, { force: true }); ids.push(id);
+    }
+    return { output: { items: ids.length, item_ids: ids } };
+  },
+};
+
+export const STAGE_IMPLS: Record<string, StageImpl> = { song_validate: songValidate, lyric_sync: lyricSync, media_split: mediaSplit };

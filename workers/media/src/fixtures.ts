@@ -49,7 +49,7 @@ export function makeFixture(kind: FixtureKind, dir: string): string {
     case "song180": ff([...SONG(180), out]); break;
     case "song_long": ff(["-f", "lavfi", "-i", "aevalsrc=exprs=0.4*sin(2*PI*220*t):s=8000:c=mono:d=601", "-c:a", "flac", out]); break;
     case "scenes": ff(["-f", "lavfi", "-i", "color=c=red:s=640x360:r=25:d=2", "-f", "lavfi", "-i", "color=c=green:s=640x360:r=25:d=2", "-f", "lavfi", "-i", "color=c=blue:s=640x360:r=25:d=2",
-      "-filter_complex", "[0:v][1:v][2:v]concat=n=3:v=1:a=0[v]", "-map", "[v]", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", out]); break;
+      "-filter_complex", "[0:v][1:v][2:v]concat=n=3:v=1:a=0[v]", "-map", "[v]", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-g", "25", out]); break;
     case "vfr":
       ff([...video(2, 25), ...video(2, 12), "-f", "lavfi", "-i", SPARSE, "-filter_complex", "[0:v][1:v]concat=n=2:v=1:a=0[v]", "-map", "[v]", "-map", "2:a", "-t", "4",
         ...enc, "-c:a", "aac", "-fps_mode", "passthrough", out]);

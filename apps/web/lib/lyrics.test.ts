@@ -111,3 +111,40 @@ test("el usuario B recibe 404 al pedir la alineación o sincronizar una canción
   assert.equal((await call(B, "GET", `/songs/${s}/alignment`)).status, 404);
   assert.equal((await call(B, "POST", `/songs/${s}/sync`, { mode: "align" }, "sync-route-0005")).status, 404);
 });
+
+// ───────── Medios y demo (paso 12) ─────────
+let nColl = 0;
+const mkColl = async () => (await as<{ r: string }>(`select public.create_media_collection('${ws}','Fondos ${++nColl}','backgrounds') r`))[0].r;
+const mkSource = async () => (await db.query<{ id: string }>(`insert into sources(workspace_id, kind, status, created_by, mime, bytes, duration_ms, width, height) values ('${ws}','upload','validated','${A}','video/mp4',1000,10000,640,360) returning id`)).rows[0].id;
+
+test("POST /media/items: >200 MiB → 413 con límite; con el uso actual por encima de 10 GiB → 507; válido → 201 con URL PUT de 900 s", async () => {
+  const c = await mkColl(), body = (bytes: number) => ({ collection_id: c, name: "Fondo", kind: "video", mime: "video/mp4", bytes });
+  const big = await call(A, "POST", "/media/items", body(209715201)); assert.equal(big.status, 413); assert.equal(((await big.json()) as { limit: number }).limit, 209715200);
+  await db.exec(`insert into storage_objects(workspace_id, key, bytes, kind) values ('${ws}','${ws}/lleno/x',10737000000,'original')`);
+  const full = await call(A, "POST", "/media/items", body(5_000_000)); assert.equal(full.status, 507); assert.equal(((await full.json()) as { quota: number }).quota, 10737418240);
+  await db.exec(`delete from storage_objects where key='${ws}/lleno/x'`);
+  const ok = await call(A, "POST", "/media/items", body(5_000_000)), j = (await ok.json()) as { item_id: string; url: string; expires_at: string };
+  assert.equal(ok.status, 201); assert.ok(j.item_id); assert.match(j.url, /X-Amz-Expires=900/);
+  assert.equal((await db.query<{ n: number }>(`select count(*)::int n from media_items where id='${j.item_id}'`)).rows[0].n, 1);
+  assert.equal((await call(A, "POST", "/media/items", { ...body(5), mime: "application/pdf" })).status, 415);
+});
+
+test("split y cut: misma Idempotency-Key → mismo job_id; length_s fuera de 3/5/10/15/30 → 400 con field; B → 404", async () => {
+  const c = await mkColl(), s = await mkSource();
+  const a = await call(A, "POST", "/media/split", { source_id: s, collection_id: c, length_s: 5 }, "split-key-0001"), b = await call(A, "POST", "/media/split", { source_id: s, collection_id: c, length_s: 5 }, "split-key-0001");
+  assert.equal(a.status, 202); assert.equal(((await a.json()) as { job_id: string }).job_id, ((await b.json()) as { job_id: string }).job_id);
+  const bad = await call(A, "POST", "/media/split", { source_id: s, collection_id: c, length_s: 4 }, "split-key-0002"); assert.equal(bad.status, 400); assert.equal(((await bad.json()) as { field: string }).field, "length_s");
+  const segs = [{ start_ms: 0, end_ms: 3000 }], k1 = await call(A, "POST", "/media/cut", { source_id: s, collection_id: c, segments: segs, cut_mode: "exacto" }, "cut-key-00001"), k2 = await call(A, "POST", "/media/cut", { source_id: s, collection_id: c, segments: segs, cut_mode: "exacto" }, "cut-key-00001");
+  assert.equal(k1.status, 202); assert.equal(((await k1.json()) as { job_id: string }).job_id, ((await k2.json()) as { job_id: string }).job_id);
+  assert.equal((await call(B, "POST", "/media/split", { source_id: s, collection_id: c, length_s: 5 }, "split-key-0003")).status, 404);
+});
+
+test("GET /media/items/:id/url: B → 404 sin firmar; POST /demo sin Idempotency-Key → 400 y con clave → 202 {song_id, project_id, job_id}", async () => {
+  const c = await mkColl(), made = (await (await call(A, "POST", "/media/items", { collection_id: c, name: "F", kind: "video", mime: "video/mp4", bytes: 1000 })).json()) as { item_id: string };
+  await call(A, "POST", `/media/items/${made.item_id}/complete`, { duration_ms: 3000, width: 640, height: 360 });
+  assert.equal((await call(B, "GET", `/media/items/${made.item_id}/url`)).status, 404);
+  const u = await call(A, "GET", `/media/items/${made.item_id}/url`); assert.equal(u.status, 200); assert.match(((await u.json()) as { url: string }).url, /X-Amz-Expires=3600/);
+  assert.equal((await call(A, "POST", "/demo", {})).status, 400);
+  const d = await call(A, "POST", "/demo", {}, "demo-key-00001"), j = (await d.json()) as { song_id: string; project_id: string; job_id: string };
+  assert.equal(d.status, 202); assert.ok(j.song_id && j.project_id && j.job_id);
+});
