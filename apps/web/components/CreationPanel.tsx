@@ -27,7 +27,7 @@ export default function CreationPanel({ projectId, durationMs, onCreated }: { pr
   const [subs, setSubs] = useState(true), [style, setStyle] = useState<CaptionStyle>(CAPTION_DEFAULT);
   // Con NEXT_PUBLIC_LYRIC_VERSION=v2 el estilo se edita con el MISMO editor que Lyric Studio; `caption_style` conserva su forma validada
   // (preset, font, colores, tamaño, posición) y añade `subtitle_style` = captionToSubtitleStyle(v2) para el motor compartido.
-  const lyricV2 = process.env.NEXT_PUBLIC_LYRIC_VERSION === "v2";
+  const lyricV2 = (process.env.NEXT_PUBLIC_LYRIC_VERSION ?? "").trim().toLowerCase() === "v2";
   const [cap2, setCap2] = useState<CaptionStyleV2>(DEFAULT_CAPTION), [beh, setBeh] = useState<BehaviourPresetId>("frase_palabra_activa");
   const style2 = useMemo(() => ({ ...style, font: cap2.font, color: cap2.color, active_color: cap2.activeColor, size: cap2.size, position: (cap2.position.y < 0.35 ? "top" : cap2.position.y < 0.65 ? "middle" : "bottom") as CaptionStyle["position"], subtitle_style: captionToSubtitleStyle(cap2) }), [style, cap2]);
   const [hook, setHook] = useState(false), [hookN, setHookN] = useState(10);

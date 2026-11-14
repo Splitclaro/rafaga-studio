@@ -457,4 +457,4 @@ function LyricStudioV1() {
 }
 
 /** La vista v2 solo aparece con NEXT_PUBLIC_LYRIC_VERSION=v2 (por defecto, el flujo v1 intacto). */
-export default function LyricStudioPage() { return process.env.NEXT_PUBLIC_LYRIC_VERSION === "v2" ? <LyricStudioV2 /> : <LyricStudioV1 />; }
+export default function LyricStudioPage() { return (process.env.NEXT_PUBLIC_LYRIC_VERSION ?? "").trim().toLowerCase() === "v2" ? <LyricStudioV2 /> : <LyricStudioV1 />; }

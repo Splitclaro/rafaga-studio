@@ -180,4 +180,4 @@ function StyleStudioV2() {
     <CaptionStyleEditor value={style} onChange={setStyle} preset={preset} onPreset={setPreset} workspaceId={ws} /></main>);
 }
 /** La vista v2 solo aparece con NEXT_PUBLIC_LYRIC_VERSION=v2 (por defecto, la v1 intacta). */
-export default function StyleStudioPage() { return process.env.NEXT_PUBLIC_LYRIC_VERSION === "v2" ? <StyleStudioV2 /> : <StyleStudioV1 />; }
+export default function StyleStudioPage() { return (process.env.NEXT_PUBLIC_LYRIC_VERSION ?? "").trim().toLowerCase() === "v2" ? <StyleStudioV2 /> : <StyleStudioV1 />; }

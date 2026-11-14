@@ -117,5 +117,5 @@ function NuevoV1() {
 
 /** Flujo v2 (subida reanudable + panel de creación) solo si NEXT_PUBLIC_PIPELINE_VERSION=v2; si no, el flujo actual intacto. */
 export default function Nuevo() {
-  return process.env.NEXT_PUBLIC_PIPELINE_VERSION === "v2" ? <NuevoV2 /> : <NuevoV1 />;
+  return (process.env.NEXT_PUBLIC_PIPELINE_VERSION ?? "").trim().toLowerCase() === "v2" ? <NuevoV2 /> : <NuevoV1 />;
 }
