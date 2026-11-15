@@ -1,7 +1,7 @@
 "use client";
 // Editor de estilo v2 (el mismo en clipping y en letra): los 9 controles, presets de comportamiento, «Sorpréndeme»,
 // guardar/cargar (≤ 20 por espacio) y comparación A/B con el mismo instante, letra y fondo.
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { BEHAVIOUR_PRESETS, CAPTION_FONTS, CAPTION_FAMILIES, surpriseCaption, validateCaptionStyle, type BehaviourPresetId, type CaptionStyleV2 } from "@rafaga/composition";
 import { supabase } from "../lib/supabase";
 import { classicPresets } from "../lib/lyriccutover";
@@ -38,7 +38,7 @@ export default function CaptionStyleEditor({ value, onChange, preset, onPreset, 
     <section className="space-y-4" aria-label="Editor de estilo">
       <style>{faces}</style>
       <div className="flex items-center justify-center rounded-xl p-8" style={{ background }} aria-label="Vista previa del estilo">
-        <p style={preview} aria-live="off">{words.map((w, i) => <span key={i} style={i === 1 && shown.active !== "none" ? { color: shown.active === "color" || shown.active === "underline" ? shown.activeColor : undefined, textDecoration: shown.active === "underline" ? "underline" : undefined, display: "inline-block", transform: shown.active === "scale" ? "scale(1.15)" : undefined, background: shown.active === "box" ? shown.activeColor + "99" : undefined } : undefined}>{w}{" "}</span>)}</p>
+        <p style={preview} aria-live="off">{words.map((w, i) => <Fragment key={i}><span style={i === 1 && shown.active !== "none" ? { color: shown.active === "color" || shown.active === "underline" ? shown.activeColor : undefined, textDecoration: shown.active === "underline" ? "underline" : undefined, display: "inline-block", transform: shown.active === "scale" ? "scale(1.15)" : undefined, background: shown.active === "box" ? shown.activeColor + "99" : undefined } : undefined}>{w}</span>{i < words.length - 1 ? " " : ""}</Fragment>)}</p>
       </div>
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <span>Comparar:</span>

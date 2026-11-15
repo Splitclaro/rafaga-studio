@@ -130,9 +130,9 @@ export default function ResultsGrid({ projectId, sourceId }: { projectId: string
                 <div className={view === "grid" ? "card overflow-hidden" : "w-20 shrink-0 overflow-hidden rounded-lg"}>
                   <button type="button" onClick={() => openClip(i)} className="relative block w-full bg-[var(--ink)]" style={{ aspectRatio: "9 / 16" }} aria-label={`Ver «${r.title}» aquí mismo`}>
                     {thumbs[r.id] ? <img src={thumbs[r.id]} alt="" className="h-full w-full object-cover" /> : <span className="grid h-full w-full place-items-center p-2 text-center text-xs text-white/70">{r.technical_state === "preparando" ? "Preparando…" : r.title}</span>}
-                    <span className="absolute left-2 top-2 rounded bg-black/70 px-1.5 py-0.5 text-xs font-bold text-white tnum">{score != null ? score : "–"}</span>
+                    <span className="absolute left-2 top-2 rounded-full px-2 py-0.5 text-xs font-bold text-white tnum shadow" style={{ background: "var(--grad)" }}>{score != null ? score : "–"}</span>
                     <span className="absolute bottom-2 right-2 rounded bg-black/70 px-1.5 py-0.5 text-[11px] text-white tnum">{mmss(d)}</span>
-                    <span className="absolute bottom-2 left-2 rounded bg-black/70 px-1.5 py-0.5 text-[11px] text-white">⛶ Ver</span>
+                    <span className="absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-semibold text-[var(--ink)] shadow">▶ Ver</span>
                   </button>
                   {view === "grid" && <div className="space-y-1 p-2 text-xs"><div className="line-clamp-2 font-medium">{r.title}</div>
                     <div className="flex items-center justify-between text-[var(--muted)]"><span>{c ? mmss(c.start_ms / 1000) : ""}</span><span>{r.editorial_state}</span></div></div>}
@@ -140,7 +140,8 @@ export default function ResultsGrid({ projectId, sourceId }: { projectId: string
                 <div className={view === "grid" ? "mt-1 flex items-center gap-2 px-1 text-xs" : "flex flex-1 items-center gap-3 text-sm"}>
                   <input type="checkbox" checked={sel.has(r.id)} onChange={() => toggle(r.id)} aria-label={`Seleccionar «${r.title}»`} />
                   {view === "list" && <span className="min-w-0 flex-1 truncate">{r.title}</span>}
-                  <Link href={`/app/c/${r.id}`} className="underline">Editar</Link>
+                  <Link href={`/app/c/${r.id}`} className="font-semibold text-[var(--accent-ink)]">Editar</Link>
+                  <button type="button" className="text-[var(--muted)] hover:text-[var(--ink)]" title="Duplicar el clip para probar otra versión" onClick={async () => { const { error } = await supabase.rpc("duplicate_clip", { p_clip: r.id }); if (error) alert("No se pudo duplicar."); else load(); }}>Duplicar</button>
                   <button type="button" className="underline" onClick={async () => { await supabase.from("clips").update({ favorite: !r.favorite }).eq("id", r.id); load(); }} aria-pressed={r.favorite}>{r.favorite ? "★" : "☆"}</button>
                   <button type="button" aria-pressed={r.feedback === "like"} aria-label="Me gusta" title="Me gusta: lo tendré en cuenta en la próxima generación" onClick={() => feedback(r.id, r.feedback === "like" ? null : "like")} className={r.feedback === "like" ? "font-semibold" : "opacity-60 hover:opacity-100"}>👍</button>
                   <button type="button" aria-label="No me gusta" title="No me gusta: se oculta y evitaré momentos parecidos" onClick={() => { if (confirm("¿No te gusta este clip? Se ocultará y la próxima generación evitará momentos parecidos.")) void feedback(r.id, "dislike"); }} className="opacity-60 hover:opacity-100">👎</button>

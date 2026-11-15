@@ -137,7 +137,7 @@ export default function TapSync({ songId, audioUrl, lyrics, ensureLyrics, from =
       <div className="flex flex-wrap items-center gap-2">
         <button onClick={() => start(marks.length ? Math.max(0, marks[marks.length - 1].start - 1) : from)} className="btn btn-primary">{marks.length ? "Continuar" : "Empezar"}</button>
         <fieldset className="inline-flex rounded-full bg-[var(--hover)] p-1"><legend className="sr-only">Modo</legend>
-          {([[false, "Pulsar"], [true, "Mantener"]] as const).map(([v, l]) => <button key={l} aria-pressed={hold === v} onClick={() => setHold(v)} className={`rounded-full px-3 py-1 ${hold === v ? "bg-[var(--ink)] text-white" : ""}`}>{l}</button>)}
+          {([[false, "Pulsar"], [true, "Mantener"]] as const).map(([v, l]) => <button key={l} aria-pressed={hold === v} onClick={() => setHold(v)} className={`rounded-full px-3 py-1 ${hold === v ? "bg-white text-[var(--accent-ink)] font-semibold shadow-[var(--shadow-2)]" : ""}`}>{l}</button>)}
         </fieldset>
         <label className="flex items-center gap-1">Velocidad<select value={rate} onChange={(e) => setRate(Number(e.target.value))} className="rounded-full border border-[var(--border)] bg-white px-2 py-1">{[0.5, 0.75, 1].map((r) => <option key={r} value={r}>{r}×</option>)}</select></label>
         <label className="flex items-center gap-2">Desplazar todo <input type="range" min={-0.5} max={0.5} step={0.01} value={offset} onChange={(e) => setOffset(Number(e.target.value))} /><span className="tnum w-14">{offset >= 0 ? "+" : ""}{offset.toFixed(2)} s</span></label>

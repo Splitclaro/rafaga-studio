@@ -277,7 +277,7 @@ function LyricStudioV1() {
             </Step>
             <Step n={2} title="Letra y sincronización">
               <div role="tablist" aria-label="Sincronización" className="mb-3 inline-flex rounded-full bg-[var(--hover)] p-1 text-sm">
-                {([["auto", "Automática"], ["manual", "Manual por pulsación"]] as const).map(([k, l]) => <button key={k} role="tab" aria-selected={syncTab === k} onClick={() => setSyncTab(k)} className={`rounded-full px-4 py-1.5 ${syncTab === k ? "bg-[var(--ink)] text-white" : "text-[var(--muted)]"}`}>{l}</button>)}
+                {([["auto", "Automática"], ["manual", "Manual por pulsación"]] as const).map(([k, l]) => <button key={k} role="tab" aria-selected={syncTab === k} onClick={() => setSyncTab(k)} className={`rounded-full px-4 py-1.5 ${syncTab === k ? "bg-white text-[var(--accent-ink)] font-semibold shadow-[var(--shadow-2)]" : "text-[var(--muted)]"}`}>{l}</button>)}
               </div>
               {syncTab === "manual" && audioUrl ? <TapSync songId={song.id} audioUrl={audioUrl} lyrics={lyrics} ensureLyrics={ensureLyrics} from={start} /> : <>
               <div className="mb-2 flex justify-end"><label className="cursor-pointer rounded-full border border-[var(--border)] px-3 py-1 text-sm">Importar TXT, LRC, SRT o VTT<input type="file" accept=".txt,.lrc,.srt,.vtt,text/plain" className="sr-only" onChange={(e) => importLyrics(e.target.files?.[0])} /></label></div>
@@ -347,7 +347,7 @@ function LyricStudioV1() {
             <Step n={4} title="Fondo">
               <div role="tablist" className="mb-3 inline-flex rounded-full bg-[var(--hover)] p-1 text-sm">
                 {([["solid", "Color sólido"], ["collection", "Colecciones"]] as const).map(([k, l]) => (
-                  <button key={k} role="tab" aria-selected={bgMode === k} onClick={() => setBgMode(k)} className={`rounded-full px-4 py-1.5 ${bgMode === k ? "bg-[var(--ink)] text-white" : "text-[var(--muted)]"}`}>{l}</button>))}
+                  <button key={k} role="tab" aria-selected={bgMode === k} onClick={() => setBgMode(k)} className={`rounded-full px-4 py-1.5 ${bgMode === k ? "bg-white text-[var(--accent-ink)] font-semibold shadow-[var(--shadow-2)]" : "text-[var(--muted)]"}`}>{l}</button>))}
               </div>
               {bgMode === "solid" ? (
                 <div className="flex flex-wrap gap-2">{COLORS.map((c) => (
@@ -370,7 +370,7 @@ function LyricStudioV1() {
                 <label className="rounded-2xl bg-[var(--surface)] px-4 py-3">Tamaño del texto <span className="tnum">{textScale.toFixed(2)}×</span><input type="range" min={0.7} max={1.5} step={0.05} value={textScale} onChange={(e) => setTextScale(Number(e.target.value))} className="w-full" /></label>
                 <fieldset className="rounded-2xl bg-[var(--surface)] px-4 py-3"><legend className="sr-only">Filtro</legend>Filtro
                   <div className="mt-2 flex flex-wrap gap-1">{FILTERS.map(([k, l]) => (
-                    <button key={k} onClick={() => set({ filter: k })} aria-pressed={settings.filter === k} className={`rounded-full px-3 py-1 text-xs ${settings.filter === k ? "bg-[var(--ink)] text-white" : "bg-white"}`}>{l}</button>))}</div>
+                    <button key={k} onClick={() => set({ filter: k })} aria-pressed={settings.filter === k} className={`rounded-full px-3 py-1 text-xs ${settings.filter === k ? "bg-white text-[var(--accent-ink)] font-semibold shadow-[var(--shadow-2)]" : "bg-white"}`}>{l}</button>))}</div>
                 </fieldset>
               </div>
               {settings.dim > 0.6 && <p className="mt-2 text-xs">Con más de 60 % el fondo apenas se verá.</p>}

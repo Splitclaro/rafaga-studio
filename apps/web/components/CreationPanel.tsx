@@ -127,9 +127,9 @@ export default function CreationPanel({ projectId, durationMs, onCreated, filmst
       <div className="card min-w-0 space-y-5 overflow-hidden p-5">
         <div className="grid gap-3 sm:grid-cols-2">
           <button type="button" onClick={() => { setRecTab("built"); setOpen("recipes"); }} className="flex items-center gap-3 rounded-2xl border hairline bg-[var(--surface)] p-3 text-left hover:bg-[var(--hover)]">
-            <span aria-hidden className="grid h-9 w-9 place-items-center rounded-lg bg-[var(--ink)] text-white">▦</span><span className="flex-1 text-sm font-medium">Receta</span><span className="text-sm text-[var(--muted)]">{RECIPE_LABEL[recipe]} ▾</span></button>
+            <span aria-hidden className="ico-tile grad !h-9 !w-9"><Icon n="grid" className="h-4 w-4" /></span><span className="flex-1 text-sm font-medium">Receta</span><span className="text-sm text-[var(--muted)]">{RECIPE_LABEL[recipe]} ▾</span></button>
           <label className="flex items-center gap-3 rounded-2xl border hairline bg-[var(--surface)] p-3">
-            <span aria-hidden className="grid h-9 w-9 place-items-center rounded-lg bg-[var(--ink)] text-white">◈</span><span className="flex-1 text-sm font-medium">Brand kit</span>
+            <span aria-hidden className="ico-tile !h-9 !w-9 !text-white" style={{ background: "linear-gradient(135deg,#262A36,#3B1EFF)" }}><Icon n="brand" className="h-4 w-4" /></span><span className="flex-1 text-sm font-medium">Brand kit</span>
             <select className="max-w-[140px] bg-transparent text-sm text-[var(--muted)]" value={brandKit} onChange={(e) => setBrandKit(e.target.value)} aria-label="Brand kit"><option value="">Sin brand kit</option>{kits.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}</select></label>
         </div>
         <p className="text-sm text-[var(--muted)]">La receta define qué ediciones se aplican. El brand kit define el aspecto: logo, intro, cierre y estilo de subtítulos.</p>

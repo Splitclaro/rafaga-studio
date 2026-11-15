@@ -87,7 +87,7 @@ export default function Analitica() {
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div><h1 className="text-3xl">Analítica</h1><p className="mt-1 text-sm text-[var(--muted)]">Operación real de tu workspace: volumen, fallos por causa, cola y tiempos por fase. Sin métricas sociales hasta tener conexiones autorizadas.</p></div>
         <div className="flex flex-wrap gap-2 text-sm">
-          <div role="radiogroup" aria-label="Periodo" className="inline-flex rounded-full bg-[var(--hover)] p-1">{PERIODS.map(([d, l]) => <button key={d} role="radio" aria-checked={days === d} onClick={() => setDays(d)} className={`rounded-full px-3 py-1 ${days === d ? "bg-[var(--ink)] text-white" : ""}`}>{l}</button>)}</div>
+          <div role="radiogroup" aria-label="Periodo" className="inline-flex rounded-full bg-[var(--hover)] p-1">{PERIODS.map(([d, l]) => <button key={d} role="radio" aria-checked={days === d} onClick={() => setDays(d)} className={`rounded-full px-3 py-1 ${days === d ? "bg-white text-[var(--accent-ink)] font-semibold shadow-[var(--shadow-2)]" : ""}`}>{l}</button>)}</div>
           <label className="sr-only" htmlFor="kind">Tipo de trabajo</label>
           <select id="kind" value={kind} onChange={(e) => setKind(e.target.value)} className="rounded-full border border-[var(--border)] bg-white px-3 py-1.5"><option value="all">Todos los tipos</option>{Object.entries(KIND).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
         </div>

@@ -1,6 +1,7 @@
 "use client";
 // Panel de subida v2: soltar o elegir archivo, cuota antes de subir, progreso real (bytes, velocidad, tiempo restante),
 // cancelar, reanudar tras recargar, aviso de duplicado y ficha final con el estado de validación.
+import Icon from "./Icon";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { httpApi, localResumeStore, runUpload, type UploadEvent } from "../lib/uploader";
@@ -86,17 +87,18 @@ export default function UploadPanel({ workspaceId, onDone, onImported }: { works
     <div className="card p-4">
       <div onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)}
         onDrop={(e) => { e.preventDefault(); setDrag(false); pick(e.dataTransfer.files?.[0]); }}
-        className={`grid place-items-center rounded-xl border border-dashed p-6 text-center text-sm ${drag ? "bg-[var(--surface-2,#f2f2f5)]" : ""}`}>
-        <p>Suelta aquí tu vídeo o elige cómo subirlo</p>
+        className={`grid place-items-center rounded-[20px] border-2 border-dashed p-7 text-center text-sm transition-colors ${drag ? "border-[var(--accent)] bg-[#EEEBFF]" : "border-[#C9D6EC]"}`} style={drag ? undefined : { background: "var(--grad-soft)" }}>
+        <span aria-hidden className="ico-tile grad !h-14 !w-14 !rounded-[18px]"><Icon n="upload" className="h-6 w-6" /></span>
+        <p className="mt-3 font-display text-lg font-bold text-[var(--ink)]">Suelta aquí tu vídeo</p><p className="text-[var(--muted)]">o elige cómo subirlo</p>
         <form className="mt-3 flex w-full max-w-[560px] items-center gap-2 rounded-full border hairline bg-[var(--card)] py-1.5 pl-4 pr-1.5" onSubmit={(e) => { e.preventDefault(); void importLink(); }}>
-          <span aria-hidden className="text-[var(--muted)]">⛓</span>
+          <Icon n="link" className="h-4 w-4 text-[var(--muted)]" />
           <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="Pega un enlace de vídeo (https://…)" aria-label="Enlace del vídeo" className="min-w-0 flex-1 bg-transparent text-sm outline-none" />
           <button type="submit" className="btn btn-primary !min-h-9 !rounded-full !px-4 !text-sm" disabled={!url.trim() || linkBusy}>{linkBusy ? "Comprobando…" : "Obtener clips"}</button>
         </form>
         <div className="mt-3 flex flex-wrap justify-center gap-2">
-          <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => input.current?.click()}>Subir</button>
+          <button type="button" className="btn btn-primary" disabled={busy} onClick={() => input.current?.click()}><Icon n="upload" className="h-4 w-4" />Subir vídeo</button>
           <button type="button" className="btn btn-ghost" disabled title="Disponible cuando conectes Google Drive en Conexiones">Google Drive</button>
-          <a href="/app/demos" className="btn btn-ghost">Probar un proyecto de muestra</a>
+          <a href="/app/demos" className="btn btn-ghost"><Icon n="play" className="h-4 w-4" />Probar una muestra</a>
         </div>
         <input ref={input} type="file" accept="video/*,.mov,.mp4,.mkv,.webm" className="hidden" onChange={(e) => pick(e.target.files?.[0])} />
         <p className="mt-2 text-xs text-[var(--muted)]">Hasta 4 GB y 60 minutos.{quota ? ` Espacio usado: ${fmtBytes(quota.used_bytes)} de ${fmtBytes(quota.quota_bytes)}.` : ""}</p>

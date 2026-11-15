@@ -31,7 +31,7 @@ export default function BriefUnderstanding({ text, compact = false }: { text: st
           <div key={r.k} className={`grid grid-cols-[100px_minmax(0,1fr)] gap-3 ${compact ? "py-1.5" : "py-2.5"}`}>
             <dt className="text-[var(--muted)]">{r.k}</dt>
             <dd className="flex flex-wrap items-center gap-1.5">
-              {r.chips.map((c, i) => <span key={i} className={`rounded-full px-2.5 py-0.5 text-[12.5px] ${c.hard ? "bg-[var(--ink)] font-medium text-white" : "border border-[var(--border)]"}`}>{c.t}</span>)}
+              {r.chips.map((c, i) => <span key={i} className={`rounded-full px-2.5 py-0.5 text-[12.5px] ${c.hard ? "bg-[var(--accent)] font-medium text-white" : "border border-[var(--border)]"}`}>{c.t}</span>)}
               {r.note && <span className="text-xs text-[var(--muted)]">{r.note}</span>}
             </dd>
           </div>))}

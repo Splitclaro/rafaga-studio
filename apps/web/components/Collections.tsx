@@ -77,7 +77,7 @@ export default function CollectionsPicker({ selected, onSelect, cols, reload }: 
     <div>
       <div role="tablist" className="inline-flex rounded-full bg-[var(--hover)] p-1 text-sm">
         {([["rafaga", "Ráfaga Collections"], ["custom", "Custom Collections"]] as const).map(([k, l]) => (
-          <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={`rounded-full px-4 py-1.5 ${tab === k ? "bg-[var(--ink)] text-white" : "text-[var(--muted)]"}`}>{l}</button>
+          <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={`rounded-full px-4 py-1.5 ${tab === k ? "bg-white text-[var(--accent-ink)] font-semibold shadow-[var(--shadow-2)]" : "text-[var(--muted)]"}`}>{l}</button>
         ))}
       </div>
 
