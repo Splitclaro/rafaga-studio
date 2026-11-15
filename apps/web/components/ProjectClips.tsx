@@ -1,4 +1,5 @@
 "use client";
+import ClipThumb from "./ui/ClipThumb";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "../lib/supabase";
@@ -75,7 +76,7 @@ export default function ProjectClips({ p, onDelete, onChanged }: { p: Row; onDel
           {!clips ? <div className="skeleton h-32" /> : !clips.length ? <p className="rounded-xl border border-dashed border-[var(--border)] p-5 text-center text-sm text-[var(--muted)]">{isActive(p.status) ? "Creando clips… aparecerán aquí según estén listos." : "Este proyecto aún no tiene clips. Ábrelo para detectar momentos."}</p> : (
             <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">{clips.map((c) => (
               <li key={c.id} className="overflow-hidden rounded-xl border border-[var(--border)] bg-white">
-                {c.url ? <video src={c.url} poster={c.thumb} controls preload="none" className="aspect-[9/16] w-full bg-black object-cover" /> : <Link href={`/app/c/${c.id}`} className="grid aspect-[9/16] place-items-center bg-[var(--ink)] px-2 text-center text-xs text-white/80">Sin exportar<br />Abrir y exportar</Link>}
+                {c.url ? <video src={c.url} poster={c.thumb} controls preload="none" className="aspect-[9/16] w-full bg-black object-cover" /> : <Link href={`/app/c/${c.id}`} className="relative block aspect-[9/16] bg-[var(--ink)]"><ClipThumb clipId={c.id} fallback={c.thumb} className="absolute inset-0 h-full w-full" /><span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-2 pb-2 pt-6 text-center text-xs text-white">Abrir y exportar</span></Link>}
                 <div className="p-2"><div className="truncate text-xs font-medium" title={c.title}>{c.title}</div>
                   <div className="mono mt-0.5 text-[11px] text-[var(--muted)]">{c.ms ? dur(c.ms) : ""}{c.bytes ? ` · ${mb(c.bytes)}` : ""}</div>
                   <div className="mt-1.5 flex gap-1"><Link href={`/app/c/${c.id}`} className="btn btn-ghost !px-2 !py-1 !text-[11px]">Editar</Link>{c.path && <button onClick={() => dl(c)} className="btn btn-primary !px-2 !py-1 !text-[11px]" aria-label={`Descargar ${c.title}`}><Icon n="download" className="h-3 w-3" /></button>}</div></div>

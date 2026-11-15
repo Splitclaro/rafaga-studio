@@ -1,7 +1,7 @@
 // Composición de los clips elegidos: versión 1 de cada clip (aspecto, diseño, plantilla, titular, subtítulos) SIN renderizar ningún MP4
 // (eso es la exportación). compose · previews (miniatura) · checks (composición, duración, zonas seguras).
 import { spawnSync } from "node:child_process";
-import { mkdirSync, statSync } from "node:fs";
+import { mkdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { aiConfig, groqChat } from "@rafaga/providers";
 import { viralTemplate, textBoxes, validateSafeZones, VIRAL_TEMPLATE_IDS, type ViralTemplateId, type AspectId, type Platform } from "@rafaga/composition";
@@ -12,7 +12,7 @@ import { GroqLimiter, limitsFromEnv } from "../groqlimits.ts";
 
 interface GClip { clip_id: string; title: string; start_ms: number; end_ms: number; overall: number; reason: string | null; user_edited: boolean; has_version: boolean }
 interface Gctx { generation_id: string; workspace_id: string; analysis_id: string; params: Record<string, unknown> & { aspect?: AspectId; template?: string; subtitles?: boolean; hook?: { enabled?: boolean; top_n?: number }; safe_zone_platforms?: Platform[]; min_s?: number; max_s?: number }; words: TWord[]; speakers: { needs_review?: boolean }[] }
-export interface ComposeDeps { headline?: (prompt: { title: string; text: string }) => Promise<string[]>; limiter?: GroqLimiter }
+export interface ComposeDeps { faces?: (file: string, start: number, dur: number) => { w: number; h: number; samples: unknown[] }; headline?: (prompt: { title: string; text: string }) => Promise<string[]>; limiter?: GroqLimiter }
 const SPEAKER_TEMPLATES = new Set(["pantalla_dividida", "hablante_seguimiento", "cambio_hablante", "presentacion_ponente"]);
 const LEGACY_TEMPLATE: Record<string, ViralTemplateId> = { split_dos_hablantes: "pantalla_dividida", hablante_activo: "cambio_hablante", titular_caja: "titular_en_caja", titular_desenfoque: "titular_sobre_desenfoque", completo_ajustado: "video_completo" };
 export const templateOf = (t: unknown): ViralTemplateId => { const s = String(t ?? ""); const m = LEGACY_TEMPLATE[s] ?? s; return (VIRAL_TEMPLATE_IDS as readonly string[]).includes(m) ? (m as ViralTemplateId) : "hablante_seguimiento"; };
@@ -38,7 +38,7 @@ async function headlineFor(ctx: StageCtx, deps: ComposeDeps, c: GClip, text: str
 }
 
 const compose: StageImpl = {
-  inputs: (_c, row) => ({ stage: "compose", generation: row.params.generation_id, v: 2 }),
+  inputs: (_c, row) => ({ stage: "compose", generation: row.params.generation_id, v: 3 }),
   async run(ctx, row) {
     const gen = String(row.params.generation_id), gc = await ctx.rpc<Gctx>("generation_context", { p_generation: gen });
     if (!gc) throw new StageError("not_found", "La generación no existe");
@@ -46,6 +46,11 @@ const compose: StageImpl = {
     const P = gc.params, aspect = (P.aspect ?? "9:16") as AspectId, template = templateOf(P.template), hookN = P.hook?.enabled === false ? 0 : P.hook?.enabled && Number(P.hook.top_n) > 0 ? Number(P.hook.top_n) : clips.length;   // por defecto todos los clips llevan titular (se puede quitar después)
     const top = new Set([...clips].sort((a, b) => b.overall - a.overall).slice(0, hookN).map((c) => c.clip_id));
     let composed = 0, hooks = 0, skipped = 0; const reviewNeeded = SPEAKER_TEMPLATES.has(template) && gc.speakers.some((s) => s.needs_review);
+    // Reencuadre con seguimiento (como Opus): en diseños que rellenan el fotograma se detectan caras en cada tramo y se sigue al sujeto.
+    const fills = (template === "hablante_seguimiento" || template === "cambio_hablante") && aspect === "9:16";
+    let faceFile: string | null = null;
+    if (fills && ctx.r2 && row.params.source_id) { try { faceFile = (await mezzaninePath(ctx, String(row.params.source_id))).file; } catch { faceFile = null; } }
+    let tracked = 0;
     for (const c of clips) {
       if (c.has_version || c.user_edited) { skipped++; continue; }        // nunca se sobrescribe lo ya editado ni lo ya compuesto
       const startS = c.start_ms / 1000, endS = c.end_ms / 1000;
@@ -55,10 +60,18 @@ const compose: StageImpl = {
         const h = await headlineFor(ctx, deps, c, text); headline = { lines: h.lines }; if (h.llm) hooks++;
       }
       const spec = viralTemplate(template, aspect, { duration: +(endS - startS).toFixed(3), fragments: [{ start: startS, end: endS }], headline, platforms: P.safe_zone_platforms, subtitles: P.subtitles !== false });
+      if (faceFile) {
+        try {
+          const { scanFaces, reframePath } = await import("../reframe.ts");
+          const scan = deps.faces ? (deps.faces(faceFile, startS, endS - startS) as ReturnType<typeof scanFaces>) : scanFaces(faceFile, startS, endS - startS, 2);
+          const path = reframePath(scan, 9 / 16, endS - startS, template === "cambio_hablante" ? "follow" : "follow");
+          if (path.kf.length && path.mode !== "static") { (spec as { kf?: unknown }).kf = path.kf; tracked++; }
+        } catch { /* sin OpenCV o sin caras: queda el encuadre centrado */ }
+      }
       await ctx.rpc("compose_clip", { p_clip: c.clip_id, p_aspect: aspect, p_layout: spec.layout, p_template: template, p_spec: { ...spec, caption_style: P.caption_style ?? null }, p_needs_review: reviewNeeded });
       composed++;
     }
-    return { output: { composed, hooks, skipped, template, aspect }, ...(hookN ? { units_actual: Math.round(0.1 * hooks * 100) / 100 } : {}) };
+    return { output: { composed, hooks, skipped, tracked, template, aspect }, ...(hookN ? { units_actual: Math.round(0.1 * hooks * 100) / 100 } : {}) };
   },
 };
 
@@ -78,6 +91,26 @@ const previews: StageImpl = {
       await ctx.r2.upload(key, out, "image/jpeg");
       await ctx.rpc("record_object", { p_ws: gc.workspace_id, p_key: key, p_bytes: statSync(out).size, p_kind: "preview", p_project: null, p_source: source, p_render: null, p_expires_at: null });
       await ctx.rpc("set_clip_thumb", { p_clip: c.clip_id, p_path: key }); n++;
+      // Análisis de escena (estimación): 3 fotogramas del clip → descripción visual con marcas de tiempo. Nunca bloquea el clip si falla.
+      try {
+        const cfg = aiConfig(ctx.env ?? process.env); const dur = (c.end_ms - c.start_ms) / 1000;
+        if (cfg.key && dur >= 3) {
+          const stamps = [0.1, 0.5, 0.9].map((f) => c.start_ms / 1000 + dur * f), imgs: unknown[] = [];
+          for (let i = 0; i < stamps.length; i++) {
+            const fo = join(dir(ctx, gen), `${c.clip_id}-s${i}.jpg`);
+            const fr = spawnSync("ffmpeg", ["-y", "-v", "error", "-ss", stamps[i].toFixed(2), "-i", file, "-frames:v", "1", "-vf", "scale=384:-2", "-q:v", "6", fo], { encoding: "utf8" });
+            if (fr.status === 0 && statSync(fo).size > 500) imgs.push({ type: "image_url", image_url: { url: `data:image/jpeg;base64,${readFileSync(fo).toString("base64")}` } });
+          }
+          if (imgs.length) {
+            const limiter = new GroqLimiter(limitsFromEnv(ctx.env ?? process.env)); await limiter.wait("llm", 1500);
+            const marks = stamps.map((t) => { const x = Math.round(t - c.start_ms / 1000); return `${Math.floor(x / 60)}:${String(x % 60).padStart(2, "0")}`; });
+            const r = await groqChat(cfg, { model: (ctx.env ?? process.env).GROQ_VISION_MODEL ?? "meta-llama/llama-4-scout-17b-16e-instruct", maxTokens: 400,
+              system: "Describes escenas de vídeo en español, de forma breve y objetiva. No inventes lo que no se ve.",
+              user: [{ type: "text", text: `Estos ${imgs.length} fotogramas son del mismo clip, en los instantes ${marks.slice(0, imgs.length).join(", ")}. Escribe una línea por fotograma con el formato «[m:ss] descripción de lo que se ve» (máximo 18 palabras cada una).` }, ...imgs] });
+            const text = r.text.trim(); if (text) await ctx.rpc("set_clip_scene", { p_clip: c.clip_id, p_text: text });
+          }
+        }
+      } catch (e) { ctx.log?.(`escena sin describir: ${(e as Error).message?.slice(0, 120)}`); }
     }
     return { output: { thumbs: n } };
   },

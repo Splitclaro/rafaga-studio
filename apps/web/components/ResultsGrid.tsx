@@ -11,7 +11,7 @@ import CreationPanel from "./CreationPanel";
 import type { CompositionV2, Word } from "@rafaga/composition";
 
 interface Cand { title: string; reason: string | null; start_ms: number; end_ms: number; scores: { overall?: number; reasons?: Record<string, string> } | null }
-interface Row { id: string; title: string; thumb_path: string | null; technical_state: string; editorial_state: string; favorite: boolean; needs_review: boolean; current_version: number; generation_id: string; created_at: string; candidate: Cand | Cand[] | null }
+interface Row { id: string; title: string; scene_text?: string | null; thumb_path: string | null; technical_state: string; editorial_state: string; favorite: boolean; needs_review: boolean; current_version: number; generation_id: string; created_at: string; candidate: Cand | Cand[] | null }
 interface Gen { id: string; created_at: string; params: { brief?: string; mode?: string; range_start_ms?: number; range_end_ms?: number }; delivered_count: number | null; requested_count: number | null; warnings: { code: string; requested?: number; delivered?: number; reasons?: string[]; message?: string; clip_id?: string }[]; units_consumed: number | null; status: string; transcript_id: string }
 const cand = (r: Row): Cand | null => (Array.isArray(r.candidate) ? r.candidate[0] : r.candidate) ?? null;
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
@@ -33,7 +33,7 @@ export default function ResultsGrid({ projectId, sourceId }: { projectId: string
   const token = useCallback(async () => (await supabase.auth.getSession()).data.session?.access_token ?? "", []);
   const load = useCallback(async () => {
     const [c, g, s] = await Promise.all([
-      supabase.from("clips").select("id,title,thumb_path,technical_state,editorial_state,favorite,needs_review,current_version,generation_id,created_at,candidate:clip_candidates(title,reason,start_ms,end_ms,scores)").eq("project_id", projectId).eq("discarded", false).order("created_at", { ascending: false }),
+      supabase.from("clips").select("id,title,scene_text,thumb_path,technical_state,editorial_state,favorite,needs_review,current_version,generation_id,created_at,candidate:clip_candidates(title,reason,start_ms,end_ms,scores)").eq("project_id", projectId).eq("discarded", false).order("created_at", { ascending: false }),
       supabase.from("generations").select("id,created_at,params,delivered_count,requested_count,warnings,units_consumed,status,transcript_id").eq("project_id", projectId).order("created_at", { ascending: false }),
       supabase.from("sources").select("duration_ms,width,height").eq("id", sourceId).single(),
     ]);
@@ -68,7 +68,7 @@ export default function ResultsGrid({ projectId, sourceId }: { projectId: string
     const ids = visible.filter((r) => !comps[r.id]).map((r) => r.id);
     if (ids.length) { const { data } = await supabase.from("clip_versions").select("clip_id,composition").in("clip_id", ids).eq("version", 1); setComps((m) => ({ ...m, ...Object.fromEntries((data ?? []).map((d) => [d.clip_id, d.composition as CompositionV2])) })); }
   }
-  const pclips: PClip[] = visible.map((r) => { const c = cand(r); return { id: r.id, title: r.title, overall: c?.scores?.overall ?? null, reason: c?.reason ?? null, reasons: c?.scores?.reasons, comp: comps[r.id] ?? null, startS: (c?.start_ms ?? 0) / 1000, endS: (c?.end_ms ?? 0) / 1000, warnings: r.needs_review ? ["Necesita revisión: el seguimiento no estuvo seguro"] : [] }; });
+  const pclips: PClip[] = visible.map((r) => { const c = cand(r); return { id: r.id, title: r.title, scene: r.scene_text ?? null, overall: c?.scores?.overall ?? null, reason: c?.reason ?? null, reasons: c?.scores?.reasons, comp: comps[r.id] ?? null, startS: (c?.start_ms ?? 0) / 1000, endS: (c?.end_ms ?? 0) / 1000, warnings: r.needs_review ? ["Necesita revisión: el seguimiento no estuvo seguro"] : [] }; });
   const toggle = (id: string) => setSel((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const latest = gens[0], totalMin = src ? Math.round(src.duration_ms / 6000) / 10 : 0;
 

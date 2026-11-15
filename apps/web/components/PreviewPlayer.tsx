@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { sceneAt, mapTime, unmapTime, RATIO_SIZE, PRESET_IMPACTO, PLATFORM_LABEL, type CompositionV2, type Platform, type Word } from "@rafaga/composition";
 
 export interface PClip {
-  id: string; title: string; overall: number | null; reason: string | null; reasons?: Record<string, string>;
+  id: string; title: string; scene?: string | null; overall: number | null; reason: string | null; reasons?: Record<string, string>;
   comp: CompositionV2 | null; startS: number; endS: number; warnings?: string[];
 }
 const PLATFORMS: Platform[] = ["tiktok", "instagram_reels", "youtube_shorts"];
@@ -100,6 +100,7 @@ export default function PreviewPlayer({ clips, index, onIndex, onClose, proxyUrl
       <div><h2 className="text-lg font-semibold leading-tight !text-white">{clip.title}</h2>
         <p className="mt-1 text-sm opacity-80">{clip.overall != null ? `Encaje estimado ${clip.overall}/100 · ` : ""}{Math.round(dur)} s · {index + 1} de {clips.length}</p></div>
       {clip.reason && <p className="text-sm opacity-90">{clip.reason}</p>}
+      {clip.scene && <div className="text-sm"><div className="mb-1 text-xs font-semibold uppercase tracking-wide opacity-70">Análisis de escena (estimación)</div><ul className="space-y-1 opacity-90">{clip.scene.split("\n").filter(Boolean).map((l, i) => <li key={i}>{l}</li>)}</ul></div>}
       {clip.reasons && <ul className="space-y-1 text-xs opacity-80">{Object.values(clip.reasons).map((r) => <li key={r}>{r}</li>)}</ul>}
       {clip.warnings?.length ? <p className="rounded-lg bg-yellow-500/20 p-2 text-xs">{clip.warnings.join(" · ")}</p> : null}
       <fieldset className="text-xs"><legend className="mb-1 opacity-80">Zonas seguras (solo vista previa)</legend>
@@ -116,6 +117,8 @@ export default function PreviewPlayer({ clips, index, onIndex, onClose, proxyUrl
       <video ref={video} src={proxyUrl ?? undefined} className="hidden" playsInline preload="auto" crossOrigin="anonymous" />
       <canvas ref={canvas} width={540} height={Math.round(540 / ratio)} className="h-full w-full rounded-xl bg-black" onClick={fullscreen ? toggle : undefined} aria-label={`Vista previa de ${clip.title}`} />
       {!proxyUrl && <p className="absolute inset-0 grid place-items-center p-4 text-center text-xs text-white/80">La copia ligera todavía no está lista.</p>}
+      {proxyUrl && dur > 0 && <input type="range" min={0} max={dur} step={0.04} value={Math.min(t, dur)} aria-label="Línea de tiempo del clip" className="absolute inset-x-3 bottom-11 h-1.5 cursor-pointer accent-white"
+        onChange={(e) => { const v = video.current; if (!v || !comp) return; const f0 = comp.fragments[0]?.start ?? clip.startS, x = Number(e.target.value); v.currentTime = f0 + unmapTime(x, comp.cuts); setT(x); }} />}
       <div className="absolute inset-x-0 bottom-2 flex items-center justify-center gap-2 text-white">
         <button type="button" className="rounded-full bg-black/60 px-3 py-1 text-xs" onClick={toggle} aria-label={playing ? "Pausar" : "Reproducir"}>{playing ? "❚❚" : "▶"}</button>
         <span className="rounded-full bg-black/60 px-2 py-1 text-xs tnum">{t.toFixed(1)} / {dur.toFixed(1)} s</span>

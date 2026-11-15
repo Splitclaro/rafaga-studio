@@ -17,20 +17,23 @@ export function useProjects() {
     const srcIds = [...new Set((data ?? []).map((p) => p.source_id))];
     const [jobs, clips, srcs] = await Promise.all([
       ids.length ? supabase.from("jobs").select("*").in("project_id", ids).in("kind", ["detect", "generation"]).order("created_at", { ascending: false }) : { data: [] },
-      ids.length ? supabase.from("clips").select("project_id,thumb_path,created_at").in("project_id", ids).eq("discarded", false).order("created_at") : { data: [] },
+      ids.length ? supabase.from("clips").select("id,project_id,thumb_path,created_at").in("project_id", ids).eq("discarded", false).order("created_at") : { data: [] },
       srcIds.length ? supabase.from("sources").select("id,thumb_path").in("id", srcIds) : { data: [] },
     ]);
     const paths = (srcs.data ?? []).filter((x: { thumb_path: string | null }) => x.thumb_path).map((x: { thumb_path: string }) => x.thumb_path);
     const signed = paths.length ? (await supabase.storage.from("originals").createSignedUrls(paths, 3600)).data ?? [] : [];
     const urlByPath = new Map(signed.map((x) => [x.path, x.signedUrl]));
     const thumbBySrc = new Map((srcs.data ?? []).map((x: { id: string; thumb_path: string | null }) => [x.id, x.thumb_path ? urlByPath.get(x.thumb_path) : undefined]));
-    // Sin miniatura de la fuente: la del primer clip con miniatura propia
-    const clipThumb = new Map<string, string>();
-    for (const c of (clips.data ?? []) as { project_id: string; thumb_path: string | null }[]) if (c.thumb_path && !clipThumb.has(c.project_id)) clipThumb.set(c.project_id, c.thumb_path);
-    const ctPaths = [...clipThumb.values()];
-    const ctSigned = ctPaths.length ? (await supabase.storage.from("renders").createSignedUrls(ctPaths, 3600)).data ?? [] : [];
-    const ctUrl = new Map(ctSigned.map((x) => [x.path, x.signedUrl]));
-    setRows((data ?? []).map((p) => ({ id: p.id, name: p.name, created_at: p.created_at, project_brief: p.project_brief, mode: p.mode, archived_at: p.archived_at, folder_id: p.folder_id, thumb: ((thumbBySrc.get(p.source_id) as string | null | undefined) ?? undefined) ?? (clipThumb.get(p.id) ? ctUrl.get(clipThumb.get(p.id)!) ?? undefined : undefined),
+    // Sin miniatura de la fuente: la del primer clip con miniatura (v2: la firma el servidor tras comprobar el acceso; v1: bucket renders)
+    const clipThumb = new Map<string, { id: string; path: string }>();
+    for (const c of (clips.data ?? []) as { id: string; project_id: string; thumb_path: string | null }[]) if (c.thumb_path && !clipThumb.has(c.project_id)) clipThumb.set(c.project_id, { id: c.id, path: c.thumb_path });
+    const tk = (await supabase.auth.getSession()).data.session?.access_token ?? "";
+    const ctUrl = new Map<string, string>();
+    await Promise.all([...clipThumb.values()].map(async ({ id, path }) => {
+      try { const r = await fetch(`/api/uploads/clips/${id}/thumb`, { headers: { Authorization: `Bearer ${tk}` } }); if (r.ok) { const j = await r.json(); if (j.url) { ctUrl.set(path, j.url); return; } } } catch { /* sin miniatura */ }
+      const sg = await supabase.storage.from("renders").createSignedUrl(path, 3600); if (sg.data?.signedUrl) ctUrl.set(path, sg.data.signedUrl);
+    }));
+    setRows((data ?? []).map((p) => ({ id: p.id, name: p.name, created_at: p.created_at, project_brief: p.project_brief, mode: p.mode, archived_at: p.archived_at, folder_id: p.folder_id, thumb: ((thumbBySrc.get(p.source_id) as string | null | undefined) ?? undefined) ?? (clipThumb.get(p.id) ? ctUrl.get(clipThumb.get(p.id)!.path) ?? undefined : undefined),
       ...lastJob(jobs.data ?? [], p.id), clips: (clips.data ?? []).filter((c: { project_id: string }) => c.project_id === p.id).length })));
   }, []);
   useEffect(() => { load(); }, [load]);
