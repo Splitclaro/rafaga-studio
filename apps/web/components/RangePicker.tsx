@@ -80,6 +80,8 @@ export default function RangePicker({ songId, audioUrl, start, end, onChange }: 
     a.currentTime = start; a.play(); setPlaying(true);
   }
 
+  function playEnding() { const a = audio.current; if (!a) return; if (playing) { a.pause(); setPlaying(false); return; } a.currentTime = Math.max(start, end - 3); a.play(); setPlaying(true); }
+
   async function detect() {
     if (!env) return; setBusyMoments(true);
     let repeated: { start: number; end: number }[] = [];
@@ -103,6 +105,8 @@ export default function RangePicker({ songId, audioUrl, start, end, onChange }: 
 
       <div className="mt-3 flex flex-wrap items-end gap-3 text-sm">
         <button type="button" onClick={play} disabled={!duration} className="btn btn-primary">{playing ? "Pausa" : "Escuchar tramo"}</button>
+        <button type="button" onClick={playEnding} disabled={!duration} className="btn btn-ghost" title="Escucha los últimos 3 s del tramo para comprobar el corte">Escuchar el final</button>
+        <span className="flex items-end gap-1 text-xs" role="group" aria-label="Ajuste fino del tramo"><button type="button" className="btn btn-ghost !px-2" onClick={() => set(Math.max(0, start - 0.5), e0)}>−0,5 s inicio</button><button type="button" className="btn btn-ghost !px-2" onClick={() => set(start + 0.5, e0)}>+0,5 s inicio</button><button type="button" className="btn btn-ghost !px-2" onClick={() => set(start, Math.max(start + 1, end - 0.5))}>−0,5 s final</button><button type="button" className="btn btn-ghost !px-2" onClick={() => set(start, Math.min(duration, end + 0.5))}>+0,5 s final</button></span>
         <label>Desde (s)<input type="number" min={0} step={0.5} value={start} onChange={(e) => set(Number(e.target.value), e0)} className="input mono mt-1 w-24" /></label>
         <label>Hasta (s)<input type="number" min={0} step={0.5} value={end} onChange={(e) => set(start, Number(e.target.value) || duration)} className="input mono mt-1 w-24" /></label>
         <div className="mono ml-auto text-[var(--muted)]" aria-live="polite">{fmt(start)} – {fmt(e0)} · {(e0 - start).toFixed(1)} s{total ? ` de ${fmt(total)}` : ""}</div>

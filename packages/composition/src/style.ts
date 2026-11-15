@@ -73,6 +73,8 @@ export interface CaptionStyleV2 {
   /** Extras de LyricTune: degradado vertical (color final), ecos (copias fantasma), dirección y curva de la entrada, salida propia, movimiento en reposo y caos (0–1). */
   gradient?: string; echo?: 1 | 2 | 3; entranceDir?: "up" | "down" | "left" | "right"; ease?: "out" | "in" | "inout";
   exit?: "fade" | "slide" | "pop" | "cut"; idle?: "float" | "pulse" | "wobble"; chaos?: number;
+  /** Rotación inicial de la entrada (°), escalonado entre palabras de una página (hueco en ms y orden), vibración de línea base (px) y ciclo de paleta. */
+  entranceRot?: number; stagger?: number; staggerOrder?: "forward" | "reverse"; jitter?: number; palette?: boolean;
 }
 const CASES = ["asis", "upper", "lower"] as const, EFFECTS = ["none", "shadow", "glow", "stroke", "box"] as const, ENTRANCES = ["none", "fade", "slide", "pop", "typewriter"] as const;
 const ACTIVES = ["none", "color", "scale", "underline", "box"] as const, SIZES = ["S", "M", "L"] as const;
@@ -106,6 +108,8 @@ export function validateCaptionStyle(raw: unknown): CaptionStyleV2 {
     ...(["up", "down", "left", "right"].includes(o.entranceDir as string) && o.entranceDir !== "up" ? { entranceDir: o.entranceDir as "down" | "left" | "right" } : {}), ...(["out", "in", "inout"].includes(o.ease as string) ? { ease: o.ease as "out" | "in" | "inout" } : {}),
     ...(["fade", "slide", "pop", "cut"].includes(o.exit as string) ? { exit: o.exit as "fade" | "slide" | "pop" | "cut" } : {}), ...(["float", "pulse", "wobble"].includes(o.idle as string) ? { idle: o.idle as "float" | "pulse" | "wobble" } : {}),
     ...(Number(o.chaos) > 0 ? { chaos: Math.round(clamp(o.chaos, 0, 1, 0) * 100) / 100 } : {}),
+    ...(Number(o.entranceRot) ? { entranceRot: Math.round(clamp(o.entranceRot, -45, 45, 0)) } : {}), ...(Number(o.stagger) > 0 ? { stagger: Math.round(clamp(o.stagger, 20, 400, 0)) } : {}),
+    ...(o.staggerOrder === "reverse" ? { staggerOrder: "reverse" as const } : {}), ...(Number(o.jitter) > 0 ? { jitter: Math.round(clamp(o.jitter, 0, 12, 0)) } : {}), ...(o.palette === true ? { palette: true } : {}),
   };
 }
 export const captionStyleBytes = (s: CaptionStyleV2): number => new TextEncoder().encode(JSON.stringify(s)).length;

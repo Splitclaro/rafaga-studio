@@ -23,7 +23,7 @@ export default function LyricPreview({ composition, onChange }: { composition: L
       if (c.style.effect === "shadow") { ctx.shadowColor = "rgba(0,0,0,.7)"; ctx.shadowBlur = 6; } else if (c.style.effect === "glow") { ctx.shadowColor = c.style.activeColor; ctx.shadowBlur = 16; }
       const lit = w.active && (c.style.active === "color" || c.style.active === "underline"), bx = w.box.x + w.dx, by = w.box.y + w.dy;
       if (c.style.echo && !lit) { const ga = ctx.globalAlpha; ctx.shadowColor = "transparent"; ctx.fillStyle = c.style.color; for (let i = c.style.echo; i >= 1; i--) { ctx.globalAlpha = ga * ECHO_OPACITY[i - 1]; const o = Math.round(L.em * ECHO_OFFSET * i); ctx.fillText(w.text, bx + o, by + o); } ctx.globalAlpha = ga; }
-      if (lit) ctx.fillStyle = c.style.activeColor; else if (c.style.gradient) { const g = ctx.createLinearGradient(0, by, 0, by + w.box.h); g.addColorStop(0, c.style.color); g.addColorStop(1, c.style.gradient); ctx.fillStyle = g; } else ctx.fillStyle = c.style.color;
+      if (lit) ctx.fillStyle = c.style.activeColor; else if (w.color) ctx.fillStyle = w.color; else if (c.style.gradient) { const g = ctx.createLinearGradient(0, by, 0, by + w.box.h); g.addColorStop(0, c.style.color); g.addColorStop(1, c.style.gradient); ctx.fillStyle = g; } else ctx.fillStyle = c.style.color;
       const text = w.text; if (c.style.effect === "stroke") { ctx.lineWidth = Math.max(2, L.em * 0.08); ctx.strokeStyle = "#000"; ctx.strokeText(text, w.box.x + w.dx, w.box.y + w.dy); }
       ctx.fillText(text, w.box.x + w.dx, w.box.y + w.dy);
       if (w.active && c.style.active === "underline") ctx.fillRect(w.box.x + w.dx, w.box.y + w.dy + w.box.h - 4, w.box.w, 4);

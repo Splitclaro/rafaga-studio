@@ -70,3 +70,18 @@ test("render real con libass: el degradado cambia de color de arriba abajo y los
   const plain = shot({ color: "#FFFFFF" }), echo = shot({ color: "#FFFFFF", echo: 3 });
   assert.ok(lit(echo) > lit(plain) * 1.05, `ecos: ${lit(echo)} vs ${lit(plain)}`);
 });
+
+test("rotación de entrada, escalonado, vibración de línea base y ciclo de paleta: reproducibles y coherentes entre escena y ASS", () => {
+  const c = comp({ entranceRot: 20, stagger: 200, jitter: 6, palette: true, gradient: "#FF0066", entrance: "pop" }), L = lyricLayout(c), TL = lyricTimeline(c, L);
+  const pg = L.pages[0], [a, b] = [pg.words[0], pg.words[1]], wa = TL.find((x) => x.index === a)!, wb = TL.find((x) => x.index === b)!;
+  assert.equal(wordMotion(c, L, wb, wb.vs).alpha, 0, "la segunda palabra espera su turno");
+  assert.ok(wordMotion(c, L, wa, wa.vs).rot > 0 && wordMotion(c, L, wa, wa.vs + 20).rot === 0, "la rotación se disipa");
+  const rev = comp({ stagger: 200, staggerOrder: "reverse" }), Lr = lyricLayout(rev), pr = Lr.pages[0], TLr = lyricTimeline(rev, Lr);
+  assert.equal(wordMotion(rev, Lr, TLr.find((x) => x.index === pr.words[0])!, TLr[0].vs).alpha, 0, "en orden inverso espera la primera");
+  assert.deepEqual(wordMotion(c, L, wa, wa.vs + 30), wordMotion(c, L, wa, wa.vs + 30));
+  const sc = lyricSceneAt(c, (wa.vs + 30) / FPS + 1e-4, L, TL), w0 = sc.words.find((x) => x.index === a)!, w1 = sc.words.find((x) => x.index === b)!;
+  assert.ok(w0.color && w1.color && w0.color !== w1.color, "el ciclo de paleta alterna colores");
+  const ass = lyricAss(c);
+  assert.match(ass, /\\org\(/); assert.match(ass, /\\c&H/);
+  assert.deepEqual(validateCaptionStyle({ rafagaStyle: 2, entranceRot: 99, stagger: 5, jitter: 99, palette: true, staggerOrder: "reverse" }), { ...validateCaptionStyle({ rafagaStyle: 2 }), entranceRot: 45, stagger: 20, jitter: 12, palette: true, staggerOrder: "reverse" });
+});
