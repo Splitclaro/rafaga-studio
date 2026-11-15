@@ -8,11 +8,12 @@ import { httpApi, localResumeStore, runUpload, type UploadEvent } from "../lib/u
 import type { SyncWord } from "@rafaga/lyrics";
 import LyricSyncEditor from "./LyricSyncEditor";
 import Icon from "./Icon";
+import { TRENDING_STYLES } from "../lib/trendingstyles";
 import LyricPreview from "./LyricPreview";
 import LyricLibrary from "./LyricLibrary";
 import LyricSettings from "./LyricSettings";
 import LyricResults from "./LyricResults";
-import { validateLyricComposition, switchLyricMode, planLyricVariants, surpriseCaption, type LyricComposition } from "@rafaga/composition";
+import { validateCaptionStyle, validateLyricComposition, switchLyricMode, planLyricVariants, surpriseCaption, type LyricComposition } from "@rafaga/composition";
 
 const MAX_SONG = 62914560;
 type Song = { id: string; lyrics_text?: string | null; title: string; artist: string | null; status: "pending" | "ready" | "failed"; duration_ms: number | null; error_code: string | null; created_at: string };
@@ -88,7 +89,7 @@ export default function LyricStudioV2() {
     if (!u.ok) return setMsg(uj?.error?.message ?? "No se pudo abrir el audio.");
     if (!aj.words?.length) return setMsg("Todavía no hay sincronización. Pulsa «Sincronizar» y espera unos segundos.");
     setEditing({ song: s, url: uj.url, revision: aj.revision ?? null, words: aj.words });
-    const ws = (aj.words as SyncWord[]); setComp(validateLyricComposition({ aspect: "9:16", range: { start: 0, end: Math.max(5, Math.min(30, ws.at(-1)?.end ?? 30)) }, words: ws.map((w) => ({ text: w.text, start: w.start, end: w.end, line: w.line })) }));
+    const ws = (aj.words as SyncWord[]); setComp(validateLyricComposition({ aspect: "9:16", range: { start: Math.max(0, Math.floor((ws[0]?.start ?? 0) - 1)), end: Math.max(Math.floor((ws[0]?.start ?? 0)) + 5, Math.min(Math.floor((ws[0]?.start ?? 0)) + 45, Math.ceil(ws.at(-1)?.end ?? 30))) }, words: ws.map((w) => ({ text: w.text, start: w.start, end: w.end, line: w.line })) }));
   }
   /** Planifica N variantes con candados y las envía: 1 generación, N clips y un lote de exportaciones MP4. */
   async function generate() {
@@ -108,12 +109,14 @@ export default function LyricStudioV2() {
   }
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 p-6">
+    <main className="mx-auto max-w-6xl space-y-6 p-6">
       <header><h1 className="text-3xl font-extrabold">Lyric Studio</h1><p className="mt-1 text-[var(--muted)]">Sube una canción y crea vídeos con su letra en movimiento.</p></header>
       <ol aria-label="Cómo funciona" className="flex flex-wrap gap-2.5">
         {([["1", "Sube la canción", "upload", "violet"], ["2", "Ajusta la letra", "type", "blue"], ["3", "Elige el estilo y crea", "wand", "mint"]] as const).map(([n, t, ic, tone]) => (
           <li key={n} className={`tag tag-${tone}`}><span className="tag-ico"><Icon n={ic} className="h-4 w-4" /></span><span className="tnum opacity-60">{n}</span>{t}</li>))}
       </ol>
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,480px)_minmax(0,1fr)] lg:items-start">
+        <div className="min-w-0 space-y-6">
       <section className="card p-4" aria-label="Subir una canción">
         <label htmlFor="song-file" className={`grid cursor-pointer place-items-center rounded-[20px] border-2 border-dashed border-[#C9D6EC] p-7 text-center ${busy ? "pointer-events-none opacity-60" : "hover:border-[var(--accent)]"}`} style={{ background: "var(--grad-soft)" }}>
           <span aria-hidden className="ico-tile grad !h-14 !w-14 !rounded-[18px]"><Icon n="music" className="h-6 w-6" /></span>
@@ -144,11 +147,12 @@ export default function LyricStudioV2() {
                   <div className="flex flex-wrap gap-2"><button className="btn btn-primary !min-h-9" onClick={() => void sync(s)}><Icon n="wand" className="h-4 w-4" />Sincronizar automáticamente</button>
                     <button className="btn btn-ghost !min-h-9" onClick={() => void edit(s)}><Icon n="clock" className="h-4 w-4" />Sincronizar a mano o ajustar</button></div>
                   <p className="mt-1.5 text-xs text-[var(--muted)]">A mano: suena la canción, mantén la barra espaciadora mientras se dice cada palabra y suéltala al acabar.</p></div>
-                <div className="rounded-2xl bg-[var(--surface)] p-3"><p className="mb-1.5 flex items-center gap-2 font-semibold"><span className="tag tag-mint !px-2 !py-0.5 !text-xs">3</span>Crea la pieza</p>
+                <div className="rounded-2xl bg-[var(--surface)] p-3"><p className="mb-1.5 flex items-center gap-2 font-semibold"><span className="tag tag-mint !px-2 !py-0.5 !text-xs">3</span>Abre el estudio: vista previa, estilo y exportación</p>
                   <div className="flex flex-wrap items-center gap-2"><select aria-label="Modo de la pieza" className="input !min-h-9 !w-auto" value={mode[s.id] ?? "letra"} onChange={(e) => setMode((m) => ({ ...m, [s.id]: e.target.value }))}>{MODES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
-                    <button className="btn btn-primary !min-h-9" onClick={() => void createPiece(s)}><Icon n="play" className="h-4 w-4" />Crear pieza</button></div></div></>}
+                    <button className="btn btn-primary !min-h-9" onClick={() => void edit(s)}><Icon n="play" className="h-4 w-4" />Abrir en el estudio</button></div></div></>}
             </li>))}</ul>}
       </section>
+      {editing && <LyricSyncEditor songId={editing.song.id} audioUrl={editing.url} lyrics={editing.song.lyrics_text ?? editing.words.map((w) => w.text).join(" ")} revision={editing.revision} words={editing.words} onSaved={() => void load()} />}
       {comp && <section className="card space-y-2 p-3 text-sm" aria-label="Modo de la pieza">
         <div role="radiogroup" aria-label="Modo" className="flex gap-2">{([["letra", "Letra"], ["texto", "Texto"], ["portada", "Portada"]] as const).map(([m, l]) => <button key={m} role="radio" aria-checked={comp.mode === m} className={`rounded-full border px-3 py-1 text-xs ${comp.mode === m ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "hairline"}`} onClick={() => setComp(switchLyricMode(comp, m))}>{l}</button>)}</div>
         <p className="text-xs text-[var(--muted)]">Cambiar de modo conserva la letra, el estilo y los fondos.</p>
@@ -159,8 +163,18 @@ export default function LyricStudioV2() {
           <input className="rounded-lg border hairline px-2 py-1.5" placeholder="Artista" maxLength={120} value={comp.cover?.artist ?? ""} onChange={(e) => setComp({ ...comp, cover: { title: comp.cover?.title ?? "", ...comp.cover, artist: e.target.value } })} aria-label="Artista" /></div>}
         <input className="w-full rounded-lg border hairline px-2 py-1.5" placeholder="Gancho (opcional, franja superior)" maxLength={120} value={comp.hook?.text ?? ""} onChange={(e) => setComp({ ...comp, hook: e.target.value ? { text: e.target.value, dur: comp.hook?.dur ?? 3, start: comp.hook?.start } : null })} aria-label="Gancho" />
       </section>}
-      {comp && <LyricPreview composition={comp} onChange={setComp} />}
+      {comp && <section className="card space-y-3 p-4 text-sm" aria-label="Estilo del texto">
+        <h2 className="font-display text-base font-bold">Estilo del texto</h2>
+        <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4" aria-label="Estilos populares">{TRENDING_STYLES.map((t) => (
+          <li key={t.id}><button type="button" title={t.name} aria-pressed={comp.preset === t.preset && JSON.stringify(comp.style) === JSON.stringify(validateCaptionStyle(t.style))} onClick={() => setComp(validateLyricComposition({ ...comp, preset: t.preset, style: validateCaptionStyle({ ...t.style, color: comp.style.color }) }))}
+            className="chip w-full !justify-center truncate" style={{ fontFamily: `'${validateCaptionStyle(t.style).font}', Inter, sans-serif`, fontWeight: validateCaptionStyle(t.style).weight }}>{t.name}</button></li>))}</ul>
+        <div className="flex flex-wrap items-center gap-3"><label className="flex items-center gap-2">Color del texto <input type="color" value={comp.style.color} onChange={(e) => setComp(validateLyricComposition({ ...comp, style: validateCaptionStyle({ ...comp.style, color: e.target.value }) }))} aria-label="Color del texto" /></label>
+          <a href="/app/style-studio" className="font-semibold text-[var(--accent-ink)]">Más ajustes de estilo →</a></div>
+      </section>}
       {comp && <LyricSettings composition={comp} onChange={setComp} />}
+        </div>
+        <div className="min-w-0 space-y-6 lg:sticky lg:top-20">
+      {comp ? <LyricPreview composition={comp} onChange={setComp} /> : <div className="card grid min-h-[320px] place-items-center p-6 text-center text-sm text-[var(--muted)]"><div><span aria-hidden className="ico-tile grad mx-auto !h-12 !w-12"><Icon n="play" className="h-5 w-5" /></span><p className="mt-3 font-display text-base font-bold text-[var(--ink)]">Aquí verás tu vídeo</p><p>Sube la canción, pega la letra, sincronízala y pulsa «Abrir en el estudio».</p></div></div>}
       {comp && <section className="card space-y-2 p-4 text-sm" aria-label="Generar variantes">
         <h2 className="font-semibold">Generar N variantes</h2>
         <div className="flex flex-wrap items-center gap-3">
@@ -172,8 +186,9 @@ export default function LyricStudioV2() {
         <button className="btn btn-primary !min-h-9" onClick={() => void generate()}>Generar {nVar} variantes</button>
       </section>}
       {batch && <LyricResults exportIds={batch.export_ids} generationId={batch.generation_id} batchId={batch.batch_id} projectId={projectId ?? undefined} />}
+        </div>
+      </div>
       <LyricLibrary workspaceId={wsId} />
-      {editing && <LyricSyncEditor songId={editing.song.id} audioUrl={editing.url} lyrics={editing.song.lyrics_text ?? editing.words.map((w) => w.text).join(" ")} revision={editing.revision} words={editing.words} onSaved={() => void load()} />}
     </main>
   );
 }
