@@ -15,6 +15,16 @@ export default function NuevoV2() {
   const [done, setDone] = useState<{ project_id: string; source_id: string; name: string; file?: File } | null>(null);
   const localUrl = useMemo(() => (done?.file ? URL.createObjectURL(done.file) : null), [done]);
   useEffect(() => () => { if (localUrl) URL.revokeObjectURL(localUrl); }, [localUrl]);
+  const [frames, setFrames] = useState<string[]>([]);
+  useEffect(() => {   // tira de fotogramas del archivo local (solo en el navegador; no sube nada)
+    setFrames([]); if (!localUrl) return;
+    let stop = false; const v = document.createElement("video"); v.muted = true; v.preload = "auto"; v.src = localUrl;
+    const out: string[] = [], N = 10, cv = document.createElement("canvas"); cv.width = 120; cv.height = 68;
+    const grab = (i: number) => { if (stop || i >= N) { if (!stop) setFrames(out); return; } v.currentTime = Math.max(0, (v.duration * (i + 0.5)) / N); };
+    v.onseeked = () => { cv.getContext("2d")?.drawImage(v, 0, 0, cv.width, cv.height); out.push(cv.toDataURL("image/jpeg", 0.6)); grab(out.length); };
+    v.onloadedmetadata = () => grab(0); v.onerror = () => undefined;
+    return () => { stop = true; v.src = ""; };
+  }, [localUrl]);
   async function remove() { if (!done) return; await supabase.from("projects").update({ deleted_at: new Date().toISOString() }).eq("id", done.project_id); setDone(null); setSrc(null); }
   const [src, setSrc] = useState<Src | null>(null);
 
@@ -53,7 +63,7 @@ export default function NuevoV2() {
           </div>
         )}
         {/* Como en OpusClip: la receta y todos los ajustes se ven y se pueden configurar ANTES de subir; «Crear» se activa cuando el vídeo está listo. */}
-        <CreationPanel projectId={done && src?.status === "validated" ? done.project_id : null} durationMs={done && src?.status === "validated" ? src.duration_ms : null} onCreated={() => done && router.push(`/app/p/${done.project_id}`)} />
+        <CreationPanel filmstrip={frames} projectId={done && src?.status === "validated" ? done.project_id : null} durationMs={done && src?.status === "validated" ? src.duration_ms : null} onCreated={() => done && router.push(`/app/p/${done.project_id}`)} />
       </section>
     </main>
   );

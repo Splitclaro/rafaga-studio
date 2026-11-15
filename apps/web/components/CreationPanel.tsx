@@ -15,11 +15,13 @@ const FONTS = ["Inter", "Montserrat", "Bebas Neue", "Anton", "Oswald", "Roboto",
 const PRESET_LABEL: Record<string, string> = { palabra_a_palabra: "Palabra a palabra", corte_por_palabra: "Corte por palabra", barrido_marcador: "Barrido marcador", palabras_clave: "Palabras clave", karaoke: "Karaoke", caja: "Caja", contorno: "Contorno", neon: "Neón" };
 const mmss = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, "0")}`;
 /** Rango con dos asas (como «Ajustar rango» de Opus): sincroniza con los campos Desde/Hasta. */
-function RangeBar({ total, from, to, onChange }: { total: number; from: number; to: number; onChange: (a: number, b: number) => void }) {
+function RangeBar({ total, from, to, onChange, frames }: { frames?: string[]; total: number; from: number; to: number; onChange: (a: number, b: number) => void }) {
   const a = Math.max(0, Math.min(from, total)), b = Math.max(a, Math.min(Number.isFinite(to) ? to : total, total)), pc = (v: number) => `${(v / total) * 100}%`;
   const thumb = "pointer-events-none absolute inset-0 h-6 w-full appearance-none bg-transparent [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded [&::-webkit-slider-thumb]:bg-[var(--ink)] [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:w-3 [&::-moz-range-thumb]:rounded [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-[var(--ink)]";
   return (
     <div className="my-1">
+      {frames?.length ? <div className="relative mb-1 h-12 overflow-hidden rounded-lg bg-black"><div className="absolute inset-0 flex">{frames.map((f, i) => /* eslint-disable-next-line @next/next/no-img-element */ <img key={i} src={f} alt="" className="h-full flex-1 object-cover" />)}</div>
+        <div className="absolute inset-y-0 left-0 bg-black/60" style={{ width: pc(a) }} /><div className="absolute inset-y-0 right-0 bg-black/60" style={{ left: pc(b) }} /></div> : null}
       <div className="relative h-6"><div className="absolute inset-x-0 top-2.5 h-1 rounded bg-[var(--border-2)]" /><div className="absolute top-2 h-2 rounded bg-[var(--ink)]/70" style={{ left: pc(a), width: pc(b - a) }} />
         <input type="range" min={0} max={total} step={1000} value={a} aria-label="Inicio del tramo (deslizador)" className={thumb} onChange={(e) => onChange(Math.min(Number(e.target.value), b - 1000), b)} />
         <input type="range" min={0} max={total} step={1000} value={b} aria-label="Final del tramo (deslizador)" className={thumb} onChange={(e) => onChange(a, Math.max(Number(e.target.value), a + 1000))} /></div>
@@ -30,7 +32,7 @@ function RangeBar({ total, from, to, onChange }: { total: number; from: number; 
 const parse = (s: string) => { const p = s.trim().split(":").map(Number); return p.some((x) => !Number.isFinite(x)) ? NaN : p.reduce((t, x) => t * 60 + x, 0) * 1000; };
 type Est = { minutes: number; units: { processing: number; clipping: number; hook: number; total: number }; balance: number; eta: { p50_s: number; p90_s: number } | null; reusable_analysis: boolean; viable_count: number; requested_count: number | null; summary: string[] };
 
-export default function CreationPanel({ projectId, durationMs, onCreated }: { projectId: string | null; durationMs: number | null; onCreated?: (r: { generation_id: string; job_id: string }) => void }) {
+export default function CreationPanel({ projectId, durationMs, onCreated, filmstrip }: { projectId: string | null; durationMs: number | null; filmstrip?: string[]; onCreated?: (r: { generation_id: string; job_id: string }) => void }) {
   const [recipe, setRecipe] = useState<Recipe>(() => { try { const r = new URLSearchParams(window.location.search).get("receta"); return (RECIPES as readonly string[]).includes(r ?? "") ? (r as Recipe) : "clips"; } catch { return "clips"; } });
   const [mode, setMode] = useState<Mode>("cualquier_momento");
   const [duration, setDuration] = useState<Bucket>("auto");
@@ -166,7 +168,7 @@ export default function CreationPanel({ projectId, durationMs, onCreated }: { pr
                   <textarea className={field} rows={2} maxLength={2000} value={brief} onChange={(e) => setBrief(e.target.value)} placeholder="Ejemplo: busca todos los momentos en los que alguien se ríe o cuenta una anécdota" /></label>
                 <label className="block"><span className="mb-1 block text-xs font-medium text-[var(--muted)]">Evitar (opcional)</span>
                   <input className={field} maxLength={1000} value={exclude} onChange={(e) => setExclude(e.target.value)} placeholder="Ejemplo: el patrocinador, la despedida" /></label>
-                {durationMs ? <RangeBar total={durationMs} from={parse(from) || 0} to={parse(to)} onChange={(x, y) => { setFrom(mmss(x)); setTo(mmss(y)); }} /> : null}
+                {durationMs ? <RangeBar frames={filmstrip} total={durationMs} from={parse(from) || 0} to={parse(to)} onChange={(x, y) => { setFrom(mmss(x)); setTo(mmss(y)); }} /> : null}
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label><span className="mb-1 block text-xs font-medium text-[var(--muted)]">Desde</span><input className={field} value={from} onChange={(e) => setFrom(e.target.value)} inputMode="numeric" aria-label="Inicio del tramo" /></label>
                   <label><span className="mb-1 block text-xs font-medium text-[var(--muted)]">Hasta{durationMs ? ` (de ${mmss(durationMs)})` : ""}</span><input className={field} value={to} onChange={(e) => setTo(e.target.value)} inputMode="numeric" aria-label="Final del tramo" /></label></div>
