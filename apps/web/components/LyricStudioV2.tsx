@@ -82,7 +82,7 @@ export default function LyricStudioV2() {
     const txt = (lyricsDraft[s.id] ?? "").replace(/\r/g, "").trim();
     const { error } = await supabase.from("songs").update({ lyrics_text: txt || null }).eq("id", s.id);
     if (error) { setMsg("No se pudo guardar la letra."); return; }
-    setMsg(txt ? "Letra guardada. Ahora sincronízala con la canción." : "Letra borrada: se transcribirá la canción."); setLyricsDraft((d) => { const n = { ...d }; delete n[s.id]; return n; }); await load(); void autoSync({ ...s, lyrics_text: txt || null }, true);
+    setMsg(txt ? "Letra guardada. Sincronizando automáticamente…" : "Letra borrada: se transcribirá la canción."); setLyricsDraft((d) => { const n = { ...d }; delete n[s.id]; return n; }); await load(); void autoSync({ ...s, lyrics_text: txt || null }, true);
   }
   const alignment = async (s: Song) => { const t = await token(); const a = await fetch(`/api/lyrics/songs/${s.id}/alignment`, { headers: { Authorization: `Bearer ${t}` } }); return a.ok ? await a.json().catch(() => ({})) as { words?: SyncWord[]; revision?: number | null } : {}; };
   /** Sincronización automática sin intervención: pide la alineación (con la letra pegada o transcribiendo), espera a que haya una revisión nueva y abre el estudio. */
@@ -163,7 +163,7 @@ export default function LyricStudioV2() {
                 <div className="rounded-2xl bg-[var(--surface)] p-3"><p className="mb-1.5 flex items-center gap-2 font-semibold"><span className="tag tag-violet !px-2 !py-0.5 !text-xs">1</span>Pega la letra <span className="font-normal text-[var(--muted)]">(cada línea se muestra por separado; si la dejas vacía se transcribe la canción)</span></p>
                   <textarea aria-label="Letra de la canción" rows={5} maxLength={20000} className="input !min-h-0" placeholder={"Estoy contando días\nPara volver a verte…"} value={lyricsDraft[s.id] ?? s.lyrics_text ?? ""} onChange={(e) => setLyricsDraft((d) => ({ ...d, [s.id]: e.target.value }))} />
                   <div className="mt-2 flex flex-wrap items-center gap-2"><button className="btn btn-ghost !min-h-9" disabled={(lyricsDraft[s.id] ?? s.lyrics_text ?? "") === (s.lyrics_text ?? "")} onClick={() => void saveLyrics(s)}><Icon n="check" className="h-4 w-4" />Guardar letra</button>
-                    <span className="text-xs text-[var(--muted)]">Al cambiar la letra hay que volver a sincronizar.</span></div></div>
+                    <span className="text-xs text-[var(--muted)]">Al guardar la letra se sincroniza sola.</span></div></div>
                 <div className="rounded-2xl bg-[var(--surface)] p-3"><p className="mb-1.5 flex items-center gap-2 font-semibold"><span className="tag tag-blue !px-2 !py-0.5 !text-xs">2</span>La sincronización es automática</p>
                   {auto[s.id] === "syncing" ? <p role="status" className="flex items-center gap-2 text-[var(--muted)]"><span className="ring-run" aria-hidden />Sincronizando la letra con la canción… en cuanto termine se abre el estudio. No tienes que hacer nada.</p>
                     : auto[s.id] === "failed" ? <p role="alert" className="text-[var(--danger)]">No se pudo sincronizar. <button className="underline" onClick={() => void autoSync(s, true)}>Reintentar</button></p>
@@ -172,7 +172,7 @@ export default function LyricStudioV2() {
                     <div className="mt-2 flex flex-wrap gap-2"><button className="btn btn-ghost !min-h-9" onClick={() => void autoSync(s, true)}><Icon n="wand" className="h-4 w-4" />Volver a sincronizar</button>
                       <button className="btn btn-ghost !min-h-9" onClick={() => void edit(s)}><Icon n="clock" className="h-4 w-4" />Ajustar palabra a palabra</button></div>
                     <p className="mt-1.5">A mano: suena la canción, mantén la barra espaciadora mientras se dice cada palabra y suéltala al acabar.</p></details></div>
-                <div className="rounded-2xl bg-[var(--surface)] p-3"><p className="mb-1.5 flex items-center gap-2 font-semibold"><span className="tag tag-mint !px-2 !py-0.5 !text-xs">3</span>Abre el estudio: vista previa, estilo y exportación</p>
+                <div className="rounded-2xl bg-[var(--surface)] p-3"><p className="mb-1.5 flex items-center gap-2 font-semibold"><span className="tag tag-mint !px-2 !py-0.5 !text-xs">3</span>El estudio se abre solo; aquí puedes reabrirlo</p>
                   <div className="flex flex-wrap items-center gap-2"><select aria-label="Modo de la pieza" className="input !min-h-9 !w-auto" value={mode[s.id] ?? "letra"} onChange={(e) => setMode((m) => ({ ...m, [s.id]: e.target.value }))}>{MODES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
                     <button className="btn btn-primary !min-h-9" onClick={() => void edit(s)}><Icon n="play" className="h-4 w-4" />Abrir en el estudio</button></div></div></>}
             </li>))}</ul>}
