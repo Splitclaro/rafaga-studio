@@ -33,6 +33,7 @@ export default function LyricStudioV2() {
   const [wsId, setWsId] = useState<string | null>(null);
   useEffect(() => { void supabase.from("workspace_members").select("workspace_id").limit(1).then(({ data }) => setWsId(data?.[0]?.workspace_id ?? null)); }, []);
   const [projectId, setProjectId] = useState<string | null>(null), [nVar, setNVar] = useState(3), [res, setRes] = useState<720 | 1080>(720), [outFmt, setOutFmt] = useState<LyricComposition["aspect"]>("9:16");
+  const [lyricsDraft, setLyricsDraft] = useState<Record<string, string>>({});
   const [locks, setLocks] = useState({ song_range: true, lyrics_sync: true, style: false, background: true, format: true }), [batch, setBatch] = useState<{ export_ids: string[]; generation_id: string; batch_id?: string } | null>(null);
   const [comp, setComp] = useState<LyricComposition | null>(null);
   const [editing, setEditing] = useState<{ song: Song; url: string; revision: number | null; words: SyncWord[] } | null>(null);
@@ -73,6 +74,12 @@ export default function LyricStudioV2() {
     const r = await fetch(`/api/lyrics/songs/${s.id}/sync`, { method: "POST", headers: { ...H, "Idempotency-Key": `sync-${s.id}-${crypto.randomUUID()}` }, body: JSON.stringify({ mode: s.lyrics_text?.trim() ? "align" : "transcribe" }) });
     const j = await r.json().catch(() => ({}));
     setMsg(r.ok ? (j.cached ? "Sincronizando con la transcripción guardada (sin coste)." : `Sincronizando. Se reservan ${j.units_reserved} unidades; lo no usado se devuelve.`) : (j?.error?.message ?? "No se pudo sincronizar."));
+  }
+  async function saveLyrics(s: Song) {
+    const txt = (lyricsDraft[s.id] ?? "").replace(/\r/g, "").trim();
+    const { error } = await supabase.from("songs").update({ lyrics_text: txt || null }).eq("id", s.id);
+    if (error) { setMsg("No se pudo guardar la letra."); return; }
+    setMsg(txt ? "Letra guardada. Ahora sincronízala con la canción." : "Letra borrada: se transcribirá la canción."); setLyricsDraft((d) => { const n = { ...d }; delete n[s.id]; return n; }); await load();
   }
   async function edit(s: Song) {
     const t = await token(), H = { Authorization: `Bearer ${t}` };
@@ -123,14 +130,23 @@ export default function LyricStudioV2() {
       <section aria-label="Canciones">
         {songs === null ? <p className="text-sm text-[var(--muted)]">Cargando canciones…</p> : !songs.length ? <p className="card p-4 text-sm text-[var(--muted)]">Aún no hay canciones. Sube la primera para empezar.</p> :
           <ul className="space-y-2">{songs.map((s) => (
-            <li key={s.id} className="card flex flex-wrap items-center justify-between gap-3 p-3 text-sm">
-              <div><p className="font-medium">{s.title}{s.artist ? ` · ${s.artist}` : ""}</p>
-                <p className="text-xs text-[var(--muted)]">{s.status === "pending" ? "Validando…" : s.status === "ready" ? `Lista · ${dur(s.duration_ms)}` : (ERR[s.error_code ?? ""] ?? "No se pudo validar el archivo.")}</p></div>
-              {s.status === "ready" && <div className="flex flex-wrap items-center gap-2">
-                <button className="btn btn-ghost !min-h-9" onClick={() => void sync(s)}>Sincronizar</button>
-                <button className="btn btn-ghost !min-h-9" onClick={() => void edit(s)}>Editar sincronización</button>
-                <select aria-label="Modo de la pieza" className="input !min-h-9" value={mode[s.id] ?? "letra"} onChange={(e) => setMode((m) => ({ ...m, [s.id]: e.target.value }))}>{MODES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
-                <button className="btn btn-ghost !min-h-9" onClick={() => void createPiece(s)}>Crear pieza</button></div>}
+            <li key={s.id} className="card space-y-4 p-4 text-sm">
+              <div className="flex flex-wrap items-center gap-3"><span aria-hidden className="ico-tile grad"><Icon n="music" className="h-4 w-4" /></span>
+                <div className="min-w-0 flex-1"><p className="truncate font-display text-base font-bold">{s.title}{s.artist ? ` · ${s.artist}` : ""}</p>
+                  <p className="text-xs text-[var(--muted)]">{s.status === "pending" ? "Validando…" : s.status === "ready" ? `Lista · ${dur(s.duration_ms)}` : (ERR[s.error_code ?? ""] ?? "No se pudo validar el archivo.")}</p></div>
+                {s.status === "ready" && (s.lyrics_text?.trim() ? <span className="status status-ok">Letra guardada · {s.lyrics_text.split("\n").filter((l) => l.trim()).length} líneas</span> : <span className="chip">Sin letra todavía</span>)}</div>
+              {s.status === "ready" && <>
+                <div className="rounded-2xl bg-[var(--surface)] p-3"><p className="mb-1.5 flex items-center gap-2 font-semibold"><span className="tag tag-violet !px-2 !py-0.5 !text-xs">1</span>Pega la letra <span className="font-normal text-[var(--muted)]">(cada línea se muestra por separado; si la dejas vacía se transcribe la canción)</span></p>
+                  <textarea aria-label="Letra de la canción" rows={5} maxLength={20000} className="input !min-h-0" placeholder={"Estoy contando días\nPara volver a verte…"} value={lyricsDraft[s.id] ?? s.lyrics_text ?? ""} onChange={(e) => setLyricsDraft((d) => ({ ...d, [s.id]: e.target.value }))} />
+                  <div className="mt-2 flex flex-wrap items-center gap-2"><button className="btn btn-ghost !min-h-9" disabled={(lyricsDraft[s.id] ?? s.lyrics_text ?? "") === (s.lyrics_text ?? "")} onClick={() => void saveLyrics(s)}><Icon n="check" className="h-4 w-4" />Guardar letra</button>
+                    <span className="text-xs text-[var(--muted)]">Al cambiar la letra hay que volver a sincronizar.</span></div></div>
+                <div className="rounded-2xl bg-[var(--surface)] p-3"><p className="mb-1.5 flex items-center gap-2 font-semibold"><span className="tag tag-blue !px-2 !py-0.5 !text-xs">2</span>Sincroniza la letra con la canción</p>
+                  <div className="flex flex-wrap gap-2"><button className="btn btn-primary !min-h-9" onClick={() => void sync(s)}><Icon n="wand" className="h-4 w-4" />Sincronizar automáticamente</button>
+                    <button className="btn btn-ghost !min-h-9" onClick={() => void edit(s)}><Icon n="clock" className="h-4 w-4" />Sincronizar a mano o ajustar</button></div>
+                  <p className="mt-1.5 text-xs text-[var(--muted)]">A mano: suena la canción, mantén la barra espaciadora mientras se dice cada palabra y suéltala al acabar.</p></div>
+                <div className="rounded-2xl bg-[var(--surface)] p-3"><p className="mb-1.5 flex items-center gap-2 font-semibold"><span className="tag tag-mint !px-2 !py-0.5 !text-xs">3</span>Crea la pieza</p>
+                  <div className="flex flex-wrap items-center gap-2"><select aria-label="Modo de la pieza" className="input !min-h-9 !w-auto" value={mode[s.id] ?? "letra"} onChange={(e) => setMode((m) => ({ ...m, [s.id]: e.target.value }))}>{MODES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
+                    <button className="btn btn-primary !min-h-9" onClick={() => void createPiece(s)}><Icon n="play" className="h-4 w-4" />Crear pieza</button></div></div></>}
             </li>))}</ul>}
       </section>
       {comp && <section className="card space-y-2 p-3 text-sm" aria-label="Modo de la pieza">
