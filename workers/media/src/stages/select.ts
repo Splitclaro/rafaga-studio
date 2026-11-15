@@ -160,8 +160,11 @@ const select: StageImpl = {
       for (const sl of coverageSlots(rs, re, taken, b.want - payload.length, b.min, b.max, gp.target_s ?? null)) {
         const a = snapStart(sl.startSec), z = snapEnd(sl.endSec), mm = `${Math.floor(a / 60)}:${String(Math.floor(a % 60)).padStart(2, "0")}`;
         const txt = "Tramo repartido por el vídeo";
-        payload.push({ start_ms: Math.round(a * 1000), end_ms: Math.round(z * 1000), title: `Momento a los ${mm}`, brief_fit: "",
-          reason: "Tramo elegido para repartir los clips por todo el vídeo: no había suficientes momentos con voz completa.",
+        // Si en el tramo se habla, el título y el análisis salen de lo dicho; si no, queda un título neutro con la posición.
+        const said = words.filter((w) => w.start >= a - 0.05 && w.end <= z + 0.05).map((w) => w.text).join(" ").replace(/\s+/g, " ").trim();
+        const head = said.length >= 12 ? said.replace(/[.,;:!?…"«»]+$/g, "").slice(0, 60).replace(/\s+\S*$/, "…") : "";
+        payload.push({ start_ms: Math.round(a * 1000), end_ms: Math.round(z * 1000), title: head ? head.charAt(0).toUpperCase() + head.slice(1) : `Escena a los ${mm}`, brief_fit: "",
+          reason: (said ? `Se dice: «${said.slice(0, 220)}». ` : "") + "Tramo elegido para repartir los clips por todo el vídeo: no había suficientes momentos con voz completa.",
           scores: { overall: 50, gancho: 0.5, desarrollo: 0.5, valor: 0.5, afinidad: 0.5, calidad_tecnica: 0.5, coverage: true, mode, relevance: 5, hook: 5, standalone: 5, closure: 5, notes: {},
             reasons: { gancho: txt, desarrollo: txt, valor: txt, afinidad: txt, calidad_tecnica: txt } } });
         filled++;
