@@ -34,6 +34,7 @@ export default function LyricStudioV2() {
   const [wsId, setWsId] = useState<string | null>(null);
   useEffect(() => { void supabase.from("workspace_members").select("workspace_id").limit(1).then(({ data }) => setWsId(data?.[0]?.workspace_id ?? null)); }, []);
   const [projectId, setProjectId] = useState<string | null>(null), [nVar, setNVar] = useState(3), [res, setRes] = useState<720 | 1080>(720), [outFmt, setOutFmt] = useState<LyricComposition["aspect"]>("9:16");
+  const [auto, setAuto] = useState<Record<string, "syncing" | "ready" | "failed">>({}), [activeSong, setActiveSong] = useState<Song | null>(null), seen = useRef<Set<string>>(new Set()), opened = useRef(false);
   const [lyricsDraft, setLyricsDraft] = useState<Record<string, string>>({});
   const [locks, setLocks] = useState({ song_range: true, lyrics_sync: true, style: false, background: true, format: true }), [batch, setBatch] = useState<{ export_ids: string[]; generation_id: string; batch_id?: string } | null>(null);
   const [comp, setComp] = useState<LyricComposition | null>(null);
@@ -46,6 +47,7 @@ export default function LyricStudioV2() {
     setSongs((data ?? []) as Song[]);
   }, []);
   useEffect(() => { void load(); }, [load]);
+  useEffect(() => { const s = songs?.find((x) => x.status === "ready" && !seen.current.has(x.id)); if (s) void autoSync(s); }, [songs]);   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (!songs?.some((s) => s.status === "pending")) return; const t = setInterval(() => void load(), 4000); return () => clearInterval(t); }, [songs, load]);
 
   async function upload(f: File) {
@@ -80,15 +82,34 @@ export default function LyricStudioV2() {
     const txt = (lyricsDraft[s.id] ?? "").replace(/\r/g, "").trim();
     const { error } = await supabase.from("songs").update({ lyrics_text: txt || null }).eq("id", s.id);
     if (error) { setMsg("No se pudo guardar la letra."); return; }
-    setMsg(txt ? "Letra guardada. Ahora sincronízala con la canción." : "Letra borrada: se transcribirá la canción."); setLyricsDraft((d) => { const n = { ...d }; delete n[s.id]; return n; }); await load();
+    setMsg(txt ? "Letra guardada. Ahora sincronízala con la canción." : "Letra borrada: se transcribirá la canción."); setLyricsDraft((d) => { const n = { ...d }; delete n[s.id]; return n; }); await load(); void autoSync({ ...s, lyrics_text: txt || null }, true);
   }
-  async function edit(s: Song) {
+  const alignment = async (s: Song) => { const t = await token(); const a = await fetch(`/api/lyrics/songs/${s.id}/alignment`, { headers: { Authorization: `Bearer ${t}` } }); return a.ok ? await a.json().catch(() => ({})) as { words?: SyncWord[]; revision?: number | null } : {}; };
+  /** Sincronización automática sin intervención: pide la alineación (con la letra pegada o transcribiendo), espera a que haya una revisión nueva y abre el estudio. */
+  async function autoSync(s: Song, force = false) {
+    if (!force && seen.current.has(s.id)) return; seen.current.add(s.id);
+    const b0 = await alignment(s), before = b0.revision ?? null, sig = (w?: SyncWord[]) => (w ?? []).map((x) => `${x.text}${x.start.toFixed(2)}`).join("|");
+    if (!force && before != null) { setAuto((a) => ({ ...a, [s.id]: "ready" })); if (!opened.current) { opened.current = true; await edit(s, false); } return; }   // ya sincronizada: no se repite
+    if (!force) { /* primera vez: se sincroniza ahora */ }   // ya sincronizada: no se repite
+    setAuto((a) => ({ ...a, [s.id]: "syncing" }));
+    const t = await token(), H = { Authorization: `Bearer ${t}`, "Content-Type": "application/json" };
+    const r = await fetch(`/api/lyrics/songs/${s.id}/sync`, { method: "POST", headers: { ...H, "Idempotency-Key": `sync-${s.id}-${crypto.randomUUID()}` }, body: JSON.stringify({ mode: s.lyrics_text?.trim() ? "align" : "transcribe" }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { setAuto((a) => ({ ...a, [s.id]: "failed" })); setMsg(j?.error?.message ?? "No se pudo sincronizar automáticamente."); return; }
+    for (let i = 0; i < 90; i++) {   // hasta ~6 min
+      await new Promise((res) => setTimeout(res, 4000));
+      const a = await alignment(s);
+      if (a.words?.length && ((a.revision ?? 0) !== (before ?? -1) || sig(a.words) !== sig(b0.words))) { setAuto((x) => ({ ...x, [s.id]: "ready" })); opened.current = true; await edit(s, false); return; }
+    }
+    setAuto((a) => ({ ...a, [s.id]: "failed" })); setMsg("La sincronización tarda más de lo normal. Puedes reintentarla o ajustarla a mano.");
+  }
+  async function edit(s: Song, openEditor = true) {
     const t = await token(), H = { Authorization: `Bearer ${t}` };
     const [a, u] = await Promise.all([fetch(`/api/lyrics/songs/${s.id}/alignment`, { headers: H }), fetch(`/api/lyrics/songs/${s.id}/audio`, { headers: H })]);
     const aj = await a.json().catch(() => ({})), uj = await u.json().catch(() => ({}));
     if (!u.ok) return setMsg(uj?.error?.message ?? "No se pudo abrir el audio.");
-    if (!aj.words?.length) return setMsg("Todavía no hay sincronización. Pulsa «Sincronizar» y espera unos segundos.");
-    setEditing({ song: s, url: uj.url, revision: aj.revision ?? null, words: aj.words });
+    if (!aj.words?.length) return setMsg("Todavía no hay sincronización: se está preparando.");
+    setActiveSong(s); if (openEditor) setEditing({ song: s, url: uj.url, revision: aj.revision ?? null, words: aj.words }); else setEditing(null);
     const ws = (aj.words as SyncWord[]); setComp(validateLyricComposition({ aspect: "9:16", range: { start: Math.max(0, Math.floor((ws[0]?.start ?? 0) - 1)), end: Math.max(Math.floor((ws[0]?.start ?? 0)) + 5, Math.min(Math.floor((ws[0]?.start ?? 0)) + 45, Math.ceil(ws.at(-1)?.end ?? 30))) }, words: ws.map((w) => ({ text: w.text, start: w.start, end: w.end, line: w.line })) }));
   }
   /** Planifica N variantes con candados y las envía: 1 generación, N clips y un lote de exportaciones MP4. */
@@ -96,7 +117,7 @@ export default function LyricStudioV2() {
     if (!comp) return setMsg("Abre una canción con «Editar sincronización» para generar variantes.");
     let pid = projectId;
     const t = await token(), H = { Authorization: `Bearer ${t}`, "Content-Type": "application/json" };
-    if (!pid && editing) { const r = await fetch("/api/lyrics/projects", { method: "POST", headers: H, body: JSON.stringify({ song_id: editing.song.id, mode: comp.mode }) }); const j = await r.json().catch(() => ({})); if (!r.ok) return setMsg(j?.error?.message ?? "No se pudo crear la pieza."); pid = j.project_id; setProjectId(pid); }
+    if (!pid && (activeSong ?? editing?.song)) { const r = await fetch("/api/lyrics/projects", { method: "POST", headers: H, body: JSON.stringify({ song_id: (activeSong ?? editing!.song).id, mode: comp.mode }) }); const j = await r.json().catch(() => ({})); if (!r.ok) return setMsg(j?.error?.message ?? "No se pudo crear la pieza."); pid = j.project_id; setProjectId(pid); }
     const base = { ...comp, res, aspect: outFmt }, variants = planLyricVariants(base, nVar, locks, { styles: Array.from({ length: nVar }, (_, i) => surpriseCaption(base.seed * 1000 + i)) });
     const r = await fetch(`/api/lyrics/projects/${pid}/variants`, { method: "POST", headers: { ...H, "Idempotency-Key": `var-${crypto.randomUUID()}` }, body: JSON.stringify({ variants, zip: true }) });
     const j = await r.json().catch(() => ({})); if (!r.ok) return setMsg(j?.error?.message ?? "No se pudieron generar las variantes.");
@@ -143,10 +164,14 @@ export default function LyricStudioV2() {
                   <textarea aria-label="Letra de la canción" rows={5} maxLength={20000} className="input !min-h-0" placeholder={"Estoy contando días\nPara volver a verte…"} value={lyricsDraft[s.id] ?? s.lyrics_text ?? ""} onChange={(e) => setLyricsDraft((d) => ({ ...d, [s.id]: e.target.value }))} />
                   <div className="mt-2 flex flex-wrap items-center gap-2"><button className="btn btn-ghost !min-h-9" disabled={(lyricsDraft[s.id] ?? s.lyrics_text ?? "") === (s.lyrics_text ?? "")} onClick={() => void saveLyrics(s)}><Icon n="check" className="h-4 w-4" />Guardar letra</button>
                     <span className="text-xs text-[var(--muted)]">Al cambiar la letra hay que volver a sincronizar.</span></div></div>
-                <div className="rounded-2xl bg-[var(--surface)] p-3"><p className="mb-1.5 flex items-center gap-2 font-semibold"><span className="tag tag-blue !px-2 !py-0.5 !text-xs">2</span>Sincroniza la letra con la canción</p>
-                  <div className="flex flex-wrap gap-2"><button className="btn btn-primary !min-h-9" onClick={() => void sync(s)}><Icon n="wand" className="h-4 w-4" />Sincronizar automáticamente</button>
-                    <button className="btn btn-ghost !min-h-9" onClick={() => void edit(s)}><Icon n="clock" className="h-4 w-4" />Sincronizar a mano o ajustar</button></div>
-                  <p className="mt-1.5 text-xs text-[var(--muted)]">A mano: suena la canción, mantén la barra espaciadora mientras se dice cada palabra y suéltala al acabar.</p></div>
+                <div className="rounded-2xl bg-[var(--surface)] p-3"><p className="mb-1.5 flex items-center gap-2 font-semibold"><span className="tag tag-blue !px-2 !py-0.5 !text-xs">2</span>La sincronización es automática</p>
+                  {auto[s.id] === "syncing" ? <p role="status" className="flex items-center gap-2 text-[var(--muted)]"><span className="ring-run" aria-hidden />Sincronizando la letra con la canción… en cuanto termine se abre el estudio. No tienes que hacer nada.</p>
+                    : auto[s.id] === "failed" ? <p role="alert" className="text-[var(--danger)]">No se pudo sincronizar. <button className="underline" onClick={() => void autoSync(s, true)}>Reintentar</button></p>
+                    : auto[s.id] === "ready" ? <p className="status status-ok">Letra sincronizada</p> : <p className="text-[var(--muted)]">Comprobando la sincronización…</p>}
+                  <details className="mt-2 text-xs text-[var(--muted)]"><summary className="cursor-pointer">Ajustar a mano (opcional)</summary>
+                    <div className="mt-2 flex flex-wrap gap-2"><button className="btn btn-ghost !min-h-9" onClick={() => void autoSync(s, true)}><Icon n="wand" className="h-4 w-4" />Volver a sincronizar</button>
+                      <button className="btn btn-ghost !min-h-9" onClick={() => void edit(s)}><Icon n="clock" className="h-4 w-4" />Ajustar palabra a palabra</button></div>
+                    <p className="mt-1.5">A mano: suena la canción, mantén la barra espaciadora mientras se dice cada palabra y suéltala al acabar.</p></details></div>
                 <div className="rounded-2xl bg-[var(--surface)] p-3"><p className="mb-1.5 flex items-center gap-2 font-semibold"><span className="tag tag-mint !px-2 !py-0.5 !text-xs">3</span>Abre el estudio: vista previa, estilo y exportación</p>
                   <div className="flex flex-wrap items-center gap-2"><select aria-label="Modo de la pieza" className="input !min-h-9 !w-auto" value={mode[s.id] ?? "letra"} onChange={(e) => setMode((m) => ({ ...m, [s.id]: e.target.value }))}>{MODES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
                     <button className="btn btn-primary !min-h-9" onClick={() => void edit(s)}><Icon n="play" className="h-4 w-4" />Abrir en el estudio</button></div></div></>}
