@@ -79,7 +79,7 @@ export default function EditorV2({ clipId }: { clipId: string }) {
       </div>
       {msg && <p role="status" className="mt-2 text-sm">{msg}</p>}
       <div className="mt-4 grid gap-4 lg:grid-cols-[300px_1fr]">
-        <div><PreviewPlayer clips={[pclip]} index={0} onIndex={() => {}} proxyUrl={proxy} src={{ w: meta.srcW, h: meta.srcH }} words={allWords} onEdit={() => {}} onExport={async () => { if (!meta) return; const r = await requestClipExport(await token(), clipId, meta.version, state.comp.aspect); if (r.ok) router.push("/app/exports"); else window.alert(r.message); }} />
+        <div><PreviewPlayer stacked clips={[pclip]} index={0} onIndex={() => {}} proxyUrl={proxy} src={{ w: meta.srcW, h: meta.srcH }} words={allWords} onEdit={() => {}} onExport={async () => { if (!meta) return; const r = await requestClipExport(await token(), clipId, meta.version, state.comp.aspect); if (r.ok) router.push("/app/exports"); else window.alert(r.message); }} />
           <button type="button" className={`${btn} mt-2`} onClick={() => setFs(true)}>Pantalla completa</button></div>
         <section className="card p-4" aria-label="Herramientas de edición">
           <div role="tablist" className="mb-3 flex flex-wrap gap-2">{([["corte", "Corte"], ["texto", "Transcripción"], ["diseno", "Diseño"], ["audio", "Audio"]] as const).map(([k, l]) => <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={`${btn} ${tab === k ? "!bg-[var(--accent-soft)]" : ""}`}>{l}</button>)}</div>

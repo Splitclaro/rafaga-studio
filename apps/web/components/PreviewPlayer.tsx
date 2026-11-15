@@ -10,9 +10,9 @@ export interface PClip {
 }
 const PLATFORMS: Platform[] = ["tiktok", "instagram_reels", "youtube_shorts"];
 
-export default function PreviewPlayer({ clips, index, onIndex, onClose, proxyUrl, src, words, onEdit, onExport, fullscreen = false }: {
+export default function PreviewPlayer({ clips, index, onIndex, onClose, proxyUrl, src, words, onEdit, onExport, fullscreen = false, stacked = false }: {
   clips: PClip[]; index: number; onIndex: (i: number) => void; onClose?: () => void; proxyUrl: string | null; src: { w: number; h: number };
-  words: Word[]; onEdit: (id: string) => void; onExport: (id: string) => void; fullscreen?: boolean;
+  words: Word[]; onEdit: (id: string) => void; onExport: (id: string) => void; fullscreen?: boolean; stacked?: boolean;
 }) {
   const clip = clips[index];
   const video = useRef<HTMLVideoElement>(null), canvas = useRef<HTMLCanvasElement>(null);
@@ -113,7 +113,7 @@ export default function PreviewPlayer({ clips, index, onIndex, onClose, proxyUrl
     </div>
   );
   const stage = (
-    <div className="relative mx-auto" style={fullscreen ? { height: "calc(100vh - 32px)", aspectRatio: String(ratio) } : { width: "100%", maxWidth: 270, aspectRatio: String(ratio) }}>
+    <div className="relative mx-auto" style={fullscreen ? { height: "calc(100vh - 32px)", aspectRatio: String(ratio) } : { width: "100%", maxWidth: 270, minWidth: 220, aspectRatio: String(ratio) }}>
       <video ref={video} src={proxyUrl ?? undefined} className="hidden" playsInline preload="auto" crossOrigin="anonymous" />
       <canvas ref={canvas} width={540} height={Math.round(540 / ratio)} className="h-full w-full rounded-xl bg-black" onClick={fullscreen ? toggle : undefined} aria-label={`Vista previa de ${clip.title}`} />
       {!proxyUrl && <p className="absolute inset-0 grid place-items-center p-4 text-center text-xs text-white/80">La copia ligera todavía no está lista.</p>}
@@ -125,7 +125,7 @@ export default function PreviewPlayer({ clips, index, onIndex, onClose, proxyUrl
       </div>
     </div>
   );
-  if (!fullscreen) return <div className="flex flex-col gap-3 lg:flex-row">{stage}{panel}</div>;
+  if (!fullscreen) return <div className={`flex flex-col gap-3 ${stacked ? "" : "lg:flex-row"}`}>{stage}{panel}</div>;
   return (
     <div role="dialog" aria-modal="true" aria-label={`Pantalla completa: ${clip.title}`} className="fixed inset-0 z-50 flex items-center justify-center gap-6 bg-black p-4">
       <button type="button" className="absolute right-4 top-4 rounded-full bg-white/15 px-3 py-1 text-sm text-white" onClick={onClose} aria-label="Cerrar (Esc)">Esc ✕</button>
