@@ -107,7 +107,7 @@ export default function PreviewPlayer({ clips, index, onIndex, onClose, proxyUrl
       <div className="flex flex-wrap gap-2">
         <button type="button" className="btn btn-primary !py-1.5 !text-xs" onClick={() => onEdit(clip.id)}>Editar</button>
         <button type="button" className="btn btn-ghost !py-1.5 !text-xs" onClick={() => onExport(clip.id)}>Exportar</button>
-        {!fullscreen && <span className="self-center text-xs opacity-60">Pulsa el vídeo para verlo en pantalla completa</span>}
+        
       </div>
     </div>
   );
