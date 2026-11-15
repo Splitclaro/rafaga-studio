@@ -2,7 +2,7 @@
 // Vista previa de letra: dibuja con `lyricSceneAt` (el mismo motor que la exportación). Espera a la fuente antes de maquetar,
 // arrastre y teclado para la posición, recorte, bucle, «Otra variante», zonas seguras (solo 9:16) y pantalla completa (Esc la cierra).
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { lyricSceneAt, lyricLayout, lyricTimeline, lyricFrameSize, fontFor, SAFE_ZONES, type LyricComposition } from "@rafaga/composition";
+import { lyricSceneAt, lyricLayout, ECHO_OPACITY, ECHO_OFFSET, lyricTimeline, lyricFrameSize, fontFor, SAFE_ZONES, type LyricComposition } from "@rafaga/composition";
 import { pointerToPosition, keyNudge, loopTime, nextVariantSeed, clampCrop } from "../lib/lyricpreview";
 
 export default function LyricPreview({ composition, onChange }: { composition: LyricComposition; onChange: (c: LyricComposition) => void }) {
@@ -19,9 +19,11 @@ export default function LyricPreview({ composition, onChange }: { composition: L
     const s = lyricSceneAt(c, t, L, TL);
     for (const w of s.words) {
       ctx.save(); ctx.globalAlpha = w.alpha; ctx.font = `${c.style.italic ? "italic " : ""}${c.style.weight} ${L.em}px '${L.family}'`; (ctx as unknown as { letterSpacing: string }).letterSpacing = `${(c.style.tracking ?? 0) * L.em}px`; ctx.textBaseline = "top";
-      const cx = w.box.x + w.box.w / 2 + w.dx, cy = w.box.y + w.dy; ctx.translate(cx, cy + w.box.h / 2); ctx.scale(w.scale, w.scale); ctx.translate(-cx, -(cy + w.box.h / 2));
+      const cx = w.box.x + w.box.w / 2 + w.dx, cy = w.box.y + w.dy; ctx.translate(cx, cy + w.box.h / 2); if (w.rot) ctx.rotate((w.rot * Math.PI) / 180); ctx.scale(w.scale, w.scale); ctx.translate(-cx, -(cy + w.box.h / 2));
       if (c.style.effect === "shadow") { ctx.shadowColor = "rgba(0,0,0,.7)"; ctx.shadowBlur = 6; } else if (c.style.effect === "glow") { ctx.shadowColor = c.style.activeColor; ctx.shadowBlur = 16; }
-      ctx.fillStyle = w.active && (c.style.active === "color" || c.style.active === "underline") ? c.style.activeColor : c.style.color;
+      const lit = w.active && (c.style.active === "color" || c.style.active === "underline"), bx = w.box.x + w.dx, by = w.box.y + w.dy;
+      if (c.style.echo && !lit) { const ga = ctx.globalAlpha; ctx.shadowColor = "transparent"; ctx.fillStyle = c.style.color; for (let i = c.style.echo; i >= 1; i--) { ctx.globalAlpha = ga * ECHO_OPACITY[i - 1]; const o = Math.round(L.em * ECHO_OFFSET * i); ctx.fillText(w.text, bx + o, by + o); } ctx.globalAlpha = ga; }
+      if (lit) ctx.fillStyle = c.style.activeColor; else if (c.style.gradient) { const g = ctx.createLinearGradient(0, by, 0, by + w.box.h); g.addColorStop(0, c.style.color); g.addColorStop(1, c.style.gradient); ctx.fillStyle = g; } else ctx.fillStyle = c.style.color;
       const text = w.text; if (c.style.effect === "stroke") { ctx.lineWidth = Math.max(2, L.em * 0.08); ctx.strokeStyle = "#000"; ctx.strokeText(text, w.box.x + w.dx, w.box.y + w.dy); }
       ctx.fillText(text, w.box.x + w.dx, w.box.y + w.dy);
       if (w.active && c.style.active === "underline") ctx.fillRect(w.box.x + w.dx, w.box.y + w.dy + w.box.h - 4, w.box.w, 4);

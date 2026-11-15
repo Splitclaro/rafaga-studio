@@ -330,3 +330,8 @@ Probar Lyric Studio con una canción real (canto + instrumental). Siguiente: Sty
 - Rango con asas en Nuevo proyecto; reencuadre con seguimiento de caras (OpenCV) en plantillas que rellenan 9:16.
 - Análisis de escena con visión de Groq (`qwen/qwen3.8-27b`, sobrescribible con `GROQ_VISION_MODEL`; llama-4-scout se retira el 17/07/26). Migración 110 aplicada en producción.
 - Verificado en producción con `vlog_toledo_small.mp4`.
+
+## 2026-11-15 · Lyric Studio: extras de estilo
+- Degradado vertical, ecos (1–3), dirección y curva de la entrada, salida propia, reposo (flotar/latir/balancear) y caos. Opcionales y compatibles: un estilo sin extras renderiza igual que antes.
+- Motor único `wordMotion` (escena ↔ ASS); el degradado se exporta en 6 bandas recortadas (aproximación de un degradado continuo).
+- Pruebas: `packages/composition/src/lyricextras.test.ts` (incluye render real con libass). Controles en el editor de estilo.

@@ -148,9 +148,43 @@ export function coverAt(c: LyricComposition, k: number) {
 /** Cambia de modo sin tocar la letra, el estilo, el fondo, el tramo ni la semilla. */
 export function switchLyricMode(c: LyricComposition, mode: LyricComposition["mode"]): LyricComposition { return { ...c, mode }; }
 
-export interface SceneWord { index: number; text: string; box: LyricBox; alpha: number; scale: number; dx: number; dy: number; active: boolean }
+export interface SceneWord { index: number; text: string; box: LyricBox; alpha: number; scale: number; dx: number; dy: number; active: boolean; rot?: number }
 export interface LyricScene { t: number; frame: number; words: SceneWord[]; overlays: Overlay[]; hook: string | null; message: string | null; cover: ReturnType<typeof coverAt>; shake: { dx: number; dy: number }; bars: null }
 const entranceMs = (c: LyricComposition) => (c.style.entranceMs && c.style.entranceMs > 0 ? c.style.entranceMs : BEHAVIOUR_PRESETS[c.preset].durationMs);
+
+const EASE = { out: (u: number) => 1 - (1 - u) * (1 - u), in: (u: number) => u * u, inout: (u: number) => (u < 0.5 ? 2 * u * u : 1 - 2 * (1 - u) * (1 - u)) } as const;
+const hash01 = (n: number, seed: number) => { let t = (seed * 2654435761 + n * 40503) >>> 0; t = Math.imul(t ^ (t >>> 15), 2246822507) >>> 0; t = Math.imul(t ^ (t >>> 13), 3266489909) >>> 0; return ((t ^ (t >>> 16)) >>> 0) / 4294967296; };
+/** ¿El estilo mueve las palabras de forma que el ASS necesita un evento por fotograma (entrada con curva/dirección, salida propia, reposo)? */
+export const styleIsDynamic = (c: LyricComposition) => !!(c.style.ease || c.style.entranceDir || c.style.exit || c.style.idle);
+export interface WordMotion { alpha: number; scale: number; dx: number; dy: number; rot: number }
+/** Estado de una palabra en el fotograma `k` (sin la sacudida): fuente única para la vista previa y el ASS. */
+export function wordMotion(c: LyricComposition, L: LyricLayout, w: WordTimeline, k: number): WordMotion {
+  const p = BEHAVIOUR_PRESETS[c.preset], dur = Math.max(1, Math.round((entranceMs(c) / 1000) * FPS)), ent = c.style.entrance !== "none" ? c.style.entrance : p.entrance;
+  const ease = c.style.ease ? EASE[c.style.ease] : (u: number) => u, el = k - w.vs, exitLeft = w.ve - k, m = Math.round(L.em * 0.5);
+  let alpha = 1, scale = 1, dx = 0, dy = 0, rot = 0;
+  if (dur > 0 && el < dur) {
+    const u = ease((el + 1) / (dur + 1));
+    if (ent === "fade") alpha = u; else if (ent === "pop") scale = 0.8 + 0.2 * u;
+    else if (ent === "slide") { const d = 1 - u, dir = c.style.entranceDir ?? "up"; if (dir === "up") dy = Math.round(d * m); else if (dir === "down") dy = -Math.round(d * m); else if (dir === "left") dx = -Math.round(d * m); else dx = Math.round(d * m); }
+  }
+  const exit = c.style.exit ?? (p.exit === "fade" ? "fade" : "cut");
+  if (exit !== "cut" && dur > 0 && exitLeft <= dur) {
+    const u = ease(exitLeft / (dur + 1));
+    if (exit === "fade") alpha = Math.min(alpha, u); else if (exit === "slide") { dy -= Math.round((1 - u) * m); alpha = Math.min(alpha, 0.35 + 0.65 * u); } else if (exit === "pop") { scale *= 0.8 + 0.2 * u; alpha = Math.min(alpha, u); }
+  }
+  if (c.style.idle) {   // movimiento lento y continuo, cuantizado a 3 fotogramas como la sacudida
+    const ph = (Math.floor(k / 3) * 3 / FPS) * Math.PI * 2;
+    if (c.style.idle === "float") dy += Math.round(Math.sin(ph * 0.6) * L.em * 0.04); else if (c.style.idle === "pulse") scale *= 1 + 0.04 * Math.sin(ph * 1.2); else rot += Math.round(3 * Math.sin(ph * 0.8) * 10) / 10;
+  }
+  if (c.style.chaos) {   // desorden fijo por palabra (misma semilla → mismo resultado)
+    const q = c.style.chaos, i = w.index; rot += Math.round((hash01(i * 3, c.seed) - 0.5) * 2 * 8 * q * 10) / 10;
+    dx += Math.round((hash01(i * 3 + 1, c.seed) - 0.5) * 2 * L.em * 0.12 * q); dy += Math.round((hash01(i * 3 + 2, c.seed) - 0.5) * 2 * L.em * 0.12 * q);
+  }
+  return { alpha: +alpha.toFixed(3), scale: +scale.toFixed(3), dx, dy, rot: +rot.toFixed(1) };
+}
+/** Opacidad de cada eco (capas fantasma detrás de la palabra) y su desplazamiento en fracción del cuerpo. */
+export const ECHO_OPACITY = [0.4, 0.25, 0.12] as const;
+export const ECHO_OFFSET = 0.05;
 
 /** Escena en el instante `t` (s desde el inicio del recorte): palabras visibles con su caja, opacidad, escala y desplazamiento. */
 export function lyricSceneAt(c: LyricComposition, t: number, L = lyricLayout(c), TL = lyricTimeline(c, L)): LyricScene {
@@ -158,6 +192,10 @@ export function lyricSceneAt(c: LyricComposition, t: number, L = lyricLayout(c),
   const shake = c.settings.shake ? shakeOffset(Math.floor(k / 3), c.seed) : { dx: 0, dy: 0 };
   for (const w of TL) {
     if (k < w.vs || k >= w.ve) continue;
+    if (styleIsDynamic(c) || c.style.chaos) {
+      const m = wordMotion(c, L, w, k), act2 = w.as < w.ae && k >= w.as && k < w.ae; let sc = m.scale; if (act2 && (c.style.active !== "none" ? c.style.active : p.active) === "scale") sc = +(sc * 1.15).toFixed(3);
+      words.push({ index: w.index, text: L.word[w.index].text, box: L.word[w.index].box, alpha: m.alpha, scale: sc, dx: m.dx + shake.dx, dy: m.dy + shake.dy, active: act2, ...(m.rot ? { rot: m.rot } : {}) }); continue;
+    }
     const el = k - w.vs, ent = c.style.entrance !== "none" ? c.style.entrance : p.entrance, exitLeft = w.ve - k;
     let alpha = 1, scale = 1, dy = 0;
     if (dur > 0 && el < dur) { const u = (el + 1) / (dur + 1); if (ent === "fade") alpha = u; else if (ent === "pop") scale = 0.8 + 0.2 * u; else if (ent === "slide") dy = Math.round((1 - u) * L.em * 0.5); }
@@ -185,6 +223,7 @@ export function lyricShots(c: LyricComposition): { item: number; start: number; 
 }
 
 // ───────── ASS ─────────
+const hexRgb = (h: string): number[] => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
 const bgr = (h: string, a = 0) => `&H${a.toString(16).padStart(2, "0").toUpperCase()}${h.slice(5, 7)}${h.slice(3, 5)}${h.slice(1, 3)}`.toUpperCase();
 const esc = (s: string) => s.replace(/\\/g, "\\\\").replace(/[{}]/g, "").replace(/\n/g, " ");
 /** Tiempo ASS a partir de un fotograma: suelo de centésima, igual que `assFrameTime` de looks.ts. */
@@ -203,19 +242,38 @@ export function lyricAss(c: LyricComposition): string {
     const b = L.word[w.index].box, text = esc(L.word[w.index].text), cuts = new Set<number>([w.vs, w.ve]);
     if (w.as < w.ae) { cuts.add(w.as); cuts.add(w.ae); }
     if (c.settings.shake) for (let k = Math.ceil(w.vs / 3) * 3; k < w.ve; k += 3) cuts.add(k);
+    const dyn = styleIsDynamic(c), mot = dyn || !!c.style.chaos, durF = Math.max(1, Math.round((dur / 1000) * FPS));
+    if (dyn) { for (let k = w.vs; k <= Math.min(w.ve, w.vs + durF); k++) cuts.add(k); for (let k = Math.max(w.vs, w.ve - durF); k <= w.ve; k++) cuts.add(k); if (c.style.idle) for (let k = Math.ceil(w.vs / 3) * 3; k < w.ve; k += 3) cuts.add(k); }
     const pts = [...cuts].filter((k) => k >= w.vs && k <= w.ve).sort((a, b) => a - b);
     for (let j = 0; j < pts.length - 1; j++) {
       const s = pts[j], e = pts[j + 1]; if (e <= s) continue;
       const isActive = w.as < w.ae && s >= w.as && e <= w.ae, sh = c.settings.shake ? shakeOffset(Math.floor(s / 3), c.seed) : { dx: 0, dy: 0 };
-      const x = b.x + sh.dx, y = b.y + sh.dy; let tags = `\\an7\\pos(${x},${y})`;
-      if (j === 0 && dur > 0 && !c.settings.shake) {
+      const m = mot ? wordMotion(c, L, w, s) : null, x = b.x + sh.dx + (m?.dx ?? 0), y = b.y + sh.dy + (m?.dy ?? 0); let tags = `\\an7\\pos(${x},${y})`;
+      if (m) {
+        const sc = isActive && active === "scale" ? m.scale * 1.15 : m.scale;
+        if (m.alpha < 1) tags += `\\alpha&H${Math.round(255 * (1 - m.alpha)).toString(16).padStart(2, "0").toUpperCase()}&`;
+        if (sc !== 1) tags += `\\fscx${Math.round(sc * 100)}\\fscy${Math.round(sc * 100)}`;
+        if (m.rot) tags += `\\org(${Math.round(x + b.w / 2)},${Math.round(y + b.h / 2)})\\frz${-m.rot}`;
+      } else if (j === 0 && dur > 0 && !c.settings.shake) {
         if (ent === "fade") tags += `\\fad(${dur},0)`; else if (ent === "pop") tags += `\\fscx80\\fscy80\\t(0,${dur},\\fscx100\\fscy100)`;
         else if (ent === "slide") tags = `\\an7\\move(${x},${y + Math.round(L.em * 0.5)},${x},${y},0,${dur})`;
       }
-      if (p.exit === "fade" && dur > 0 && j === pts.length - 2 && e === w.ve) tags += `\\fad(0,${dur})`;
-      if (isActive) { if (active === "color") tags += `\\c${bgr(c.style.activeColor)}&`; else if (active === "scale") tags += `\\fscx115\\fscy115`; else if (active === "underline") tags += `\\u1\\c${bgr(c.style.activeColor)}&`; }
+      if (!m && p.exit === "fade" && dur > 0 && j === pts.length - 2 && e === w.ve) tags += `\\fad(0,${dur})`;
+      if (isActive) { if (active === "color") tags += `\\c${bgr(c.style.activeColor)}&`; else if (active === "scale" && !m) tags += `\\fscx115\\fscy115`; else if (active === "underline") tags += `\\u1\\c${bgr(c.style.activeColor)}&`; }
       if (isActive && active === "box") ev.push(`Dialogue: 0,${assFrame(s)},${assFrame(e)},W,,0,0,0,,{\\an7\\pos(0,0)\\p1\\c${bgr(c.style.activeColor)}&\\alpha&H60&\\bord0\\shad0}m ${b.x - 6} ${b.y} l ${b.x + b.w + 6} ${b.y} ${b.x + b.w + 6} ${b.y + b.h} ${b.x - 6} ${b.y + b.h}{\\p0}`);
-      ev.push(`Dialogue: 1,${assFrame(s)},${assFrame(e)},W,,0,0,0,,{${tags}}${text}`);
+      const stT = assFrame(s), enT = assFrame(e);
+      if (c.style.echo && !(isActive && active === "box")) for (let i = c.style.echo; i >= 1; i--) {   // ecos: copias fantasma detrás, más lejanas y más tenues
+        const o = Math.round(L.em * ECHO_OFFSET * i), op = (m?.alpha ?? 1) * ECHO_OPACITY[i - 1];
+        ev.push(`Dialogue: 0,${stT},${enT},W,,0,0,0,,{${tags.replace(/\\pos\(-?\d+,-?\d+\)/, `\\pos(${x + o},${y + o})`).replace(/\\alpha&H[0-9A-F]{2}&/, "")}\\alpha&H${Math.round(255 * (1 - op)).toString(16).padStart(2, "0").toUpperCase()}&}${text}`);
+      }
+      if (c.style.gradient && !isActive) {   // degradado vertical en 6 bandas recortadas (ASS no tiene degradado de texto)
+        const N = 6, a = hexRgb(c.style.color), z = hexRgb(c.style.gradient);
+        for (let i = 0; i < N; i++) {
+          const t = (i + 0.5) / N, col = "#" + [0, 1, 2].map((q) => Math.round(a[q] + (z[q] - a[q]) * t).toString(16).padStart(2, "0")).join(""), y0 = Math.round(y + (b.h * i) / N) - (i === 0 ? 40 : 0), y1 = Math.round(y + (b.h * (i + 1)) / N) + (i === N - 1 ? 40 : 0);
+          ev.push(`Dialogue: 1,${stT},${enT},W,,0,0,0,,{${tags}\\c${bgr(col.toUpperCase())}&\\clip(${Math.round(x - 60)},${y0},${Math.round(x + b.w + 60)},${y1})}${text}`);
+        }
+      } else
+      ev.push(`Dialogue: 1,${stT},${enT},W,,0,0,0,,{${tags}}${text}`);
     }
   }
   for (const o of lyricOverlays(c, L)) ev.push(`Dialogue: 2,${assFrame(o.startF)},${assFrame(o.endF)},W,,0,0,0,,{\\an7\\pos(${o.box.x},${o.box.y})\\fs${((o.em * (f.ascent - f.descent)) / f.unitsPerEm).toFixed(2)}}${esc(o.text)}`);

@@ -70,6 +70,9 @@ export interface CaptionStyleV2 {
   active: "none" | "color" | "scale" | "underline" | "box"; position: { x: number; y: number }; size: "S" | "M" | "L"; sizeFine: number;
   /** Cursiva, espaciado entre letras (fracción del cuerpo, como «Letter spacing» de LyricTune) y duración de la entrada en ms (0 = la del preset). */
   italic?: boolean; tracking?: number; entranceMs?: number;
+  /** Extras de LyricTune: degradado vertical (color final), ecos (copias fantasma), dirección y curva de la entrada, salida propia, movimiento en reposo y caos (0–1). */
+  gradient?: string; echo?: 1 | 2 | 3; entranceDir?: "up" | "down" | "left" | "right"; ease?: "out" | "in" | "inout";
+  exit?: "fade" | "slide" | "pop" | "cut"; idle?: "float" | "pulse" | "wobble"; chaos?: number;
 }
 const CASES = ["asis", "upper", "lower"] as const, EFFECTS = ["none", "shadow", "glow", "stroke", "box"] as const, ENTRANCES = ["none", "fade", "slide", "pop", "typewriter"] as const;
 const ACTIVES = ["none", "color", "scale", "underline", "box"] as const, SIZES = ["S", "M", "L"] as const;
@@ -99,6 +102,10 @@ export function validateCaptionStyle(raw: unknown): CaptionStyleV2 {
     effect: oneOf(o.effect, EFFECTS, "shadow"), entrance: oneOf(o.entrance, ENTRANCES, "fade"), entranceBy: o.entranceBy === "line" ? "line" : "word", active: oneOf(o.active, ACTIVES, "color"),
     position: { x: clamp(p.x, 0.1, 0.9, 0.5), y: clamp(p.y, 0.1, 0.92, 0.5) }, size: oneOf(o.size, SIZES, "M"), sizeFine: Math.round(clamp(o.sizeFine, 0.6, 1.6, 1) * 100) / 100,
     ...(o.italic === true ? { italic: true } : {}), ...(Number(o.tracking) ? { tracking: Math.round(clamp(o.tracking, -0.05, 0.3, 0) * 1000) / 1000 } : {}), ...(Number(o.entranceMs) ? { entranceMs: Math.round(clamp(o.entranceMs, 100, 2000, 0)) } : {}),
+    ...(typeof o.gradient === "string" && /^#[0-9a-f]{6}$/i.test(o.gradient) ? { gradient: o.gradient.toUpperCase() } : {}), ...(o.echo === 1 || o.echo === 2 || o.echo === 3 ? { echo: o.echo } : {}),
+    ...(["up", "down", "left", "right"].includes(o.entranceDir as string) && o.entranceDir !== "up" ? { entranceDir: o.entranceDir as "down" | "left" | "right" } : {}), ...(["out", "in", "inout"].includes(o.ease as string) ? { ease: o.ease as "out" | "in" | "inout" } : {}),
+    ...(["fade", "slide", "pop", "cut"].includes(o.exit as string) ? { exit: o.exit as "fade" | "slide" | "pop" | "cut" } : {}), ...(["float", "pulse", "wobble"].includes(o.idle as string) ? { idle: o.idle as "float" | "pulse" | "wobble" } : {}),
+    ...(Number(o.chaos) > 0 ? { chaos: Math.round(clamp(o.chaos, 0, 1, 0) * 100) / 100 } : {}),
   };
 }
 export const captionStyleBytes = (s: CaptionStyleV2): number => new TextEncoder().encode(JSON.stringify(s)).length;
