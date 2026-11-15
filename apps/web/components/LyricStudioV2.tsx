@@ -109,7 +109,7 @@ export default function LyricStudioV2() {
   }
 
   return (
-    <main className="mx-auto max-w-6xl space-y-6 p-6">
+    <main className="mx-auto w-full max-w-6xl space-y-6 p-6">
       <header><h1 className="text-3xl font-extrabold">Lyric Studio</h1><p className="mt-1 text-[var(--muted)]">Sube una canción y crea vídeos con su letra en movimiento.</p></header>
       <ol aria-label="Cómo funciona" className="flex flex-wrap gap-2.5">
         {([["1", "Sube la canción", "upload", "violet"], ["2", "Ajusta la letra", "type", "blue"], ["3", "Elige el estilo y crea", "wand", "mint"]] as const).map(([n, t, ic, tone]) => (
