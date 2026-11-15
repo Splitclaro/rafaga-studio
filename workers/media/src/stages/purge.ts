@@ -21,5 +21,6 @@ export async function purge(rpc: Rpc, deps: PurgeDeps = {}): Promise<PurgeResult
     for (const c of list) res.by_reason[c.reason] = (res.by_reason[c.reason] ?? 0) + 1;
     if (n === 0) break;                                              // nada avanzó: evita bucles
   }
+  try { await rpc("finalize_deleted_projects"); } catch { /* aún no hay función: solo se purgan archivos */ }
   return res;
 }

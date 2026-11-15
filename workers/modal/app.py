@@ -86,6 +86,10 @@ def dispatch(body: dict, x_rafaga_wake: str | None = (Header(default=None) if He
 def sweeper():
     _node("--sweep", timeout=60)  # sweep_stale + enqueue_due_publications
     _plan_and_spawn()
+    try:
+        _node("--purge", timeout=120)  # eliminaciones de proyecto pedidas por el usuario (borrado inmediato)
+    except Exception as e:  # nunca debe romper el barrido
+        print("purga:", str(e)[:200])
 
 @app.function(image=image, secrets=[secret], timeout=1800, schedule=modal.Period(days=1))
 def keep_alive():

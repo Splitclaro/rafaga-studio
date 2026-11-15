@@ -1,4 +1,5 @@
 "use client";
+import { deleteProjectForever } from "../lib/deleteProject";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Icon from "../components/Icon";
@@ -51,9 +52,8 @@ export default function MediaLibrary() {
     const r = await downloadMp4(bucket, path, name); if (!r.ok) setMsg(r.error);
   }
   async function delProject(id: string, name: string) {
-    if (!confirm(`¿Borrar el proyecto «${name}»? Dejará de aparecer con sus clips.`)) return;
-    const { error } = await supabase.from("projects").update({ deleted_at: new Date().toISOString() }).eq("id", id);
-    if (error) return setMsg(error.message); reloadProjects();
+    const r = await deleteProjectForever(id, name); if (r === "cancelled") return;
+    if (r) return setMsg(r); reloadProjects();
   }
   async function delSong(s: SongRow) {
     if (!confirm(`¿Borrar la canción «${s.title}» y sus vídeos con letra?`)) return;

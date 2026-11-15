@@ -2,6 +2,7 @@
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { deleteProjectForever } from "../../../../lib/deleteProject";
 import ProcessingPanel from "../../../../components/ProcessingPanel";
 import ResultsGrid from "../../../../components/ResultsGrid";
 import Icon from "../../../../components/Icon";
@@ -254,6 +255,7 @@ function ProjectV1({ params }: { params: Promise<{ id: string }> }) {
 
 /** Vista v2 (proyectos con algún trabajo `engine = 'v2'`): procesamiento por etapas + resultados con pantalla completa. Tiempo real en jobs, job_stages y clips. */
 function ProjectV2({ id }: { id: string }) {
+  const router = useRouter();
   const [p, setP] = useState<{ name: string; source_id: string } | null>(null);
   useEffect(() => { supabase.from("projects").select("name,source_id").eq("id", id).single().then(({ data }) => setP(data as never)); }, [id]);
   useEffect(() => {
@@ -266,7 +268,8 @@ function ProjectV2({ id }: { id: string }) {
   return (
     <main className="mx-auto max-w-[1100px] px-4 pb-20 pt-6 md:px-8">
       <Link href="/app/proyectos" className="text-sm text-[var(--muted)] underline">← Proyectos</Link>
-      <h1 className="mt-2 text-3xl">{p.name}</h1>
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-3"><h1 className="text-3xl">{p.name}</h1>
+        <button type="button" className="btn btn-ghost !text-sm text-[var(--danger)]" onClick={async () => { const r = await deleteProjectForever(id, p.name); if (r === "cancelled") return; if (r) alert(r); else router.push("/app/proyectos"); }}>Eliminar proyecto</button></div>
       <ProcessingPanel projectId={id} />
       <ResultsGrid projectId={id} sourceId={p.source_id} />
     </main>

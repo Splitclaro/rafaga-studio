@@ -1,4 +1,5 @@
 "use client";
+import { deleteProjectForever } from "../../../lib/deleteProject";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Icon from "../../../components/Icon";
@@ -30,7 +31,7 @@ export default function Proyectos() {
   async function rename(p: Row) { const n = prompt("Nuevo nombre del proyecto:", p.name)?.trim(); setMenu(null); if (!n || n === p.name) return; const { error } = await supabase.from("projects").update({ name: n.slice(0, 150) }).eq("id", p.id); setMsg(error ? error.message : "Proyecto renombrado."); reload(); }
   async function dup(p: Row) { setMenu(null); const { error } = await supabase.rpc("duplicate_project", { p_project: p.id, p_name: null }); setMsg(error ? error.message : "Proyecto duplicado (misma fuente y encargo; los clips se detectan de nuevo)."); reload(); }
   async function arch(p: Row) { setMenu(null); const { error } = await supabase.rpc("archive_project", { p_project: p.id, p_archived: !p.archived_at }); setMsg(error ? error.message : p.archived_at ? "Proyecto restaurado." : "Proyecto archivado."); reload(); }
-  async function del(p: Row) { setMenu(null); if (!confirm(`¿Eliminar «${p.name}»? Dejará de aparecer con sus clips.`)) return; const { error } = await supabase.from("projects").update({ deleted_at: new Date().toISOString() }).eq("id", p.id); setMsg(error ? error.message : "Proyecto eliminado."); reload(); }
+  async function del(p: Row) { setMenu(null); const r = await deleteProjectForever(p.id, p.name); if (r === "cancelled") return; setMsg(r ?? "Proyecto eliminado. Los archivos se borran en unos minutos."); reload(); }
 
   const Menu = ({ p }: { p: Row }) => (
     <div className="relative">
