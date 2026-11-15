@@ -1,4 +1,5 @@
 "use client";
+import Icon from "../../../components/Icon";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../../../lib/supabase";
 import { STAGE } from "../../../lib/projects";
@@ -97,8 +98,8 @@ export default function Analitica() {
 
       {!s ? <div className="skeleton mt-6 h-64" /> : (<>
         <section className="mt-6 grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
-          {([["Trabajos", s.total], [STAGE.done, s.done], [STAGE.failed, s.failed], ["Cancelados", s.cancelled], ["En curso", s.running], ["Con reintentos", s.retried]] as const).map(([k, v]) => (
-            <div key={k} className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3"><div className="text-xs text-[var(--muted)]">{k}</div><div className="tnum text-2xl font-semibold">{v}</div></div>))}
+          {([["Trabajos", s.total], [STAGE.done, s.done], [STAGE.failed, s.failed], ["Cancelados", s.cancelled], ["En curso", s.running], ["Con reintentos", s.retried]] as const).map(([k, v], i) => { const tone = ["charcoal", "mint", "orange", "charcoal", "blue", "violet"][i], ico = ["chart", "check", "x", "x", "bolt", "clock"][i];
+            return <div key={k} className="card p-3.5"><span className={`tag tag-${tone} !h-8 !w-8 !justify-center !rounded-[10px] !p-0`}><Icon n={ico} className="h-4 w-4" /></span><div className="mt-2 text-xs text-[var(--muted)]">{k}</div><div className="tnum text-2xl font-bold">{v}</div></div>; })}
         </section>
         <p className="mt-2 text-xs text-[var(--muted)]">Tasa de fallo: {s.failRate == null ? "—" : `${(s.failRate * 100).toFixed(1)} %`} de los trabajos terminados.{truncated ? " Se muestran los 5000 más recientes del periodo." : ""} Actualizado {at?.toLocaleTimeString("es")}.</p>
 
