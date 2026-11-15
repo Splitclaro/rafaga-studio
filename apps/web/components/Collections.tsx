@@ -107,7 +107,7 @@ export default function CollectionsPicker({ selected, onSelect, cols, reload }: 
           {cols?.length === 0 && <p className="mt-3 rounded-2xl border border-dashed border-[var(--border)] p-4 text-sm text-[var(--muted)]">Crea una colección y sube tus vídeos o fotos. Cada vídeo con letra los irá alternando de fondo.</p>}
           <ul className="mt-3 space-y-3">
             {cols?.map((c) => (
-              <li key={c.id} className={`rounded-2xl border p-3 ${selected === c.id ? "border-[var(--ink)] ring-1 ring-[#111]" : "border-[var(--border)]"}`}>
+              <li key={c.id} className={`rounded-2xl border p-3 ${selected === c.id ? "border-[var(--ink)] ring-1 ring-[var(--ink)]" : "border-[var(--border)]"}`}>
                 <div className="flex flex-wrap items-center gap-2">
                   <button onClick={() => onSelect(selected === c.id ? null : c.id)} aria-pressed={selected === c.id} className="font-display min-w-0 flex-1 truncate text-left text-lg">{selected === c.id ? "✓ " : ""}{c.name}</button>
                   <span className="text-xs text-[var(--muted)] tnum">{c.items.length} archivo{c.items.length === 1 ? "" : "s"}</span>

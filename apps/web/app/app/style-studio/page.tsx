@@ -120,7 +120,7 @@ function StyleStudioV1() {
               <Range label="Contorno" k="outlineWidth" min={0} max={14} /><Range label="Sombra" k="shadow" min={0} max={10} /></fieldset>
             <fieldset className="space-y-3"><legend className="mb-1 text-sm font-medium">Animación de la palabra activa</legend>
               <div role="radiogroup" className="grid gap-1.5">{([["color", "Cambia de color", "La palabra que suena se ilumina."], ["reveal", "Aparece al cantarse", "Las palabras entran según suenan."], ["dim", "Resto atenuado", "Toda la frase visible, lo que falta tenue."]] as const).map(([k, l, d]) => (
-                <button key={k} role="radio" aria-checked={s.highlight === k} onClick={() => set({ highlight: k })} className={`rounded-xl border p-2.5 text-left text-sm ${s.highlight === k ? "border-[var(--ink)] ring-1 ring-[#111]" : "hairline hover:bg-[var(--hover)]"}`}><span className="font-medium">{l}</span><span className="block text-xs text-[var(--muted)]">{d}</span></button>))}</div></fieldset>
+                <button key={k} role="radio" aria-checked={s.highlight === k} onClick={() => set({ highlight: k })} className={`rounded-xl border p-2.5 text-left text-sm ${s.highlight === k ? "border-[var(--ink)] ring-1 ring-[var(--ink)]" : "hairline hover:bg-[var(--hover)]"}`}><span className="font-medium">{l}</span><span className="block text-xs text-[var(--muted)]">{d}</span></button>))}</div></fieldset>
             <fieldset className="space-y-3 sm:col-span-2"><legend className="mb-1 text-sm font-medium">Compositor (se exporta al MP4)</legend>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-3 text-sm">

@@ -104,7 +104,7 @@ export default function Revision({ params }: { params: Promise<{ token: string }
               <h3 className="text-lg tracking-tight">Comentarios <span className="tnum text-sm text-[var(--muted)]">{cms.length}</span></h3>
               <ol className="mt-3 max-h-[34vh] space-y-2.5 overflow-auto pr-1">
                 {!cms.length && <li className="text-sm text-[var(--muted)]">Todavía no hay comentarios.</li>}
-                {cms.map((c) => <li key={c.id} className={`rounded-xl p-3 text-sm ${c.kind === "approval" ? "bg-[var(--ink)] text-white" : c.kind === "changes" ? "bg-white ring-1 ring-inset ring-[#111]" : "bg-[var(--surface)]"}`}>
+                {cms.map((c) => <li key={c.id} className={`rounded-xl p-3 text-sm ${c.kind === "approval" ? "bg-[var(--ink)] text-white" : c.kind === "changes" ? "bg-white ring-1 ring-inset ring-[var(--ink)]" : "bg-[var(--surface)]"}`}>
                   <div className="flex items-center gap-2 text-xs opacity-80"><strong>{c.who}</strong>{c.kind === "approval" && "· aprobó"}{c.kind === "changes" && "· pidió cambios"}{c.at_sec != null && <button onClick={() => { if (video.current) video.current.currentTime = c.at_sec!; }} className="tnum underline">en {clock(c.at_sec)}</button>}</div>
                   <p className="mt-1 whitespace-pre-wrap break-words">{c.body}</p></li>)}
               </ol>

@@ -140,7 +140,7 @@ export default function LibraryAll({ q, onChanged }: { q: string; onChanged?: ()
                 {urls[a.asset_key] && a.kind === "video" ? <video src={urls[a.asset_key]} muted playsInline preload="metadata" className="h-full w-full object-cover" />
                   : urls[a.asset_key] && (a.kind === "image" || a.kind === "logo") ? <img src={urls[a.asset_key]} alt="" className={`h-full w-full ${a.kind === "logo" ? "object-contain p-3" : "object-cover"}`} />
                   : <Icon n={KIND_ICON[a.kind]} className="h-6 w-6" />}
-                {dupKeys.has(a.asset_key) && <span className="absolute left-2 top-2 rounded-full bg-white px-2 py-0.5 text-[10px] font-medium text-[#111]">Duplicado</span>}
+                {dupKeys.has(a.asset_key) && <span className="absolute left-2 top-2 rounded-full bg-white px-2 py-0.5 text-[10px] font-medium text-[var(--ink)]">Duplicado</span>}
               </div>
               <div className="p-2.5 text-xs"><div className="truncate text-sm font-medium" title={a.name}>{a.name}</div>
                 <div className="mono truncate text-[var(--muted)]">{KIND_LABEL[a.kind]}{a.container ? ` · ${a.container}` : ""}</div>

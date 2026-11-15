@@ -29,7 +29,7 @@ function ClipCardBase({ c, selected, previewing, onSelect, onPreview, aspect = "
     </div>
   );
   if (view === "list") return (
-    <li className={`flex items-center gap-3 rounded-2xl p-2 ${selected ? "bg-[var(--hover)] ring-1 ring-[#111]" : "hover:bg-[var(--surface)]"}`}>
+    <li className={`flex items-center gap-3 rounded-2xl p-2 ${selected ? "bg-[var(--hover)] ring-1 ring-[var(--ink)]" : "hover:bg-[var(--surface)]"}`}>
       <input type="checkbox" aria-label={`Seleccionar «${c.title}»`} checked={selected} onChange={(e) => onSelect(c.id, (e.nativeEvent as MouseEvent).shiftKey)} className="h-5 w-5 shrink-0 accent-black" />
       {media}
       <div className="min-w-0 flex-1"><div className="truncate text-sm font-medium">{c.title}</div><div className="tnum text-xs text-[var(--muted)]">{c.durMs ? fmtDur(c.durMs) : "—"} · {c.ratio ?? "—"} · v{c.version}</div></div>
@@ -38,7 +38,7 @@ function ClipCardBase({ c, selected, previewing, onSelect, onPreview, aspect = "
     </li>
   );
   return (
-    <li className={`group rounded-2xl p-1.5 transition-colors ${selected ? "bg-[var(--hover)] ring-2 ring-[#111]" : ""}`}>
+    <li className={`group rounded-2xl p-1.5 transition-colors ${selected ? "bg-[var(--hover)] ring-2 ring-[var(--ink)]" : ""}`}>
       {media}
       <div className="px-1 pb-1 pt-2.5">
         <div className="flex items-start justify-between gap-2"><h3 className="line-clamp-2 text-[15px] font-medium leading-snug" title={c.title}>{c.title}</h3></div>

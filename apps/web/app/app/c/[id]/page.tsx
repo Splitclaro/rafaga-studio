@@ -307,7 +307,7 @@ function ClipEditorV1({ params }: { params: Promise<{ id: string }> }) {
               <button onClick={() => { seek(doc.words[p.from].start); setSel(p.from); }} className="tnum w-10 shrink-0 pt-0.5 text-left text-xs text-[var(--muted)] hover:underline" aria-label={`Ir a ${clock(doc.words[p.from].start)}`}>{clock(doc.words[p.from].start)}</button>
               <p className="min-w-0 flex-1 text-[15px] leading-7">
                 {doc.words.slice(p.from, p.to + 1).map((w, k) => { const i = p.from + k; const hit = !!ql && w.text.toLowerCase().includes(ql);
-                  return <button key={i} onClick={() => { seek(w.start); setSel(i); }} className={`mr-1 rounded px-0.5 text-left ${i === activeIdx ? "bg-[var(--ink)] text-white" : sel === i ? "ring-1 ring-[#111]" : hit ? "bg-black/10" : "hover:bg-black/5"}`}>{w.text}</button>; })}
+                  return <button key={i} onClick={() => { seek(w.start); setSel(i); }} className={`mr-1 rounded px-0.5 text-left ${i === activeIdx ? "bg-[var(--ink)] text-white" : sel === i ? "ring-1 ring-[var(--ink)]" : hit ? "bg-black/10" : "hover:bg-black/5"}`}>{w.text}</button>; })}
               </p>
             </div>
             {sel !== null && sel >= p.from && sel <= p.to && (
@@ -454,7 +454,7 @@ function ClipEditorV1({ params }: { params: Promise<{ id: string }> }) {
               <p className="text-[var(--muted)]">Cómo se adapta el vídeo original al formato elegido ({doc.ratio}).</p>
               {!quick && <div role="radiogroup" aria-label="Encuadre" className="grid gap-2">
                 {([["blur", "Desenfocado", "Vídeo completo centrado sobre su propio fondo desenfocado."], ["fill", "Rellenar", "Recorta para ocupar todo el cuadro. Elige qué parte se ve."], ["fit", "Ajustar", "Vídeo completo con barras negras."], ["split", "Pantalla + cámara", "Arriba la pantalla completa; abajo la cámara ampliada. Elige dónde está la cámara."]] as const).map(([k, l, d]) => (
-                  <button key={k} role="radio" aria-checked={doc.layout === k} onClick={() => change((x) => ({ ...x, layout: k }))} className={`rounded-xl border p-3 text-left ${doc.layout === k ? "border-[var(--ink)] ring-1 ring-[#111]" : "hairline hover:bg-[var(--hover)]"}`}><span className="font-medium">{l}</span><span className="block text-xs text-[var(--muted)]">{d}</span></button>))}
+                  <button key={k} role="radio" aria-checked={doc.layout === k} onClick={() => change((x) => ({ ...x, layout: k }))} className={`rounded-xl border p-3 text-left ${doc.layout === k ? "border-[var(--ink)] ring-1 ring-[var(--ink)]" : "hairline hover:bg-[var(--hover)]"}`}><span className="font-medium">{l}</span><span className="block text-xs text-[var(--muted)]">{d}</span></button>))}
               </div>}
               {(() => { const busy = !!rf && ["queued", "analyzing"].includes(rf.status); const ready = rf?.status === "ready" && rf.path; const st = ready && rf.path!.mode === "static";
                 return (

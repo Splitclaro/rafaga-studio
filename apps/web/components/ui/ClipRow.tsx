@@ -97,7 +97,7 @@ function ClipRowBase({ c, index, selected, onSelect, onFavorite, onDiscard, proj
           </div>
           {err && <p role="alert" className="mt-2 text-sm text-[var(--danger)]">{err}</p>}
 
-          {hook && <div className="mt-3 flex flex-wrap items-center gap-2.5 rounded-xl border border-[#E5E5E5] bg-[#FAFAFA] px-3.5 py-2.5 text-sm"><span className="mono text-[var(--accent-ink)]">GANCHO</span><span className="min-w-0 flex-1">«{hook}»</span></div>}
+          {hook && <div className="mt-3 flex flex-wrap items-center gap-2.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2.5 text-sm"><span className="mono text-[var(--accent-ink)]">GANCHO</span><span className="min-w-0 flex-1">«{hook}»</span></div>}
           {hasF && (<>
             <button onClick={() => setBd((b) => !b)} aria-expanded={bd} className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--accent)]"><Icon n={bd ? "chevD" : "chevR"} className="h-3.5 w-3.5" />Ver desglose del encaje</button>
             {bd && <div className="mt-2 rounded-xl border hairline bg-[var(--surface)] p-4">

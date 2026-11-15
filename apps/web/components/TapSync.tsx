@@ -153,7 +153,7 @@ export default function TapSync({ songId, audioUrl, lyrics, ensureLyrics, from =
         {lines.map((l) => (
           <p key={l.li} className="mb-1.5 leading-7">{l.items.map(({ i, text }) => {
             const m = marks[i];
-            return <span key={i} className={`mr-1 inline-flex items-center gap-1 rounded-lg px-1.5 ${m ? "bg-[var(--ink)] text-white" : i === marks.length ? "ring-1 ring-[#111]" : "text-[var(--muted)]"}`}>
+            return <span key={i} className={`mr-1 inline-flex items-center gap-1 rounded-lg px-1.5 ${m ? "bg-[var(--ink)] text-white" : i === marks.length ? "ring-1 ring-[var(--ink)]" : "text-[var(--muted)]"}`}>
               {text}{m && <span className="tnum text-[10px] opacity-70">{fmt(m.start + offset)}</span>}
               {m && <span className="inline-flex"><button aria-label={`Adelantar ${text}`} onClick={() => nudge(i, "start", -0.05)} className="px-0.5 text-[10px]">◀</button><button aria-label={`Retrasar ${text}`} onClick={() => nudge(i, "start", 0.05)} className="px-0.5 text-[10px]">▶</button><button aria-label={`Repetir desde ${text}`} onClick={() => repeatFrom(i)} className="px-0.5 text-[10px]">↺</button></span>}
             </span>;

@@ -78,7 +78,7 @@ export default function Timeline({ src, srcOffset = 0, srcDuration, start, end, 
         <div className="pointer-events-none absolute inset-y-0 w-0.5 bg-[var(--card)] shadow" style={{ left: pct(start + t) }} aria-hidden />
         {(["start", "end"] as const).map((edge) => (
           <div key={edge} role="slider" tabIndex={0} aria-label={edge === "start" ? "Inicio del clip" : "Fin del clip"} aria-valuemin={W.a} aria-valuemax={W.b} aria-valuenow={edge === "start" ? s : e} aria-valuetext={clock(edge === "start" ? s : e)}
-            onPointerDown={begin(edge)} onKeyDown={key(edge)} className="absolute inset-y-0 z-10 w-3 cursor-col-resize touch-none rounded-sm bg-[var(--card)] outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#111]" style={{ left: `calc(${pct(edge === "start" ? s : e)} - ${edge === "start" ? 0 : 12}px)` }}><span className="mx-auto mt-5 block h-4 w-0.5 rounded bg-[var(--ink)]" /></div>))}
+            onPointerDown={begin(edge)} onKeyDown={key(edge)} className="absolute inset-y-0 z-10 w-3 cursor-col-resize touch-none rounded-sm bg-[var(--card)] outline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--ink)]" style={{ left: `calc(${pct(edge === "start" ? s : e)} - ${edge === "start" ? 0 : 12}px)` }}><span className="mx-auto mt-5 block h-4 w-0.5 rounded bg-[var(--ink)]" /></div>))}
       </div>
       {tracks && (
         <div className="mt-1 space-y-1" aria-label="Pistas">

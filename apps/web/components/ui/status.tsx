@@ -7,9 +7,9 @@ const META: Record<PieceStatus, { label: string; icon: string; cls: string }> = 
   generating: { label: "Generando", icon: "bolt", cls: "text-[var(--muted)] bg-[var(--hover)]" },
   ready: { label: "Listo", icon: "check", cls: "text-[var(--text)] bg-[var(--hover)]" },
   to_review: { label: "Por revisar", icon: "clock", cls: "text-[var(--text)] bg-white ring-1 ring-inset ring-[#bdbdbd]" },
-  changes: { label: "Cambios solicitados", icon: "wand", cls: "text-[var(--text)] bg-white ring-1 ring-inset ring-[#111] [&]:ring-dashed" },
+  changes: { label: "Cambios solicitados", icon: "wand", cls: "text-[var(--text)] bg-white ring-1 ring-inset ring-[var(--ink)] [&]:ring-dashed" },
   approved: { label: "Aprobado", icon: "check", cls: "text-white bg-[var(--ink)]" },
-  failed: { label: "Fallido", icon: "x", cls: "text-[var(--text)] bg-white ring-2 ring-inset ring-[#111]" },
+  failed: { label: "Fallido", icon: "x", cls: "text-[var(--text)] bg-white ring-2 ring-inset ring-[var(--ink)]" },
   cancelled: { label: "Cancelado", icon: "x", cls: "text-[var(--muted)] bg-[var(--hover)]" },
 };
 export const STATUS_LABEL = (s: PieceStatus) => META[s].label;

@@ -95,7 +95,7 @@ export default function Entrega({ params }: { params: Promise<{ id: string }> })
 
       {!shown.length ? <p className="mt-6 rounded-2xl bg-[var(--surface)] p-8 text-center text-sm text-[var(--muted)]">{only === "approved" ? "Ninguna pieza de esta entrega está aprobada todavía." : "Esta entrega no tiene piezas."}</p> : (
         <ul className="mt-5 grid grid-cols-2 gap-x-4 gap-y-7 md:grid-cols-3 xl:grid-cols-4">{shown.map((r) => { const i = rows.indexOf(r); const on = sel.has(r.x.clip_id); return (
-          <li key={r.x.clip_id} className={`rounded-2xl p-1.5 ${on ? "bg-[var(--hover)] ring-2 ring-[#111]" : ""}`}>
+          <li key={r.x.clip_id} className={`rounded-2xl p-1.5 ${on ? "bg-[var(--hover)] ring-2 ring-[var(--ink)]" : ""}`}>
             <div className="relative aspect-[9/16] overflow-hidden rounded-2xl bg-[var(--ink)]">
               {r.x.thumb ? <img src={r.x.thumb} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" /> : <div className="absolute inset-0 grid place-items-center text-xs text-white/60">Sin portada</div>}
               <label className="absolute left-2 top-2 grid h-8 w-8 cursor-pointer place-items-center rounded-full bg-white/90"><span className="sr-only">Seleccionar «{r.x.clip.title}»</span><input type="checkbox" checked={on} onChange={() => setSel((s) => { const n = new Set(s); if (n.has(r.x.clip_id)) n.delete(r.x.clip_id); else n.add(r.x.clip_id); return n; })} className="h-4 w-4 accent-black" /></label>

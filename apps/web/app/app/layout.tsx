@@ -12,14 +12,14 @@ const NAV: (NavItem & { glyph: string })[] = [
   { href: "/app/brand-kits", label: "Brand kit", icon: "brand", glyph: "◈", ready: true, group: "Crear" },
   { href: "/app/lyric-studio", label: "Estudio de vídeo", icon: "music", glyph: "♪", ready: true, group: "Lyric Studio" },
   { href: "/app/style-studio", label: "Style Studio", icon: "type", glyph: "Aa", ready: true, group: "Lyric Studio" },
-  { href: "/app/biblioteca", label: "Biblioteca", icon: "folder", glyph: "▥", ready: true, group: "Lyric Studio" },
+  { href: "/app/biblioteca", label: "Biblioteca", icon: "grid", glyph: "▥", ready: true, group: "Lyric Studio" },
   { href: "/app/calendario", label: "Calendario", icon: "calendar", glyph: "▦", ready: true, group: "Publicar" },
   { href: "/app/analitica", label: "Analítica", icon: "chart", glyph: "▥", ready: true, group: "Publicar" },
   { href: "/app/conexiones", label: "Conexiones", icon: "link", glyph: "⚭", ready: true, group: "Publicar" },
   { href: "/app/exports", label: "Exportados", icon: "download", glyph: "⇪", ready: true, group: "Publicar" },
-  { href: "/app/automatizaciones", label: "Automatizaciones", icon: "bolt", glyph: "⟳", ready: true, group: "Publicar" },
+  { href: "/app/automatizaciones", label: "Automatizaciones", icon: "wand", glyph: "⟳", ready: true, group: "Publicar" },
   { href: "/app/entregas", label: "Compartidos conmigo", icon: "share", glyph: "⇩", ready: true, group: "Cuenta" },
-  { href: "/app/uso", label: "Uso", icon: "chart", glyph: "◔", ready: true, group: "Cuenta" },
+  { href: "/app/uso", label: "Uso", icon: "clock", glyph: "◔", ready: true, group: "Cuenta" },
 ];
 const OTHER: NavItem[] = [
   { href: "/app/demos", label: "Demos", icon: "play", ready: true, group: "Ayuda" },
@@ -93,17 +93,17 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
   const initials = ((email.split("@")[0] ?? "").slice(0, 2) || "?").toUpperCase();
   const act = spaces.find((x) => x.active);
-  const itm = "flex shrink-0 items-center gap-3 rounded-[10px] px-3 py-2 text-sm min-h-11";
+  const itm = "flex shrink-0 items-center gap-3 rounded-[14px] px-2.5 py-1.5 text-sm min-h-11 transition-colors";
   return (
     <div className="min-h-screen bg-[var(--bg)] md:flex">
-      <nav aria-label="Principal" className="z-20 flex shrink-0 flex-col gap-3.5 border-b border-[#E5E5E5] bg-[var(--bg)] px-3 py-3 md:sticky md:top-0 md:h-screen md:w-64 md:border-b-0 md:border-r md:py-[18px]">
+      <nav aria-label="Principal" className="z-20 flex shrink-0 flex-col gap-3.5 border-b border-[var(--border)] bg-[var(--bg)] px-3 py-3 md:sticky md:top-0 md:h-screen md:w-64 md:overflow-y-auto md:border-b-0 md:border-r md:py-[18px]">
         <Link href="/app" className="flex items-center gap-2 px-2 pb-1" aria-label="Ráfaga, inicio">
-          <span aria-hidden className="grid h-7 w-7 place-items-center rounded-[9px] bg-[#111111]"><Icon n="bolt" className="h-[15px] w-[15px] text-white" /></span>
-          <span className="font-display text-2xl font-extrabold tracking-[-0.03em] text-[#111111]">ráfaga</span>
+          <span aria-hidden className="grid h-8 w-8 place-items-center rounded-[10px]" style={{ background: "var(--grad)", boxShadow: "var(--glow)" }}><Icon n="bolt" className="h-[16px] w-[16px] text-white" /></span>
+          <span className="font-display text-2xl font-extrabold tracking-[-0.03em] text-[var(--ink)]">ráfaga</span>
         </Link>
         <div className="relative hidden md:block">
           <button onClick={() => setMenu(!menu)} aria-expanded={menu} aria-label="Cambiar de espacio de trabajo" className="flex w-full items-center gap-2.5 rounded-xl p-2 text-left hover:bg-[var(--hover)]">
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[9px] bg-[#C1274F] text-lg font-bold text-white">{(ws[0] ?? "A").toUpperCase()}</span>
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[9px] text-lg font-bold text-white" style={{ background: "linear-gradient(135deg,#3B1EFF,#5DF9C0)" }}>{(ws[0] ?? "A").toUpperCase()}</span>
             <span className="min-w-0 flex-1 leading-tight"><b className="block truncate text-sm font-semibold text-[var(--ink)]">{ws}</b><span className="text-xs text-[var(--muted)]">{ROLE[role] ?? "Gratis"} · {act?.members ?? 1} miembro{(act?.members ?? 1) === 1 ? "" : "s"}</span></span>
             <Icon n="chevR" className="h-3.5 w-3.5 text-[var(--muted)]" />
           </button>
@@ -124,16 +124,16 @@ export default function AppShell({ children }: { children: ReactNode }) {
         <div className="flex gap-1 overflow-x-auto md:flex-col md:gap-0.5 md:overflow-visible">
           {NAV.map((n, i) => (
             <Fragment key={n.href}>
-              {n.group && n.group !== NAV[i - 1]?.group && <div aria-hidden className="hidden px-2.5 pb-0.5 pt-3 text-xs font-medium text-[var(--muted)] md:block">{n.group}</div>}
-              <Link href={n.href} aria-current={active(n.href) ? "page" : undefined} className={`${itm} ${active(n.href) ? "bg-[var(--accent-soft)] font-semibold text-[var(--accent-ink)]" : "text-[var(--ink)] hover:bg-[var(--hover)]"}`}>
-                <span aria-hidden className={`w-[18px] text-center ${active(n.href) ? "" : "text-[#4A4F66]"}`}>{n.glyph}</span>{n.label}
+              {n.group && n.group !== NAV[i - 1]?.group && <div aria-hidden className="hidden px-2.5 pb-1 pt-3.5 text-xs font-semibold text-[var(--muted)] md:block">{n.group}</div>}
+              <Link href={n.href} aria-current={active(n.href) ? "page" : undefined} className={`${itm} ${active(n.href) ? "bg-white font-semibold text-[var(--ink)] shadow-[var(--shadow-2)]" : "text-[var(--ink)] hover:bg-white/70"}`}>
+                <span aria-hidden className={`grid h-8 w-8 shrink-0 place-items-center rounded-[10px] ${active(n.href) ? "text-white" : "bg-white text-[var(--muted)] shadow-[var(--shadow-1)]"}`} style={active(n.href) ? { background: "var(--grad)" } : undefined}><Icon n={n.icon} className="h-4 w-4" /></span>{n.label}
               </Link>
             </Fragment>))}
         </div>
         <div className="hidden flex-col gap-0.5 md:mt-auto md:flex">
           {usage && <Link href="/app/ajustes" className="mb-2 rounded-xl border hairline bg-[var(--card)] px-3 py-2 hover:bg-[var(--hover)]" aria-label={`Consumo esta semana: ${usage.used} de ${usage.limit} minutos`}><span className="tnum flex justify-between text-xs"><span className="text-[var(--muted)]">Esta semana</span><b>{Math.round(usage.used)} / {usage.limit} min</b></span><span className="mt-1 block h-1 overflow-hidden rounded-full bg-[var(--border)]"><span className="block h-full rounded-full bg-[var(--accent)]" style={{ width: `${Math.min(100, (usage.used / usage.limit) * 100)}%` }} /></span></Link>}
           <Link href="/app/demos" className={`${itm} text-[var(--ink)] hover:bg-[var(--hover)]`}><span aria-hidden className="w-[18px] text-center">▣</span>Demos y tutoriales</Link>
-          <Link href="/app/director" className="mt-2 flex items-center justify-between gap-2 rounded-[14px] border hairline bg-[var(--card)] px-3.5 py-3"><span className="flex items-center gap-2"><span aria-hidden className="text-[var(--accent)]">✦</span><span className="font-display text-base font-bold text-[#111111]">director IA</span><span className="rounded-md bg-[#F0F1F7] px-1.5 text-[10px] font-semibold text-[var(--muted)]">Beta</span></span><span aria-hidden>→</span></Link>
+          <Link href="/app/director" className="mt-2 flex items-center justify-between gap-2 rounded-[14px] border hairline bg-[var(--card)] px-3.5 py-3"><span className="flex items-center gap-2"><span aria-hidden className="text-[var(--accent)]">✦</span><span className="font-display text-base font-bold text-[var(--ink)]">director IA</span><span className="rounded-md bg-[#F0F1F7] px-1.5 text-[10px] font-semibold text-[var(--muted)]">Beta</span></span><span aria-hidden>→</span></Link>
         </div>
       </nav>
 
@@ -164,7 +164,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
                     </li>))}</ul>
                 </div>)}
             </div>
-            <Link href="/app/ajustes" aria-label="Cuenta y uso" className="grid h-10 w-10 place-items-center rounded-full bg-[#22254A] text-sm font-semibold text-white">{initials}</Link>
+            <Link href="/app/ajustes" aria-label="Cuenta y uso" className="grid h-10 w-10 place-items-center rounded-full bg-[var(--charcoal)] text-sm font-semibold text-[var(--lime)] ring-2 ring-white">{initials}</Link>
           </span>
         </header>
         {children}
