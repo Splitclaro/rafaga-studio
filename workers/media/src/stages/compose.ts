@@ -15,7 +15,7 @@ interface Gctx { generation_id: string; workspace_id: string; analysis_id: strin
 export interface ComposeDeps { headline?: (prompt: { title: string; text: string }) => Promise<string[]>; limiter?: GroqLimiter }
 const SPEAKER_TEMPLATES = new Set(["pantalla_dividida", "hablante_seguimiento", "cambio_hablante", "presentacion_ponente"]);
 const LEGACY_TEMPLATE: Record<string, ViralTemplateId> = { split_dos_hablantes: "pantalla_dividida", hablante_activo: "cambio_hablante", titular_caja: "titular_en_caja", titular_desenfoque: "titular_sobre_desenfoque", completo_ajustado: "video_completo" };
-export const templateOf = (t: unknown): ViralTemplateId => { const s = String(t ?? ""); const m = LEGACY_TEMPLATE[s] ?? s; return (VIRAL_TEMPLATE_IDS as readonly string[]).includes(m) ? (m as ViralTemplateId) : "titular_video_subtitulos"; };
+export const templateOf = (t: unknown): ViralTemplateId => { const s = String(t ?? ""); const m = LEGACY_TEMPLATE[s] ?? s; return (VIRAL_TEMPLATE_IDS as readonly string[]).includes(m) ? (m as ViralTemplateId) : "hablante_seguimiento"; };
 const dir = (ctx: StageCtx, gen: string) => { const d = join(ctx.tmpDir ?? "/tmp/rafaga", `gen-${gen}`); mkdirSync(d, { recursive: true }); return d; };
 const upper = (s: string) => s.replace(/[.¿?¡!]+$/g, "").trim().toUpperCase();
 
@@ -43,7 +43,7 @@ const compose: StageImpl = {
     const gen = String(row.params.generation_id), gc = await ctx.rpc<Gctx>("generation_context", { p_generation: gen });
     if (!gc) throw new StageError("not_found", "La generación no existe");
     const clips = (await ctx.rpc<GClip[]>("generation_clips", { p_generation: gen })) ?? [], deps = (ctx.deps ?? {}) as ComposeDeps;
-    const P = gc.params, aspect = (P.aspect ?? "9:16") as AspectId, template = templateOf(P.template), hookN = P.hook?.enabled ? Number(P.hook.top_n ?? 0) : 0;
+    const P = gc.params, aspect = (P.aspect ?? "9:16") as AspectId, template = templateOf(P.template), hookN = P.hook?.enabled === false ? 0 : P.hook?.enabled && Number(P.hook.top_n) > 0 ? Number(P.hook.top_n) : clips.length;   // por defecto todos los clips llevan titular (se puede quitar después)
     const top = new Set([...clips].sort((a, b) => b.overall - a.overall).slice(0, hookN).map((c) => c.clip_id));
     let composed = 0, hooks = 0, skipped = 0; const reviewNeeded = SPEAKER_TEMPLATES.has(template) && gc.speakers.some((s) => s.needs_review);
     for (const c of clips) {

@@ -8,7 +8,7 @@ import { httpApi, localResumeStore, runUpload, type UploadEvent } from "../lib/u
 const MAX = 4294967296;
 const fmtBytes = (n: number) => (n >= 1e9 ? `${(n / 1e9).toFixed(2)} GB` : n >= 1e6 ? `${(n / 1e6).toFixed(1)} MB` : `${Math.round(n / 1e3)} KB`);
 const fmtEta = (s: number | null) => (s == null ? "calculando…" : s >= 3600 ? `${Math.floor(s / 3600)} h ${Math.round((s % 3600) / 60)} min` : s >= 60 ? `${Math.floor(s / 60)} min ${s % 60} s` : `${s} s`);
-type Done = { project_id: string; source_id: string; job_id: string; name: string };
+type Done = { project_id: string; source_id: string; job_id: string; name: string; file?: File };
 type Pending = { upload_id: string; project_id: string; source_id: string; name: string; size: number };
 
 export default function UploadPanel({ workspaceId, onDone, onImported }: { workspaceId?: string; onDone?: (d: Done) => void; onImported?: (projectId: string) => void }) {
@@ -73,7 +73,7 @@ export default function UploadPanel({ workspaceId, onDone, onImported }: { works
       ctl.current = null;
       try { localStorage.removeItem("rafaga-upload:pending"); } catch { /* sin almacenamiento */ }
       setPending(null);
-      if (res) onDone?.({ project_id: s.project_id, source_id: s.source_id, job_id: res.job_id, name: f.name });
+      if (res) onDone?.({ project_id: s.project_id, source_id: s.source_id, job_id: res.job_id, name: f.name, file: f });
     } catch (e) { setMsg((e as Error).message); }
     finally { setBusy(false); }
   }

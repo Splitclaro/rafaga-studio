@@ -60,7 +60,7 @@ export default function ResultsGrid({ projectId, sourceId }: { projectId: string
   }, [rows, q, sort, filter]);
 
   async function openClip(i: number) {
-    setOpen(i);
+    setOpen(i); setTimeout(() => document.getElementById("inline-player")?.scrollIntoView({ behavior: "smooth", block: "center" }), 60);
     const t = await token();
     if (!proxy) { const r = await fetch(`/api/uploads/sources/${sourceId}/proxy`, { headers: { Authorization: `Bearer ${t}` } }); if (r.ok) setProxy((await r.json()).url); }
     const gen = gens.find((g) => g.id === visible[i].generation_id);
@@ -114,12 +114,16 @@ export default function ResultsGrid({ projectId, sourceId }: { projectId: string
       )}
 
       {visible.length === 0 ? <p className="card mt-4 border-dashed p-6 text-sm text-[var(--muted)]">{rows.length ? "Ningún clip coincide con la búsqueda." : "Todavía no hay clips. Aparecerán aquí en cuanto estén listos."}</p> : (
+      <>{open != null && pclips[open] && src && (<div id="inline-player" className="card mt-4 p-4">
+        <PreviewPlayer clips={pclips} index={open} onIndex={(i) => openClip(i)} onClose={() => setOpen(null)} proxyUrl={proxy} src={{ w: src.width ?? 1920, h: src.height ?? 1080 }} words={words}
+          onEdit={(id) => router.push(`/app/c/${id}`)} onExport={async (id) => { const c = rows.find((x) => x.id === id); if (!c) return; const r = await requestClipExport(await token(), id, c.current_version); if (r.ok) router.push("/app/exports"); else window.alert(r.message); }} />
+      </div>)}
         <ul className={view === "grid" ? "mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5" : "mt-4 space-y-2"}>
           {visible.map((r, i) => { const c = cand(r), score = c?.scores?.overall, d = c ? Math.round((c.end_ms - c.start_ms) / 1000) : 0;
             return (
               <li key={r.id} className={view === "grid" ? "" : "card flex items-center gap-3 p-2"}>
                 <div className={view === "grid" ? "card overflow-hidden" : "w-20 shrink-0 overflow-hidden rounded-lg"}>
-                  <button type="button" onClick={() => openClip(i)} className="relative block w-full bg-[var(--ink)]" style={{ aspectRatio: "9 / 16" }} aria-label={`Ver «${r.title}» en pantalla completa`}>
+                  <button type="button" onClick={() => openClip(i)} className="relative block w-full bg-[var(--ink)]" style={{ aspectRatio: "9 / 16" }} aria-label={`Ver «${r.title}» aquí mismo`}>
                     {thumbs[r.id] ? <img src={thumbs[r.id]} alt="" className="h-full w-full object-cover" /> : <span className="grid h-full w-full place-items-center p-2 text-center text-xs text-white/70">{r.technical_state === "preparando" ? "Preparando…" : r.title}</span>}
                     <span className="absolute left-2 top-2 rounded bg-black/70 px-1.5 py-0.5 text-xs font-bold text-white tnum">{score != null ? score : "–"}</span>
                     <span className="absolute bottom-2 right-2 rounded bg-black/70 px-1.5 py-0.5 text-[11px] text-white tnum">{mmss(d)}</span>
@@ -135,13 +139,9 @@ export default function ResultsGrid({ projectId, sourceId }: { projectId: string
                   <button type="button" className="underline" onClick={async () => { await supabase.from("clips").update({ favorite: !r.favorite }).eq("id", r.id); load(); }} aria-pressed={r.favorite}>{r.favorite ? "★" : "☆"}</button>
                 </div>
               </li>); })}
-        </ul>
+        </ul></>
       )}
 
-      {open != null && pclips[open] && src && (
-        <PreviewPlayer fullscreen clips={pclips} index={open} onIndex={(i) => openClip(i)} onClose={() => setOpen(null)} proxyUrl={proxy} src={{ w: src.width ?? 1920, h: src.height ?? 1080 }} words={words}
-          onEdit={(id) => router.push(`/app/c/${id}`)} onExport={async (id) => { const c = rows.find((x) => x.id === id); if (!c) return; const r = await requestClipExport(await token(), id, c.current_version); if (r.ok) router.push("/app/exports"); else window.alert(r.message); }} />
-      )}
     </section>
   );
 }

@@ -10,7 +10,7 @@ import { requestClipExport } from "../lib/exportClient";
 import PreviewPlayer, { type PClip } from "./PreviewPlayer";
 import { TEMPLATE_LABEL } from "../lib/generations";
 import {
-  History, Autosaver, deleteRange, restoreRange, deleteWords, stepFrame, extend, editWordText, setWordTiming, setLayout, setAspect, setVolume, applyTemplate, durationOf,
+  History, Autosaver, deleteRange, restoreRange, deleteWords, stepFrame, extend, editWordText, setWordTiming, setLayout, setAspect, setVolume, applyTemplate, setHeadline, durationOf,
   type EditState, type SaveState,
 } from "../lib/editor";
 
@@ -102,6 +102,8 @@ export default function EditorV2({ clipId }: { clipId: string }) {
           {tab === "diseno" && (<div className="grid gap-3 text-sm sm:grid-cols-3">
             <label>Diseño<select className="mt-1 w-full rounded border hairline bg-transparent px-2 py-1.5" value={state.comp.layout} onChange={(e) => apply((s) => setLayout(s, e.target.value as LayoutId))}>{LAYOUT_IDS.map((l) => <option key={l} value={l}>{LAYOUT_LABEL[l]}</option>)}</select></label>
             <label>Plantilla<select className="mt-1 w-full rounded border hairline bg-transparent px-2 py-1.5" value={state.comp.template ?? ""} onChange={(e) => e.target.value && apply((s) => applyTemplate(s, e.target.value as ViralTemplateId))}><option value="">—</option>{VIRAL_TEMPLATE_IDS.map((t) => <option key={t} value={t}>{TEMPLATE_LABEL[t]}</option>)}</select></label>
+            <label className="block">Titular del clip<input className="mt-1 w-full rounded border hairline bg-transparent px-2 py-1.5" placeholder="Sin titular" value={state.comp.headline?.lines.join(" ") ?? ""} onChange={(e) => apply((s) => setHeadline(s, e.target.value ? [e.target.value] : null))} />
+              {state.comp.headline?.lines.length ? <button type="button" className="mt-1 text-xs underline" onClick={() => apply((s) => setHeadline(s, null))}>Quitar titular</button> : null}</label>
             <label>Formato<select className="mt-1 w-full rounded border hairline bg-transparent px-2 py-1.5" value={state.comp.aspect} onChange={(e) => apply((s) => setAspect(s, e.target.value as CompositionV2["aspect"]))}>{ASPECT_IDS.map((a) => <option key={a}>{a}</option>)}</select></label>
             <p className="text-xs text-[var(--muted)] sm:col-span-3">Cambiar de diseño o plantilla conserva el contenido y la edición (cortes, subtítulos, audio). No vuelve a analizar el vídeo ni gasta unidades.</p>
           </div>)}

@@ -1,7 +1,7 @@
 "use client";
 // Nuevo proyecto v2: subir (reanudable) → tarjeta de validación → panel de creación → proyecto.
 // Activo solo con NEXT_PUBLIC_PIPELINE_VERSION=v2; sin esa variable «Nuevo proyecto» es el flujo de siempre.
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import UploadPanel from "./UploadPanel";
 import CreationPanel from "./CreationPanel";
@@ -12,7 +12,10 @@ const clock = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor((ms
 
 export default function NuevoV2() {
   const router = useRouter();
-  const [done, setDone] = useState<{ project_id: string; source_id: string; name: string } | null>(null);
+  const [done, setDone] = useState<{ project_id: string; source_id: string; name: string; file?: File } | null>(null);
+  const localUrl = useMemo(() => (done?.file ? URL.createObjectURL(done.file) : null), [done]);
+  useEffect(() => () => { if (localUrl) URL.revokeObjectURL(localUrl); }, [localUrl]);
+  async function remove() { if (!done) return; await supabase.from("projects").update({ deleted_at: new Date().toISOString() }).eq("id", done.project_id); setDone(null); setSrc(null); }
   const [src, setSrc] = useState<Src | null>(null);
 
   useEffect(() => {
@@ -33,11 +36,20 @@ export default function NuevoV2() {
       <section className="mt-5 space-y-5">
         {!done && <UploadPanel onDone={(d) => setDone(d)} onImported={(id) => router.push(`/app/p/${id}`)} />}
         {done && (
-          <div className="card p-4" aria-live="polite">
-            <div className="font-medium">{done.name}</div>
-            {!src || src.status === "uploaded" || src.status === "pending" ? <p className="mt-1 text-sm text-[var(--muted)]">Validando y preparando el vídeo… Puedes cerrar la pestaña: el proceso sigue en el servidor.</p>
-              : src.status === "failed" ? <p role="alert" className="mt-1 text-sm">El archivo no se pudo validar. Revisa el formato (MP4/MOV con H.264) y vuelve a subirlo.</p>
-              : <p className="mt-1 text-sm text-[var(--muted)]">{src.duration_ms ? clock(src.duration_ms) : "—"} · {src.width}×{src.height} · {src.has_audio === false ? "sin audio" : "con audio"} · validado</p>}
+          <div className="card flex flex-col gap-4 p-4 sm:flex-row" aria-live="polite">
+            <div className="relative aspect-video w-full shrink-0 overflow-hidden rounded-xl bg-[var(--ink)] sm:w-60">
+              {localUrl ? <video src={`${localUrl}#t=1`} muted playsInline preload="metadata" className="h-full w-full object-cover" /> : <div className="grid h-full place-items-center text-xs text-white/70">Sin miniatura</div>}
+              {src?.height ? <span className="absolute left-2 top-2 rounded-md bg-black/70 px-1.5 py-0.5 text-xs font-semibold text-white">{src.height >= 2160 ? "4K" : src.height >= 1080 ? "1080p" : src.height >= 720 ? "720p" : "480p"}</span> : null}
+              {src?.duration_ms ? <span className="tnum absolute bottom-2 right-2 rounded-md bg-black/70 px-1.5 py-0.5 text-xs text-white">{clock(src.duration_ms)}</span> : null}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-start justify-between gap-3"><div className="truncate font-medium">{done.name}</div>
+                <button type="button" onClick={remove} aria-label="Quitar vídeo" className="btn btn-ghost !px-2 !py-1 !text-xs">Quitar</button></div>
+              {!src || src.status === "uploaded" || src.status === "pending" ? <p className="mt-1 text-sm text-[var(--muted)]">Validando y preparando el vídeo… Puedes cerrar la pestaña: el proceso sigue en el servidor.</p>
+                : src.status === "failed" ? <p role="alert" className="mt-1 text-sm">El archivo no se pudo validar. Revisa el formato (MP4/MOV con H.264) y vuelve a subirlo.</p>
+                : <p className="mt-1 text-sm text-[var(--muted)]">{src.width}×{src.height} · {src.has_audio === false ? "sin audio" : "con audio"} · validado</p>}
+              <p className="mt-2 text-xs text-[var(--muted)]">Idioma, rango, diseño y subtítulos se ajustan debajo.</p>
+            </div>
           </div>
         )}
         {/* Como en OpusClip: la receta y todos los ajustes se ven y se pueden configurar ANTES de subir; «Crear» se activa cuando el vídeo está listo. */}

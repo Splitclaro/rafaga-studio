@@ -22,7 +22,7 @@ export default function CreationPanel({ projectId, durationMs, onCreated }: { pr
   const [mode, setMode] = useState<Mode>("cualquier_momento");
   const [duration, setDuration] = useState<Bucket>("auto");
   const [count, setCount] = useState<string>("");
-  const [brief, setBrief] = useState(""), [exclude, setExclude] = useState("");
+  const [ctype, setCtype] = useState(""), [brief, setBrief] = useState(""), [exclude, setExclude] = useState("");
   const [from, setFrom] = useState("0:00"), [to, setTo] = useState(durationMs ? mmss(durationMs) : "");
   useEffect(() => { if (durationMs) setTo(mmss(durationMs)); }, [durationMs]);
   const [subs, setSubs] = useState(true), [style, setStyle] = useState<CaptionStyle>(CAPTION_DEFAULT);
@@ -31,7 +31,7 @@ export default function CreationPanel({ projectId, durationMs, onCreated }: { pr
   const lyricV2 = (process.env.NEXT_PUBLIC_LYRIC_VERSION ?? "").trim().toLowerCase() === "v2";
   const [cap2, setCap2] = useState<CaptionStyleV2>(DEFAULT_CAPTION), [beh, setBeh] = useState<BehaviourPresetId>("frase_palabra_activa");
   const style2 = useMemo(() => ({ ...style, font: cap2.font, color: cap2.color, active_color: cap2.activeColor, size: cap2.size, position: (cap2.position.y < 0.35 ? "top" : cap2.position.y < 0.65 ? "middle" : "bottom") as CaptionStyle["position"], subtitle_style: captionToSubtitleStyle(cap2) }), [style, cap2]);
-  const [hook, setHook] = useState(false), [hookN, setHookN] = useState(10), [hookStyle, setHookStyle] = useState<"editorial" | "statement" | "classic">("editorial");
+  const [hook, setHook] = useState(true), [hookN, setHookN] = useState(20), [hookStyle, setHookStyle] = useState<"editorial" | "statement" | "classic">("editorial");
   const [lang, setLang] = useState<"auto" | "es" | "en">("auto"), [durSet, setDurSet] = useState<Bucket[]>([]), [subLang, setSubLang] = useState(""), [open, setOpen] = useState<null | "picks" | "len" | "prompt" | "premium" | "recipes">(null), [recTab, setRecTab] = useState<"built" | "mine">("built"), [showSettings, setShowSettings] = useState(true), [clipping, setClipping] = useState(true);
   const [aspect, setAspect] = useState<(typeof ASPECTS)[number]>("9:16"), [template, setTemplate] = useState<string>("hablante_seguimiento");
   const [brandKit, setBrandKit] = useState(""), [kits, setKits] = useState<{ id: string; name: string }[]>([]);
@@ -40,9 +40,9 @@ export default function CreationPanel({ projectId, durationMs, onCreated }: { pr
   const idem = useRef<string | null>(null);
 
   const params = useMemo(() => ({ ...(subLang ? { subtitle_language: subLang } : {}),
-    recipe: recipe === "clips" && !clipping ? "captions" : recipe, mode, duration: durSet[0] ?? duration, ...(durSet.length ? { duration_set: durSet } : {}), count: count ? Number(count) : null, range_start_ms: parse(from), range_end_ms: to ? parse(to) : (durationMs ?? 0), language: lang, brief: [brief.trim(), exclude.trim() ? `Evitar: ${exclude.trim()}` : ""].filter(Boolean).join("\n") || undefined,
+    recipe: recipe === "clips" && !clipping ? "captions" : recipe, mode, duration: durSet[0] ?? duration, ...(durSet.length ? { duration_set: durSet } : {}), count: count ? Number(count) : null, range_start_ms: parse(from), range_end_ms: to ? parse(to) : (durationMs ?? 0), language: lang, brief: [ctype ? `Tipo de contenido: ${ctype}.` : "", brief.trim(), exclude.trim() ? `Evitar: ${exclude.trim()}` : ""].filter(Boolean).join("\n") || undefined,
     exclude: exclude.trim() || undefined, aspect, template: recipe === "clips" || recipe === "reframe" ? template : undefined, subtitles: subs, caption_style: subs ? (lyricV2 ? style2 : style) : undefined, hook: hook ? { enabled: true, template: hookStyle, top_n: hookN } : undefined, brand_kit_id: brandKit || undefined,
-  }), [lang, recipe, clipping, mode, duration, durSet, subLang, hookStyle, count, from, to, brief, exclude, aspect, template, subs, style, style2, lyricV2, hook, hookN, brandKit]);
+  }), [lang, recipe, clipping, mode, duration, durSet, subLang, hookStyle, count, from, to, ctype, brief, exclude, aspect, template, subs, style, style2, lyricV2, hook, hookN, brandKit]);
 
   const token = async () => (await supabase.auth.getSession()).data.session?.access_token ?? "";
   useEffect(() => { (async () => {
@@ -147,6 +147,7 @@ export default function CreationPanel({ projectId, durationMs, onCreated }: { pr
                   <span>Clips:</span>
                   <select className="rounded-lg bg-transparent px-1 py-1 text-sm" value={count} onChange={(e) => setCount(e.target.value)} aria-label="Número de clips"><option value="">Los que haya</option>{[3, 5, 8, 10, 15, 20].map((n) => <option key={n} value={n}>{n}</option>)}</select>
                 </div>
+                <div className="flex flex-wrap items-center gap-2 text-sm" role="group" aria-label="Tipo de contenido"><span className="text-[var(--muted)]">Tipo de contenido:</span>{["Detectar con IA", "Pódcast", "Estilo de vida", "Deporte", "Marketing y webinar", "Entretenimiento", "Noticias", "Informativo y educativo"].map((t, i) => <button key={t} type="button" aria-pressed={(i === 0 ? "" : t) === ctype} onClick={() => setCtype(i === 0 ? "" : t)} className={`chip ${(i === 0 ? "" : t) === ctype ? "on" : ""}`}>{t}</button>)}</div>
                 <label className="block"><span className="mb-1 flex items-center justify-between text-xs font-medium text-[var(--muted)]">Momentos a incluir (opcional)
                   <Pop id="prompt" label="Cómo escribirlo"><p className="p-2 text-xs text-[var(--text)]">Di qué quieres encontrar, para quién y con qué tono. Ejemplo: «todos los momentos graciosos», «los consejos para principiantes». Es una estimación de la IA, no una garantía.</p></Pop></span>
                   <textarea className={field} rows={2} maxLength={2000} value={brief} onChange={(e) => setBrief(e.target.value)} placeholder="Ejemplo: busca todos los momentos en los que alguien se ríe o cuenta una anécdota" /></label>

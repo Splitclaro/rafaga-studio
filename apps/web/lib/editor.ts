@@ -65,6 +65,13 @@ export function applyTemplate(s: EditState, id: ViralTemplateId, o: { headline?:
   return { ...s, comp: { ...t, cuts: s.comp.cuts, kf: s.comp.kf, audio: s.comp.audio, extras: s.comp.extras, cam: s.comp.cam, needs_review: s.comp.needs_review } };
 }
 
+/** Titular del clip: texto nuevo, o `null` para quitarlo (se recalcula la plantilla sin él; el resto de la edición se conserva). */
+export function setHeadline(s: EditState, lines: string[] | null): EditState {
+  const id = (s.comp.template ?? "video_completo") as ViralTemplateId, clean = (lines ?? []).map((l) => l.trim()).filter(Boolean).slice(0, 2);
+  const t = viralTemplate(id, s.comp.aspect, { duration: s.comp.duration, fragments: s.comp.fragments, subtitles: s.comp.subtitles.enabled, headline: clean.length ? { lines: clean, accent: s.comp.headline?.accent } : undefined });
+  return { ...s, comp: { ...t, layout: s.comp.layout, template: s.comp.template, cuts: s.comp.cuts, kf: s.comp.kf, audio: s.comp.audio, extras: s.comp.extras, cam: s.comp.cam, needs_review: s.comp.needs_review, ...(clean.length ? {} : { headline: undefined }) } };
+}
+
 /** Instante del clip sin cortes ↔ instante de la línea de la fuente: error ≤ 1 ms. */
 export const toEdit = (tSrc: number, cuts: Cut[] | undefined) => mapTime(tSrc, cuts);
 

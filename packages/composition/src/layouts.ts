@@ -94,6 +94,8 @@ export const VIRAL_TEMPLATE_IDS = ["titular_video_subtitulos", "pantalla_dividid
 export type ViralTemplateId = (typeof VIRAL_TEMPLATE_IDS)[number];
 export interface TemplateOpts { duration: number; fragments?: { start: number; end: number }[]; headline?: { lines: string[]; accent?: string; pill?: string }; platforms?: Platform[]; subtitles?: boolean; srcAspect?: number }
 const FULL: Rect = { x: 0, y: 0, w: 1, h: 1 };
+/** Titular estilo Opus sobre vídeo a pantalla completa: caja blanca, texto negro, tercio superior. Sin líneas → no se dibuja. */
+const topHeadline = (o: TemplateOpts, area: Rect) => o.headline?.lines.length ? { headline: { lines: o.headline.lines, accent: "#000000", style: "box" as const, box: { x: area.x + area.w * 0.06, y: area.y + area.h * 0.1, w: area.w * 0.88, h: 0.14 } } } : {};
 
 /** Apila [titular][banda][subtítulos] centrado en el área disponible; si no cabe, reduce la banda. Devuelve rectángulos normalizados. */
 function stack(avail: Rect, bandAspect: number, frameAspect: number, hHead: number, hSub: number, wFrac = 1): { head: Box; band: Box; sub: Box } {
@@ -110,14 +112,14 @@ const TPL: Record<ViralTemplateId, (a: AspectId, o: TemplateOpts, area: Rect) =>
     const s = stack(a === "16:9" ? area : area, a === "9:16" ? bandAspect : a === "1:1" ? 1 : bandAspect, W / H, a === "16:9" ? 0.14 : 0.1, a === "16:9" ? 0.14 : 0.1);
     return { layout: "fit_full", band: s.band, headline: { lines: o.headline?.lines ?? [], accent: o.headline?.accent ?? "#FFD60A", pill: o.headline?.pill, style: "plain", box: s.head }, subtitles: { enabled: o.subtitles !== false, box: s.sub } };
   },
-  pantalla_dividida: (_a, o, area) => ({ layout: "split_two", splitTop: 0.5, subtitles: { enabled: o.subtitles !== false, box: { x: area.x, y: area.y + area.h * 0.44, w: area.w, h: 0.12 } } }),
-  hablante_seguimiento: (_a, o, area) => ({ layout: "single_track", subtitles: { enabled: o.subtitles !== false, box: { x: area.x, y: area.y + area.h * 0.62, w: area.w, h: 0.14 } } }),
-  cambio_hablante: (_a, o, area) => ({ layout: "active_speaker", subtitles: { enabled: o.subtitles !== false, box: { x: area.x, y: area.y + area.h * 0.62, w: area.w, h: 0.14 } } }),
+  pantalla_dividida: (_a, o, area) => ({ ...topHeadline(o, area), layout: "split_two", splitTop: 0.5, subtitles: { enabled: o.subtitles !== false, box: { x: area.x, y: area.y + area.h * 0.44, w: area.w, h: 0.12 } } }),
+  hablante_seguimiento: (_a, o, area) => ({ ...topHeadline(o, area), layout: "single_track", subtitles: { enabled: o.subtitles !== false, box: { x: area.x, y: area.y + area.h * 0.62, w: area.w, h: 0.14 } } }),
+  cambio_hablante: (_a, o, area) => ({ ...topHeadline(o, area), layout: "active_speaker", subtitles: { enabled: o.subtitles !== false, box: { x: area.x, y: area.y + area.h * 0.62, w: area.w, h: 0.14 } } }),
   presentacion_ponente: (a, o, area) => ({ layout: "screen_presenter", splitTop: a === "16:9" ? 1 : 0.62, subtitles: { enabled: o.subtitles !== false, box: { x: area.x, y: area.y + area.h * 0.58, w: area.w, h: 0.12 } } }),
   presentacion_sola: (a, o, area) => { const s = stack(area, 16 / 9, a === "9:16" ? 9 / 16 : a === "1:1" ? 1 : 16 / 9, 0.12, 0.12); return { layout: "fit_full", band: s.band, headline: { lines: o.headline?.lines ?? [], accent: o.headline?.accent, style: "box", box: s.head }, subtitles: { enabled: o.subtitles !== false, box: s.sub } }; },
   titular_en_caja: (a, o, area) => { const s = stack(area, 16 / 9, a === "9:16" ? 9 / 16 : a === "1:1" ? 1 : 16 / 9, 0.12, 0.12); return { layout: "fit_full", band: s.band, headline: { lines: o.headline?.lines ?? [], accent: o.headline?.accent ?? "#FFFFFF", style: "box", box: s.head }, subtitles: { enabled: o.subtitles !== false, box: s.sub } }; },
   titular_sobre_desenfoque: (a, o, area) => { const { width: W, height: H } = RATIO_SIZE[a]; const s = stack(area, 16 / 9, W / H, 0.14, 0.12); return { layout: "fit_full", band: s.band, headline: { lines: o.headline?.lines ?? [], accent: o.headline?.accent, style: "plain", box: s.head }, subtitles: { enabled: o.subtitles !== false, box: s.sub } }; },
-  video_completo: (_a, o, area) => ({ layout: "fit_full", subtitles: { enabled: o.subtitles !== false, box: { x: area.x, y: area.y + area.h * 0.72, w: area.w, h: 0.12 } } }),
+  video_completo: (_a, o, area) => ({ ...topHeadline(o, area), layout: "fit_full", subtitles: { enabled: o.subtitles !== false, box: { x: area.x, y: area.y + area.h * 0.72, w: area.w, h: 0.12 } } }),
 };
 
 /** Plantilla viral → composición v2 para un formato. Con plataformas elegidas todo el texto queda dentro del área segura común. */
@@ -141,7 +143,7 @@ export function injectHeadline(ass: string, c: CompositionV2, font = "Liberation
   const { width: W, height: H } = RATIO_SIZE[c.aspect], b = px(h.box, W, H);
   const longest = Math.max(1, ...h.lines.map((l) => l.length));
   const size = Math.max(20, Math.round(Math.min(b.h / Math.max(1, h.lines.length) * 0.78, W / 16, (b.w * 0.94) / (longest * 0.7))));   // que la línea más larga quepa en la caja (negrita en mayúsculas ≈ 0,7 em por carácter)
-  const style = `Style: Headline,${font},${size},&H00FFFFFF,&H00FFFFFF,&H00000000,${h.style === "box" ? "&H00000000" : "&H64000000"},-1,0,0,0,100,100,0,0,${h.style === "box" ? 3 : 1},${h.style === "box" ? 14 : Math.max(3, Math.round(size / 14))},0,5,${b.x},${W - b.x - b.w},0,1`;
+  const box = h.style === "box", style = `Style: Headline,${font},${size},${box ? "&H00000000,&H00000000,&H00FFFFFF,&H00FFFFFF" : "&H00FFFFFF,&H00FFFFFF,&H00000000,&H64000000"},-1,0,0,0,100,100,0,0,${h.style === "box" ? 3 : 1},${h.style === "box" ? 14 : Math.max(3, Math.round(size / 14))},0,5,${b.x},${W - b.x - b.w},0,1`;
   const text = h.lines.map((l, i) => (i === 1 && h.accent ? `{\\c${assRgb(h.accent)}}` : "") + l.replace(/[{}\\]/g, "")).join("\\N");
   const ev = `Dialogue: 5,${assTime(0)},${assTime(Math.max(0.1, c.duration))},Headline,,0,0,0,,{\\an5\\pos(${Math.round(b.x + b.w / 2)},${Math.round(b.y + b.h / 2)})}${text}`;
   return ass.replace(/(\r?\nStyle: Default[^\n]*)/, `$1\n${style}`).replace(/\s*$/, `\n${ev}\n`);

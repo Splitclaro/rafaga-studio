@@ -42,7 +42,12 @@ export default function PreviewPlayer({ clips, index, onIndex, onClose, proxyUrl
     if (scene.headline) {
       const b = scene.headline.box, size = Math.max(10, Math.min(b.h / scene.headline.lines.length * 0.78, (b.w * 0.94) / (Math.max(...scene.headline.lines.map((l) => l.length)) * 0.7)) * k);
       ctx.font = `800 ${size}px Inter, Arial, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.lineWidth = size / 8; ctx.strokeStyle = "rgba(0,0,0,.7)";
-      scene.headline.lines.forEach((l, i) => { const y = (b.y + b.h / 2) * k + (i - (scene.headline!.lines.length - 1) / 2) * size * 1.15; ctx.strokeText(l, (b.x + b.w / 2) * k, y); ctx.fillStyle = i === 1 && scene.headline!.accent ? scene.headline!.accent : "#fff"; ctx.fillText(l, (b.x + b.w / 2) * k, y); });
+      const boxed = scene.headline.style === "box";
+      scene.headline.lines.forEach((l, i) => {
+        const y = (b.y + b.h / 2) * k + (i - (scene.headline!.lines.length - 1) / 2) * size * 1.15, cx = (b.x + b.w / 2) * k;
+        if (boxed) { const tw = ctx.measureText(l).width + size * 0.6, th = size * 1.15; ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.roundRect(cx - tw / 2, y - th / 2, tw, th, size * 0.2); ctx.fill(); ctx.fillStyle = "#000"; ctx.fillText(l, cx, y); return; }
+        ctx.strokeText(l, cx, y); ctx.fillStyle = i === 1 && scene.headline!.accent ? scene.headline!.accent : "#fff"; ctx.fillText(l, cx, y);
+      });
     }
     // subtítulos (grupo y palabra activa)
     if (scene.subtitle && scene.plan.subtitles) {

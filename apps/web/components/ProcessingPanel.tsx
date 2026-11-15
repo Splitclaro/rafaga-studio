@@ -38,24 +38,15 @@ export default function ProcessingPanel({ projectId }: { projectId: string }) {
   if (!job) return null;
 
   const s = deriveProjectState({ job, stages, clips });
-  // Progreso como línea de tiempo en 4 hitos: no se enseñan los pasos internos del proceso.
-  const MILESTONES = ["Preparando tu vídeo", "Entendiendo el contenido", "Creando tus clips", "Últimos retoques"];
-  const macro = (st: string) => (["validate", "mezzanine", "proxy", "prepare"].includes(st) ? 0 : ["transcribe", "scenes", "speakers"].includes(st) ? 1 : ["candidates", "select", "compose"].includes(st) ? 2 : ["previews", "checks"].includes(st) ? 3 : 2);
   const total = Math.max(1, s.progress.total), pct = s.phase === "done" ? 100 : Math.min(99, Math.round((100 * s.progress.done) / total));
-  const current = s.phase === "done" ? 4 : Math.max(0, ...stages.filter((x) => x.status === "running" || x.status === "done" || x.status === "skipped").map((x) => macro(x.stage)));
   return (
     <section aria-live="polite" aria-label="Estado del procesamiento" className="card mt-4 p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div className="font-medium">{s.phase === "done" ? "Tus clips están listos" : s.phase === "failed" ? "Se detuvo" : s.phase === "cancelled" ? "Cancelado" : s.phase === "queued" ? "En cola" : "Creando tus clips"}</div>
-        <div className="tnum text-sm text-[var(--muted)]">{s.phase === "failed" || s.phase === "cancelled" ? "" : `${pct} %`}{s.partial && s.phase !== "done" ? " · ya hay clips para revisar" : ""}</div>
+        <div className="text-sm text-[var(--muted)]">{s.partial && s.phase !== "done" ? "Ya hay clips para revisar" : ""}</div>
       </div>
-      <div className="mt-3 h-2 overflow-hidden rounded-full bg-[var(--surface)]" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label="Progreso">
-        <div className="h-full rounded-full bg-[var(--ink)] transition-all duration-700" style={{ width: `${pct}%` }} /></div>
-      <ol className="mt-4 grid grid-cols-4 gap-2" aria-label="Línea de tiempo">
-        {MILESTONES.map((m, i) => { const done = i < current, now = i === current && s.phase !== "done" && s.phase !== "failed" && s.phase !== "cancelled";
-          return <li key={m} className="text-center"><span aria-hidden className={`mx-auto mb-1.5 block h-3 w-3 rounded-full border ${done || s.phase === "done" ? "border-[var(--ink)] bg-[var(--ink)]" : now ? "border-[var(--ink)] bg-white ring-4 ring-[var(--accent-soft)]" : "border-[var(--border-2)] bg-white"}`} />
-            <span className={`block text-xs leading-tight ${done || now || s.phase === "done" ? "font-medium" : "text-[var(--muted)]"}`}>{m}</span></li>; })}
-      </ol>
+      <div className="mt-3 h-6 overflow-hidden rounded-full bg-[var(--surface)]" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label="Progreso">
+        <div className="flex h-full min-w-[2.75rem] items-center justify-end rounded-full bg-gradient-to-r from-[#2A55F5] to-[#7A5CFA] pr-2 text-xs font-semibold text-white transition-all duration-700" style={{ width: `${Math.max(pct, 8)}%` }}><span className="tnum">{pct} %</span></div></div>
       {(s.phase === "queued" || s.phase === "running") && (
         <p className="mt-4 text-sm text-[var(--muted)]">{eta ? `Tiempo estimado: entre ${fmt(eta.p50_s)} y ${fmt(eta.p90_s)}. ` : ""}Puedes cerrar la pestaña: el proceso sigue en el servidor.</p>
       )}
