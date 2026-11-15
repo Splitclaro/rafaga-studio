@@ -324,3 +324,9 @@ Probar Lyric Studio con una canción real (canto + instrumental). Siguiente: Sty
 - Verificado en producción (vídeo de 2:31): subir → crear con 5 clips → 5 clips entregados, en un par de minutos, con la transcripción Whisper large-v3 (títulos sacados de la letra real).
 - Seguridad: migraciones 108 y 109 aplicadas (funciones del worker y `enqueue_job` cerrados a usuarios), tope de contenedores en Modal y `/api/wake` que solo despierta con trabajo pendiente. Informe: `docs/audit/AUDIT_OWASP_2026-11-14.md`.
 - Pendiente: filas «Próximamente» de la receta (emojis, B-roll, limpieza de audio, zoom/transiciones, doblaje); texto con degradado, eco, salida y bucles de reposo en Style Studio; «no me gusta» como señal; vocabulario de marca.
+
+## 2026-11-15 · Titular, línea de tiempo, miniaturas, escena
+- Titular blanco/negro en todos los clips (quitable en el editor); línea de tiempo en el reproductor en línea; miniaturas reales en Proyectos, Exportaciones y demos.
+- Rango con asas en Nuevo proyecto; reencuadre con seguimiento de caras (OpenCV) en plantillas que rellenan 9:16.
+- Análisis de escena con visión de Groq (`qwen/qwen3.8-27b`, sobrescribible con `GROQ_VISION_MODEL`; llama-4-scout se retira el 17/07/26). Migración 110 aplicada en producción.
+- Verificado en producción con `vlog_toledo_small.mp4`.

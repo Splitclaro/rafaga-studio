@@ -104,10 +104,10 @@ const previews: StageImpl = {
           if (imgs.length) {
             const limiter = new GroqLimiter(limitsFromEnv(ctx.env ?? process.env)); await limiter.wait("llm", 1500);
             const marks = stamps.map((t) => { const x = Math.round(t - c.start_ms / 1000); return `${Math.floor(x / 60)}:${String(x % 60).padStart(2, "0")}`; });
-            const r = await groqChat(cfg, { model: (ctx.env ?? process.env).GROQ_VISION_MODEL ?? "meta-llama/llama-4-scout-17b-16e-instruct", maxTokens: 400,
+            const r = await groqChat(cfg, { model: (ctx.env ?? process.env).GROQ_VISION_MODEL ?? "qwen/qwen3.8-27b", maxTokens: 2000,
               system: "Describes escenas de vídeo en español, de forma breve y objetiva. No inventes lo que no se ve.",
               user: [{ type: "text", text: `Estos ${imgs.length} fotogramas son del mismo clip, en los instantes ${marks.slice(0, imgs.length).join(", ")}. Escribe una línea por fotograma con el formato «[m:ss] descripción de lo que se ve» (máximo 18 palabras cada una).` }, ...imgs] });
-            const text = r.text.trim(); if (text) await ctx.rpc("set_clip_scene", { p_clip: c.clip_id, p_text: text });
+            const text = r.text.replace(/<think>[\s\S]*?<\/think>/g, "").trim(); if (text) await ctx.rpc("set_clip_scene", { p_clip: c.clip_id, p_text: text });
           }
         }
       } catch (e) { ctx.log?.(`escena sin describir: ${(e as Error).message?.slice(0, 120)}`); }
