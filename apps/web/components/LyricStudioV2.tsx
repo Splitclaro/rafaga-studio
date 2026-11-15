@@ -7,6 +7,7 @@ import { supabase } from "../lib/supabase";
 import { httpApi, localResumeStore, runUpload, type UploadEvent } from "../lib/uploader";
 import type { SyncWord } from "@rafaga/lyrics";
 import LyricSyncEditor from "./LyricSyncEditor";
+import Icon from "./Icon";
 import LyricPreview from "./LyricPreview";
 import LyricLibrary from "./LyricLibrary";
 import LyricSettings from "./LyricSettings";
@@ -101,12 +102,20 @@ export default function LyricStudioV2() {
 
   return (
     <main className="mx-auto max-w-3xl space-y-6 p-6">
-      <h1 className="text-2xl font-bold">Lyric Studio · Mis canciones</h1>
+      <header><h1 className="text-3xl font-extrabold">Lyric Studio</h1><p className="mt-1 text-[var(--muted)]">Sube una canción y crea vídeos con su letra en movimiento.</p></header>
+      <ol aria-label="Cómo funciona" className="flex flex-wrap gap-2.5">
+        {([["1", "Sube la canción", "upload", "violet"], ["2", "Ajusta la letra", "type", "blue"], ["3", "Elige el estilo y crea", "wand", "mint"]] as const).map(([n, t, ic, tone]) => (
+          <li key={n} className={`tag tag-${tone}`}><span className="tag-ico"><Icon n={ic} className="h-4 w-4" /></span><span className="tnum opacity-60">{n}</span>{t}</li>))}
+      </ol>
       <section className="card p-4" aria-label="Subir una canción">
-        <label className="block text-sm font-medium" htmlFor="song-file">Subir una canción</label>
-        <p className="text-xs text-[var(--muted)]">MP3, WAV, M4A, AAC, FLAC u OGG · hasta 60 MB y 10 minutos.</p>
-        <input id="song-file" type="file" accept="audio/*" disabled={busy} className="mt-2 text-sm" onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); e.target.value = ""; }} />
-        {ev && busy && <div className="mt-3 text-sm" aria-live="polite"><div className="h-2 overflow-hidden rounded-full bg-[var(--hairline)]"><div className="h-full bg-[var(--accent)]" style={{ width: `${Math.round((100 * ev.bytesSent) / Math.max(1, ev.totalBytes))}%` }} /></div>
+        <label htmlFor="song-file" className={`grid cursor-pointer place-items-center rounded-[20px] border-2 border-dashed border-[#C9D6EC] p-7 text-center ${busy ? "pointer-events-none opacity-60" : "hover:border-[var(--accent)]"}`} style={{ background: "var(--grad-soft)" }}>
+          <span aria-hidden className="ico-tile grad !h-14 !w-14 !rounded-[18px]"><Icon n="music" className="h-6 w-6" /></span>
+          <span className="mt-3 font-display text-lg font-bold text-[var(--ink)]">Subir una canción</span>
+          <span className="text-sm text-[var(--muted)]">MP3, WAV, M4A, AAC, FLAC u OGG · hasta 60 MB y 10 minutos</span>
+          <span className="btn btn-primary mt-3"><Icon n="upload" className="h-4 w-4" />Elegir archivo</span>
+        </label>
+        <input id="song-file" type="file" accept="audio/*" disabled={busy} className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); e.target.value = ""; }} />
+        {ev && busy && <div className="mt-3 text-sm" aria-live="polite"><div className="h-2.5 overflow-hidden rounded-full bg-[var(--surface)]"><div className="h-full rounded-full" style={{ background: "var(--grad)", width: `${Math.round((100 * ev.bytesSent) / Math.max(1, ev.totalBytes))}%` }} /></div>
           <p className="tnum mt-1 text-xs text-[var(--muted)]">{fmt(ev.bytesSent)} de {fmt(ev.totalBytes)}</p>
           <button className="btn btn-ghost mt-2 !min-h-9" onClick={() => void ctl.current?.cancel().then(() => { setBusy(false); setMsg("Subida cancelada. No se ha guardado nada."); })}>Cancelar</button></div>}
         {msg && <p role="status" className="mt-3 text-sm">{msg}</p>}
