@@ -40,3 +40,8 @@ Fotograma vertical con **banda de vídeo cálida a media altura** y **texto blan
 - Recorte de la canción: «Escuchar el final» y ajuste fino ±0,5 s en inicio y final.
 - Ya existían: Hold-to-Sync con Retroceso y velocidad, auto-sync gratis, 720p/1080p, variantes por canción, descarga/ZIP, colecciones.
 - Pendiente de prueba real: sincronizar y exportar con la **letra real** de la canción cargada (no está en el repositorio).
+
+## Prueba de proceso en Ráfaga con la misma canción (2026-11-15)
+Subida (MP3 2:26) → pegar letra (28 líneas) → sincronizar automáticamente (alineación con la letra) → «Abrir en el estudio» → vista previa con la letra sincronizada → «Generar 3 variantes» → **3 de 3 listas** (Descargar, ZIP del lote, SRT, Publicar). Sin consumo de unidades en la generación.
+Cambios hechos: tarjeta de canción en 3 pasos con caja para pegar la letra; estudio a dos columnas (izquierda: canción, letra, sincronización, modo, estilo, ajustes; derecha: vista previa fija + variantes + resultados); estilos populares con un clic; la vista previa empieza en la primera palabra.
+No hecho: sincronización manual y exportación en LyricTune (mantener la barra espaciadora en tiempo real no es automatizable; la exportación gasta 1 de las 3 gratuitas); fondo con vídeo propio para el look de la captura (hace falta subir el vídeo de fondo).
