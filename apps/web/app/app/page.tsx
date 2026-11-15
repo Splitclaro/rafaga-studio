@@ -121,14 +121,14 @@ export default function Dashboard() {
               <li key={n} className={`tag tag-${tone}`}><span className="tag-ico"><Icon n={ic} className="h-4 w-4" /></span><span className="tnum opacity-60">{n}</span>{t}</li>))}
           </ol>
           <HomeHero />
-          <div className="flex w-full max-w-[560px] items-center gap-3.5 rounded-xl border border-[#EEEEF4] bg-white px-3.5 py-2"><span aria-hidden className="text-[var(--accent)]">✦</span><span className="flex-1 text-sm text-[var(--muted)]">Cuéntalo con tus palabras. El Director IA lo prepara.</span><Link href="/app/director" className="inline-flex min-h-11 items-center whitespace-nowrap text-sm font-semibold text-[var(--accent-ink)]">Probar Director IA →</Link></div>
+          <div className="flex w-full max-w-[560px] items-center gap-3.5 relative rounded-[18px] border border-white/80 bg-white/80 px-3.5 py-2 shadow-[var(--shadow-1)] backdrop-blur"><span aria-hidden className="ico-tile grad !h-8 !w-8 !rounded-[10px]"><Icon n="wand" className="h-4 w-4" /></span><span className="flex-1 text-sm text-[var(--muted)]">Cuéntalo con tus palabras. El Director IA lo prepara.</span><Link href="/app/director" className="inline-flex min-h-11 items-center whitespace-nowrap text-sm font-semibold text-[var(--accent-ink)]">Probar Director IA →</Link></div>
         </section>
 
         {/* Qué buscar + conexiones */}
-        <section aria-label="Qué buscar y conexiones" className="grid gap-4 lg:grid-cols-2">
-          <div className="flex flex-col gap-2.5">
-            <div className="flex items-center gap-3 rounded-[14px] border border-dashed border-[var(--border-2)] bg-white px-4 py-3.5"><span aria-hidden className="grid h-10 w-10 place-items-center rounded-[10px] bg-[var(--surface)] text-[var(--ink)]">☁</span><span className="flex-1"><b className="text-sm">Importar desde Drive o Dropbox</b><br /><span className="text-[13px] text-[var(--muted)]">Elige un vídeo guardado en tu nube.</span></span><span className="rounded-md bg-[#F0F1F7] px-2 py-0.5 text-[11px] font-semibold text-[var(--muted)]">Próximamente</span></div>
-            <div className="flex items-center gap-3 rounded-[14px] border border-dashed border-[var(--border-2)] bg-white px-4 py-3.5"><span aria-hidden className="grid h-10 w-10 place-items-center rounded-[10px] bg-[#F1E4FF] text-[var(--ink)]">◉</span><span className="flex-1"><b className="text-sm">Conectar Twitch</b><br /><span className="text-[13px] text-[var(--muted)]">Elige una de tus emisiones.</span></span><span className="rounded-md bg-[#F0F1F7] px-2 py-0.5 text-[11px] font-semibold text-[var(--muted)]">Próximamente</span></div>
+        <section aria-label="Qué buscar y conexiones">
+          <div className="grid gap-2.5 md:grid-cols-2">
+            <div className="flex items-center gap-3 rounded-[20px] border border-[var(--border)] bg-white px-4 py-3.5 shadow-[var(--shadow-1)]"><span aria-hidden className="tag tag-sky !h-10 !w-10 !justify-center !rounded-xl !p-0"><Icon n="folder" className="h-5 w-5" /></span><span className="flex-1"><b className="text-sm">Importar desde Drive o Dropbox</b><br /><span className="text-[13px] text-[var(--muted)]">Elige un vídeo guardado en tu nube.</span></span><span className="rounded-md bg-[#F0F1F7] px-2 py-0.5 text-[11px] font-semibold text-[var(--muted)]">Próximamente</span></div>
+            <div className="flex items-center gap-3 rounded-[20px] border border-[var(--border)] bg-white px-4 py-3.5 shadow-[var(--shadow-1)]"><span aria-hidden className="tag tag-violet !h-10 !w-10 !justify-center !rounded-xl !p-0"><Icon n="live" className="h-5 w-5" /></span><span className="flex-1"><b className="text-sm">Conectar Twitch</b><br /><span className="text-[13px] text-[var(--muted)]">Elige una de tus emisiones.</span></span><span className="rounded-md bg-[#F0F1F7] px-2 py-0.5 text-[11px] font-semibold text-[var(--muted)]">Próximamente</span></div>
           </div>
         </section>
 

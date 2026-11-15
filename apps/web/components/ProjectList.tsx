@@ -50,15 +50,16 @@ function lastJob(jobs: JobRow[], projectId: string): { status: string | null; jo
 export const isActive = (s: string | null) => !!s && !["done", "failed", "cancelled"].includes(s);
 
 export function Chip({ status }: { status: string | null }) {
-  if (isActive(status)) return <span className="chip !py-0.5"><span className="pulse" aria-hidden />{STAGE[status!] ?? status}</span>;
+  if (isActive(status)) return <span className="status status-run"><span className="ring-run" aria-hidden />{STAGE[status!] ?? status}</span>;
+  if (status === "done") return <span className="status status-ok">{STAGE[status] ?? status}</span>;
   return <span className="chip !py-0.5">{status ? <Icon n={status === "done" ? "check" : "x"} className="h-3 w-3" /> : null}{status ? STAGE[status] ?? status : "Sin analizar"}</span>;
 }
 
 export function ProjectCard({ p }: { p: Row }) {
   return (
-    <Link href={`/app/p/${p.id}`} className="card lift group block overflow-hidden">
-      <div className="relative aspect-video overflow-hidden bg-[var(--ink)]">
-        {p.thumb ? <img src={p.thumb} alt="" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" /> : <div className="grid h-full w-full place-items-center bg-[#1a1a1a] text-xs text-white/60">Sin portada todavía</div>}
+    <Link href={`/app/p/${p.id}`} className="card lift group block overflow-hidden !rounded-[22px]">
+      <div className="relative aspect-video overflow-hidden" style={{ background: "var(--grad-soft)" }}>
+        {p.thumb ? <img src={p.thumb} alt="" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" /> : <div className="grid h-full w-full place-items-center text-xs font-medium text-[var(--muted)]" style={{ background: "var(--grad-soft)" }}>Sin portada todavía</div>}
         <div className="absolute left-2 top-2"><Chip status={p.status} /></div>
         {p.mode !== "clips" && <span className="chip absolute right-2 top-2 !py-0.5">{MODE_LABEL[p.mode] ?? p.mode}</span>}
         {isActive(p.status) && <div className="absolute inset-x-0 bottom-0 h-1 overflow-hidden bg-black/40"><div className="skeleton h-full w-1/2 !rounded-none opacity-70" /></div>}

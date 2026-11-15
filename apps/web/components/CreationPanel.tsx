@@ -2,6 +2,7 @@
 // Panel de creación (al estilo de las herramientas de referencia): el usuario decide el RESULTADO antes de generar.
 // Receta · brand kit · modo · duración · momentos a incluir · intervalo · subtítulos (estilo, fuente, colores, tamaño, posición) ·
 // gancho · formato y plantilla viral · resumen con consumo y estimación · Crear (idempotente).
+import Icon from "./Icon";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { DEFAULT_CAPTION, captionToSubtitleStyle, type BehaviourPresetId, type CaptionStyleV2 } from "@rafaga/composition";
@@ -13,6 +14,7 @@ import {
 
 const FONTS = ["Inter", "Montserrat", "Bebas Neue", "Anton", "Oswald", "Roboto", "Raleway", "Nunito", "Bootzy TM"];
 const PRESET_LABEL: Record<string, string> = { palabra_a_palabra: "Palabra a palabra", corte_por_palabra: "Corte por palabra", barrido_marcador: "Barrido marcador", palabras_clave: "Palabras clave", karaoke: "Karaoke", caja: "Caja", contorno: "Contorno", neon: "Neón" };
+const ROW_ICON: Record<string, [string, string]> = { CC: ["text", "mint"], "✦": ["wand", "violet"], "◍": ["brand", "orange"], "▤": ["layers", "sky"], "♫": ["music", "blue"], "◎": ["frame", "sky"], "⇄": ["share", "charcoal"] };
 const mmss = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, "0")}`;
 /** Rango con dos asas (como «Ajustar rango» de Opus): sincroniza con los campos Desde/Hasta. */
 function RangeBar({ total, from, to, onChange, frames }: { frames?: string[]; total: number; from: number; to: number; onChange: (a: number, b: number) => void }) {
@@ -106,11 +108,11 @@ export default function CreationPanel({ projectId, durationMs, onCreated, filmst
   const RECIPE_HINT: Record<Recipe, string> = { clips: "La IA busca los mejores momentos y los convierte en clips cortos.", captions: "Añade subtítulos animados a tu vídeo en un clic.", reframe: "Reencuadra el vídeo para cada formato sin recortar a mano.", cleanup: "Limpia la grabación: silencios, muletillas y audio." };
   const lenLabel = durSet.length ? durSet.map((b) => BUCKET_LABEL[b].replace(/ \(.*\)/, "")).join(", ") : "Auto (0–3 min)";
   const Switch = ({ on, set, label, disabled }: { on: boolean; set?: (v: boolean) => void; label: string; disabled?: boolean }) => (
-    <button type="button" role="switch" aria-checked={on} aria-label={label} disabled={disabled} onClick={() => set?.(!on)} className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${on ? "bg-[var(--ink)]" : "bg-[var(--border-2)]"} ${disabled ? "opacity-40" : ""}`}>
+    <button type="button" role="switch" aria-checked={on} aria-label={label} disabled={disabled} onClick={() => set?.(!on)} className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${on ? "bg-[var(--accent)] shadow-[var(--glow)]" : "bg-[var(--border-2)]"} ${disabled ? "opacity-40" : ""}`}>
       <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${on ? "left-[22px]" : "left-0.5"}`} /></button>);
   const Row = ({ glyph, title, on, set, soon, children }: { glyph: string; title: string; on?: boolean; set?: (v: boolean) => void; soon?: boolean; children?: React.ReactNode }) => (
     <div className="border-t hairline pt-4">
-      <div className="flex items-center gap-3"><span aria-hidden className="grid h-8 w-8 place-items-center rounded-lg border hairline bg-[var(--surface)] text-sm">{glyph}</span><b className="flex-1 text-sm">{title}</b>
+      <div className="flex items-center gap-3"><span aria-hidden className={`tag tag-${(ROW_ICON[glyph] ?? ["film", "blue"])[1]} !h-9 !w-9 !justify-center !rounded-xl !p-0`}><Icon n={(ROW_ICON[glyph] ?? ["film", "blue"])[0]} className="h-4 w-4" /></span><b className="flex-1 text-sm">{title}</b>
         {soon ? <span className="rounded-full bg-[var(--surface)] px-2 py-0.5 text-[11px] text-[var(--muted)]">Próximamente</span> : <Switch on={!!on} set={set} label={title} />}</div>
       {!soon && on !== false && children ? <div className="mt-3 space-y-3 pl-11">{children}</div> : null}</div>);
   const Pop = ({ id, label, children }: { id: NonNullable<typeof open>; label: string; children: React.ReactNode }) => (

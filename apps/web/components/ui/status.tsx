@@ -3,13 +3,13 @@ import Icon from "../Icon";
 /** Estados visibles de una pieza. «Listo» = generado; «Aprobado» = revisado y aprobado EN SU VERSIÓN ACTUAL. Nunca se mezclan. */
 export type PieceStatus = "preparing" | "generating" | "ready" | "to_review" | "changes" | "approved" | "failed" | "cancelled";
 const META: Record<PieceStatus, { label: string; icon: string; cls: string }> = {
-  preparing: { label: "Preparando", icon: "clock", cls: "text-[var(--muted)] bg-[var(--hover)]" },
-  generating: { label: "Generando", icon: "bolt", cls: "text-[var(--muted)] bg-[var(--hover)]" },
-  ready: { label: "Listo", icon: "check", cls: "text-[var(--text)] bg-[var(--hover)]" },
-  to_review: { label: "Por revisar", icon: "clock", cls: "text-[var(--text)] bg-white ring-1 ring-inset ring-[#bdbdbd]" },
+  preparing: { label: "Preparando", icon: "clock", cls: "text-[#2E55E6] bg-[#EEF4FF]" },
+  generating: { label: "Generando", icon: "bolt", cls: "text-[#2E55E6] bg-[#EEF4FF]" },
+  ready: { label: "Listo", icon: "check", cls: "text-[#0B8A5E] bg-[#DDFBEF]" },
+  to_review: { label: "Por revisar", icon: "clock", cls: "text-[#9A5B00] bg-[#FFF3DE]" },
   changes: { label: "Cambios solicitados", icon: "wand", cls: "text-[var(--text)] bg-white ring-1 ring-inset ring-[var(--ink)] [&]:ring-dashed" },
-  approved: { label: "Aprobado", icon: "check", cls: "text-white bg-[var(--ink)]" },
-  failed: { label: "Fallido", icon: "x", cls: "text-[var(--text)] bg-white ring-2 ring-inset ring-[var(--ink)]" },
+  approved: { label: "Aprobado", icon: "check", cls: "text-[#0B8A5E] bg-[#DDFBEF] ring-1 ring-inset ring-[#22C98F]" },
+  failed: { label: "Fallido", icon: "x", cls: "text-[#C42B3B] bg-[#FDE8EA]" },
   cancelled: { label: "Cancelado", icon: "x", cls: "text-[var(--muted)] bg-[var(--hover)]" },
 };
 export const STATUS_LABEL = (s: PieceStatus) => META[s].label;
