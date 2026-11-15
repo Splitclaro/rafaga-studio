@@ -335,3 +335,7 @@ Probar Lyric Studio con una canción real (canto + instrumental). Siguiente: Sty
 - Degradado vertical, ecos (1–3), dirección y curva de la entrada, salida propia, reposo (flotar/latir/balancear) y caos. Opcionales y compatibles: un estilo sin extras renderiza igual que antes.
 - Motor único `wordMotion` (escena ↔ ASS); el degradado se exporta en 6 bandas recortadas (aproximación de un degradado continuo).
 - Pruebas: `packages/composition/src/lyricextras.test.ts` (incluye render real con libass). Controles en el editor de estilo.
+
+## 2026-11-15 · «No me gusta» y vocabulario de marca
+- 👍/👎 por clip (`clips.feedback`, migración 112 aplicada): «no me gusta» oculta el clip y la selección de nuevas generaciones del proyecto evita momentos parecidos y se acerca a lo que gustó (`project_feedback` → `feedbackHint`).
+- Vocabulario de marca en el kit (`config.vocabulary`, hasta 40 términos): se envía como glosario a Whisper y a la corrección de texto, y los términos de una palabra se ajustan a su ortografía exacta (`snapToVocabulary`). Solo afecta a transcripciones nuevas; un análisis ya hecho se reutiliza tal cual.

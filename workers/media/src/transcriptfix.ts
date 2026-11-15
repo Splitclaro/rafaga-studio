@@ -18,17 +18,18 @@ export const plausibleFix = (orig: string, fixed: string): boolean => {
 const SYSTEM = `Eres un corrector de transcripciones automáticas de voz. Recibes una lista numerada de tokens (palabras tal como las oyó el reconocedor) y el contexto anterior.
 Corrige en cada token: ortografía y tildes, mayúsculas (inicio de frase y nombres propios), signos de puntuación finales pegados al token (. , ? ! …) y palabras mal reconocidas cuando el contexto lo deja claro (homófonos o parecidas).
 Reglas estrictas: devuelve EXACTAMENTE tantas cadenas como tokens, en el mismo orden; cada cadena es UNA sola palabra (sin espacios); no unas ni dividas tokens; no traduzcas; no resumas; no inventes lo que no se oye; si dudas, deja el token igual.
+Si recibes «vocabulario_de_marca», esos nombres y términos se escriben exactamente así cuando el token suena a uno de ellos.
 Responde SOLO con un JSON {"t":["…"]}.`;
 
 export interface FixResult { words: TWord[]; changed: number; batches: number; failed: number }
-export async function correctWords(words: TWord[], chat: (system: string, user: string) => Promise<string>, o: { batch?: number; concurrency?: number; language?: string | null } = {}): Promise<FixResult> {
+export async function correctWords(words: TWord[], chat: (system: string, user: string) => Promise<string>, o: { batch?: number; concurrency?: number; language?: string | null; glossary?: string[] } = {}): Promise<FixResult> {
   const size = o.batch ?? 120, out = words.map((w) => ({ ...w })); let changed = 0, failed = 0, next = 0;
   const starts = Array.from({ length: Math.ceil(words.length / size) }, (_, i) => i * size);
   const worker = async () => {
     while (next < starts.length) {
       const a = starts[next++], part = words.slice(a, a + size), ctx = words.slice(Math.max(0, a - 15), a).map((w) => w.text).join(" ");
       try {
-        const txt = await chat(SYSTEM, JSON.stringify({ idioma: o.language ?? "auto", contexto_anterior: ctx, tokens: part.map((w) => w.text) }));
+        const txt = await chat(SYSTEM, JSON.stringify({ idioma: o.language ?? "auto", ...(o.glossary?.length ? { vocabulario_de_marca: o.glossary } : {}), contexto_anterior: ctx, tokens: part.map((w) => w.text) }));
         const m = txt.match(/\{[\s\S]*\}/); const t = (JSON.parse(m ? m[0] : txt) as { t?: unknown }).t;
         if (!Array.isArray(t) || t.length !== part.length) { failed++; continue; }
         part.forEach((w, k) => { const f = typeof t[k] === "string" ? (t[k] as string).trim() : ""; if (f && f !== w.text && plausibleFix(w.text, f)) { out[a + k].text = f; changed++; } });
@@ -37,4 +38,20 @@ export async function correctWords(words: TWord[], chat: (system: string, user: 
   };
   await Promise.all(Array.from({ length: Math.min(o.concurrency ?? 2, starts.length) }, worker));
   return { words: out, changed, batches: starts.length, failed };
+}
+
+/** Vocabulario de marca: un token que suena a un término de una sola palabra (misma palabra salvo ≤25 % de letras) se escribe tal cual el término.
+ *  Conserva la puntuación pegada al token y no toca tiempos ni el número de palabras. */
+export function snapToVocabulary(words: TWord[], vocab: string[]): { words: TWord[]; changed: number } {
+  const terms = vocab.map((t) => t.trim()).filter((t) => t && !/\s/.test(t) && norm(t).length >= 4).map((t) => ({ t, n: norm(t) }));
+  if (!terms.length) return { words, changed: 0 };
+  let changed = 0;
+  const out = words.map((w) => {
+    const m = /^([^\p{L}\p{N}]*)(.*?)([^\p{L}\p{N}]*)$/u.exec(w.text); if (!m || !m[2]) return w;
+    const n = norm(m[2]); if (n.length < 4) return w;
+    const hit = terms.find((x) => x.n === n || (Math.abs(x.n.length - n.length) <= 2 && lev(x.n, n) / Math.max(x.n.length, n.length) <= 0.25));
+    if (!hit || hit.t === m[2]) return w;
+    changed++; return { ...w, text: m[1] + hit.t + m[3] };
+  });
+  return { words: out, changed };
 }

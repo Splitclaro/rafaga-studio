@@ -8,7 +8,7 @@ import { aiConfig, groqTranscribe, groqChat, AiError, transcribe as deepgramTran
 import type { TWord } from "@rafaga/selection";
 import { StageError, type StageCtx, type StageImpl, type StageRow } from "./registry.ts";
 import { GroqLimiter, limitsFromEnv } from "../groqlimits.ts";
-import { correctWords } from "../transcriptfix.ts";
+import { correctWords, snapToVocabulary } from "../transcriptfix.ts";
 
 export const CHUNK_S = 600, OVERLAP_S = 2;
 export interface Chunk { index: number; start: number; end: number }
@@ -109,8 +109,9 @@ const transcribe: StageImpl = {
     let words = mergeChunks(parts), fixInfo: { changed: number; failed: number } | null = null;
     if (words.length && (deps.fixChat || cfg.key) && (ctx.env ?? process.env).TRANSCRIPT_FIX !== "off") {   // pasada de corrección: solo texto, nunca tiempos
       const chat = deps.fixChat ?? (async (sys: string, usr: string) => { await limiter.wait("llm", Math.ceil(usr.length / 3) + 700); return (await groqChat(cfg, { system: sys, user: usr, json: true, maxTokens: 4000, fetchImpl: ctx.fetch })).text; });
-      try { const r = await correctWords(words, chat, { language }); words = r.words; fixInfo = { changed: r.changed, failed: r.failed }; } catch { /* se conserva la transcripción original */ }
+      try { const r = await correctWords(words, chat, { language, glossary: Array.isArray(row.params.glossary) ? (row.params.glossary as string[]) : undefined }); words = r.words; fixInfo = { changed: r.changed, failed: r.failed }; } catch { /* se conserva la transcripción original */ }
     }
+    if (Array.isArray(row.params.glossary) && (row.params.glossary as string[]).length) words = snapToVocabulary(words, (row.params.glossary as string[]).map(String)).words;   // vocabulario de marca: ortografía exacta
     if (!words.length && total > 5) throw new StageError("transcription_failed", "La transcripción no devolvió palabras");
     if (!row.params.analysis_id) throw new StageError("bad_params", "Falta analysis_id para guardar la transcripción");
     const transcriptId = await ctx.rpc<string>("save_transcript", { p_analysis: row.params.analysis_id, p_words: words, p_language: language, p_model: asrModel(ctx) });

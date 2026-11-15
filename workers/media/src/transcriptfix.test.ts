@@ -27,3 +27,12 @@ test("correctWords: procesa por lotes con contexto y concurrencia", async () => 
   const r = await correctWords(ws, async (_s, u) => { calls++; const n = (JSON.parse(u) as { tokens: string[] }).tokens.length; return JSON.stringify({ t: Array.from({ length: n }, (_, k) => (JSON.parse(u) as { tokens: string[] }).tokens[k]) }); }, { batch: 100 });
   assert.equal(calls, 3); assert.equal(r.batches, 3); assert.equal(r.failed, 0); assert.equal(r.changed, 0);
 });
+
+import { snapToVocabulary } from "./transcriptfix.ts";
+test("snapToVocabulary: escribe el término de marca exacto, conserva puntuación y tiempos, y no toca palabras distintas", () => {
+  const w = [{ text: "rafaga,", start: 0, end: 0.4 }, { text: "Samuel", start: 0.4, end: 0.8 }, { text: "samueliyo.", start: 0.8, end: 1.2 }, { text: "casa", start: 1.2, end: 1.5 }, { text: "ráfagas", start: 1.5, end: 1.9 }];
+  const r = snapToVocabulary(w as never, ["Ráfaga", "Samueliyo", "Ráfaga Studio", "Sol"]);
+  assert.deepEqual(r.words.map((x) => x.text), ["Ráfaga,", "Samuel", "Samueliyo.", "casa", "Ráfaga"]);
+  assert.deepEqual(r.words.map((x) => [x.start, x.end]), w.map((x) => [x.start, x.end])); assert.equal(r.changed, 3);
+  assert.equal(snapToVocabulary(w as never, []).changed, 0);
+});

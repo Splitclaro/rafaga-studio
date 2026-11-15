@@ -49,7 +49,12 @@ export async function handleGenerations(req: Request, slug: string[], d: GenDeps
     const idem = idempotencyKey(req);
     if (!idem) return json({ error: { code: "invalid_params", field: "Idempotency-Key", message: "Falta la cabecera Idempotency-Key." } }, 400);
     if (src.status !== "validated") return json({ error: { code: "source_not_ready", message: "El vídeo todavía se está preparando. Espera a que termine la validación." } }, 409);
-    const r = await rpc<{ generation_id: string; job_id: string }>(token, "request_generation", { p_project: proj.id, p_params: { ...params, component_versions: componentVersions(env) }, p_idem: idem }, f);
+    // Vocabulario de marca: el kit elegido aporta términos que la transcripción nueva debe escribir exactamente (lectura con el JWT del usuario).
+    let glossary: string[] = [];
+    if (params.brand_kit_id) {
+      try { const kit = await rest<{ config: { vocabulary?: unknown } | null }>(token, `brand_kits?id=eq.${params.brand_kit_id}&select=config`, f); const v = kit[0]?.config?.vocabulary; if (Array.isArray(v)) glossary = v.map((x) => String(x).trim().slice(0, 40)).filter(Boolean).slice(0, 40); } catch { /* sin vocabulario */ }
+    }
+    const r = await rpc<{ generation_id: string; job_id: string }>(token, "request_generation", { p_project: proj.id, p_params: { ...params, ...(glossary.length ? { glossary } : {}), component_versions: componentVersions(env) }, p_idem: idem }, f);
     if (r.error) return mapDbError(r.error);
     wake(req, r.data!.job_id);
     return json({ generation_id: r.data!.generation_id, job_id: r.data!.job_id }, 202);

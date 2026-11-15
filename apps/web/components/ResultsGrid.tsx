@@ -11,7 +11,7 @@ import CreationPanel from "./CreationPanel";
 import type { CompositionV2, Word } from "@rafaga/composition";
 
 interface Cand { title: string; reason: string | null; start_ms: number; end_ms: number; scores: { overall?: number; reasons?: Record<string, string> } | null }
-interface Row { id: string; title: string; scene_text?: string | null; thumb_path: string | null; technical_state: string; editorial_state: string; favorite: boolean; needs_review: boolean; current_version: number; generation_id: string; created_at: string; candidate: Cand | Cand[] | null }
+interface Row { id: string; title: string; scene_text?: string | null; feedback?: string | null; thumb_path: string | null; technical_state: string; editorial_state: string; favorite: boolean; needs_review: boolean; current_version: number; generation_id: string; created_at: string; candidate: Cand | Cand[] | null }
 interface Gen { id: string; created_at: string; params: { brief?: string; mode?: string; range_start_ms?: number; range_end_ms?: number }; delivered_count: number | null; requested_count: number | null; warnings: { code: string; requested?: number; delivered?: number; reasons?: string[]; message?: string; clip_id?: string }[]; units_consumed: number | null; status: string; transcript_id: string }
 const cand = (r: Row): Cand | null => (Array.isArray(r.candidate) ? r.candidate[0] : r.candidate) ?? null;
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
@@ -33,7 +33,7 @@ export default function ResultsGrid({ projectId, sourceId }: { projectId: string
   const token = useCallback(async () => (await supabase.auth.getSession()).data.session?.access_token ?? "", []);
   const load = useCallback(async () => {
     const [c, g, s] = await Promise.all([
-      supabase.from("clips").select("id,title,scene_text,thumb_path,technical_state,editorial_state,favorite,needs_review,current_version,generation_id,created_at,candidate:clip_candidates(title,reason,start_ms,end_ms,scores)").eq("project_id", projectId).eq("discarded", false).order("created_at", { ascending: false }),
+      supabase.from("clips").select("id,title,scene_text,feedback,thumb_path,technical_state,editorial_state,favorite,needs_review,current_version,generation_id,created_at,candidate:clip_candidates(title,reason,start_ms,end_ms,scores)").eq("project_id", projectId).eq("discarded", false).order("created_at", { ascending: false }),
       supabase.from("generations").select("id,created_at,params,delivered_count,requested_count,warnings,units_consumed,status,transcript_id").eq("project_id", projectId).order("created_at", { ascending: false }),
       supabase.from("sources").select("duration_ms,width,height").eq("id", sourceId).single(),
     ]);
@@ -59,6 +59,11 @@ export default function ResultsGrid({ projectId, sourceId }: { projectId: string
     return l;
   }, [rows, q, sort, filter]);
 
+  async function feedback(id: string, f: "like" | "dislike" | null) {
+    const { error } = await supabase.rpc("set_clip_feedback", { p_clip: id, p_feedback: f });
+    if (error) { alert(error.message); return; }
+    setRows((l) => (f === "dislike" ? l.filter((x) => x.id !== id) : l.map((x) => (x.id === id ? { ...x, feedback: f } : x))));
+  }
   async function openClip(i: number) {
     setOpen(i); setTimeout(() => document.getElementById("inline-player")?.scrollIntoView({ behavior: "smooth", block: "center" }), 60);
     const t = await token();
@@ -137,6 +142,8 @@ export default function ResultsGrid({ projectId, sourceId }: { projectId: string
                   {view === "list" && <span className="min-w-0 flex-1 truncate">{r.title}</span>}
                   <Link href={`/app/c/${r.id}`} className="underline">Editar</Link>
                   <button type="button" className="underline" onClick={async () => { await supabase.from("clips").update({ favorite: !r.favorite }).eq("id", r.id); load(); }} aria-pressed={r.favorite}>{r.favorite ? "★" : "☆"}</button>
+                  <button type="button" aria-pressed={r.feedback === "like"} aria-label="Me gusta" title="Me gusta: lo tendré en cuenta en la próxima generación" onClick={() => feedback(r.id, r.feedback === "like" ? null : "like")} className={r.feedback === "like" ? "font-semibold" : "opacity-60 hover:opacity-100"}>👍</button>
+                  <button type="button" aria-label="No me gusta" title="No me gusta: se oculta y evitaré momentos parecidos" onClick={() => { if (confirm("¿No te gusta este clip? Se ocultará y la próxima generación evitará momentos parecidos.")) void feedback(r.id, "dislike"); }} className="opacity-60 hover:opacity-100">👎</button>
                 </div>
               </li>); })}
         </ul></>

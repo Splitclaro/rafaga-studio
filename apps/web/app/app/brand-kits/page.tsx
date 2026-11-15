@@ -12,7 +12,7 @@ import MediaLibrary from "../../../components/MediaLibrary";
 import BrandTabs from "../../../components/BrandTabs";
 
 type Bumper = { path: string; name: string; kind: "video" | "photo"; dur: number; hasAudio: boolean };
-type Config = { template?: string; layout?: string; montage?: string; lyric?: { look: string | null; style: string | null }; logo?: Partial<BrandLogo>; intro?: Bumper | null; outro?: Bumper | null; export?: { ratios: string[]; res: 1080 | 720 }; broll_collection?: string | null; notes?: string };
+type Config = { vocabulary?: string[]; template?: string; layout?: string; montage?: string; lyric?: { look: string | null; style: string | null }; logo?: Partial<BrandLogo>; intro?: Bumper | null; outro?: Bumper | null; export?: { ratios: string[]; res: 1080 | 720 }; broll_collection?: string | null; notes?: string };
 type Kit = { id: string; name: string; logo_path: string | null; colors: Record<string, string>; subtitle_style: SubtitleStyle | null; config: Config; version: number; updated_at: string; archived_at: string | null };
 type Ver = { version: number; created_at: string; snapshot: { name: string; logo_path: string | null; colors: Record<string, string>; subtitle_style: SubtitleStyle | null; config: Config } };
 type App = { id: string; project_id: string; kit_version: number | null; style_changes: unknown[]; created_at: string; reverted_at: string | null };
@@ -288,6 +288,11 @@ export default function BrandKits() {
                       </div>); })}</div>
                   </section>
 
+                  <section className="card p-5"><h2 className="text-lg">Vocabulario de marca</h2>
+                    <p className="mt-1 text-sm text-[var(--muted)]">Nombres propios, marcas y términos que deben escribirse siempre igual en los subtítulos. Uno por línea (hasta 40). Se aplica a las transcripciones nuevas con este kit.</p>
+                    <textarea className="mt-3 w-full rounded-lg border hairline bg-white px-3 py-2 text-sm" rows={5} maxLength={2000} aria-label="Vocabulario de marca" placeholder={"Ráfaga Studio\nSamueliyo\nTik Tok"} value={(draft.config.vocabulary ?? []).join("\n")}
+                      onChange={(e) => setCfg({ vocabulary: e.target.value.split("\n").map((l) => l.slice(0, 40)).slice(0, 40) })} onBlur={(e) => setCfg({ vocabulary: e.target.value.split("\n").map((l) => l.trim()).filter(Boolean).slice(0, 40) })} />
+                  </section>
                   <section className="card p-5"><h2 className="text-lg">Perfil de exportación</h2>
                     <div className="mt-3 flex flex-wrap gap-6 text-sm">
                       <fieldset><legend className="mb-1">Formatos habituales</legend><div className="flex gap-2">{["9:16", "4:5", "1:1", "16:9"].map((r) => { const on = (draft.config.export?.ratios ?? ["9:16"]).includes(r); return <button key={r} aria-pressed={on} onClick={() => { const cur = draft.config.export?.ratios ?? ["9:16"]; const next = on ? cur.filter((x) => x !== r) : [...cur, r]; setCfg({ export: { ratios: next.length ? next : ["9:16"], res: draft.config.export?.res ?? 1080 } }); }} className={`chip ${on ? "!bg-[var(--ink)] !text-white" : ""}`}>{r}</button>; })}</div></fieldset>

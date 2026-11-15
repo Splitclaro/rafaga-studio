@@ -35,15 +35,23 @@ function makePropose(ctx: StageCtx, deps: SelectDeps) {
     try { return await call(a); } catch (e) { if (e instanceof AiError && e.status === 429) limiter.on429(e.retryAfter ?? 20); throw e; }
   };
 }
-const briefWith = (mode: ModeId, brief: string | undefined, taken: string[] = []) =>
-  [MODES[mode].hint, brief?.trim() ? `Encargo del usuario: ${brief.trim()}` : "", taken.length ? `Ya están elegidos estos tramos (NO los repitas ni los solapes): ${taken.join(", ")}. Busca momentos distintos.` : ""].filter(Boolean).join("\n");
+const briefWith = (mode: ModeId, brief: string | undefined, taken: string[] = [], feedback = "") =>
+  [MODES[mode].hint, feedback, brief?.trim() ? `Encargo del usuario: ${brief.trim()}` : "", taken.length ? `Ya están elegidos estos tramos (NO los repitas ni los solapes): ${taken.join(", ")}. Busca momentos distintos.` : ""].filter(Boolean).join("\n");
+/** Señal «me gusta / no me gusta» del proyecto → una frase para el modelo (evitar lo descartado, acercarse a lo que gustó). Vacía si no hay señal. */
+export async function feedbackHint(ctx: StageCtx, project: string): Promise<string> {
+  try {
+    const fb = await ctx.rpc<{ disliked?: { title: string; reason: string }[]; liked?: { title: string; reason: string }[] } | null>("project_feedback", { p_project: project });
+    const fmt = (l?: { title: string; reason: string }[]) => (l ?? []).slice(0, 8).map((x) => `«${x.title}»${x.reason ? ` (${x.reason.slice(0, 80)})` : ""}`).join("; ");
+    return [fb?.disliked?.length ? `El usuario DESCARTÓ clips como: ${fmt(fb.disliked)}. Evita momentos de ese tipo o tema.` : "", fb?.liked?.length ? `Le GUSTARON clips como: ${fmt(fb.liked)}. Prefiere momentos parecidos.` : ""].filter(Boolean).join(" ");
+  } catch { return ""; }
+}
 const targetText = (min: number, max: number) => `entre ${min} y ${max} s cada momento; no propongas momentos más cortos de ${min} s`;
 
 /** Ventanas en paralelo (máx. 3), cada una con su propio try/catch: un fallo no anula lo de las demás. */
-async function askAll(words: TWord[], mode: ModeId, brief: string | undefined, b: ReturnType<typeof bounds>, propose: ReturnType<typeof makePropose>, taken: (from: number, to: number) => string[] = () => []) {
+async function askAll(words: TWord[], mode: ModeId, brief: string | undefined, b: ReturnType<typeof bounds>, propose: ReturnType<typeof makePropose>, taken: (from: number, to: number) => string[] = () => [], feedback = "") {
   const ws = windows(words, 600, 45), out: RawCandidate[] = []; let ok = 0, next = 0, lastErr = "";
   const worker = async () => { while (next < ws.length) { const w = ws[next++];
-    try { out.push(...(await propose({ brief: briefWith(mode, brief, taken(w.from, w.to)), windowText: transcriptText(words, w.from, w.to), target: targetText(b.min, b.max), want: b.asked }))); ok++; }
+    try { out.push(...(await propose({ brief: briefWith(mode, brief, taken(w.from, w.to), feedback), windowText: transcriptText(words, w.from, w.to), target: targetText(b.min, b.max), want: b.asked }))); ok++; }
     catch (e) { lastErr = (e as Error).message.slice(0, 160); } } };
   await Promise.all(Array.from({ length: Math.min(3, Math.max(1, ws.length)) }, worker));
   return { raw: out, ok, total: ws.length, lastErr };
@@ -75,7 +83,7 @@ const candidates: StageImpl = {
     if (mode === "manual") raw = [];
     else if (MODES[mode].model === null) raw = highlightCandidates(words, gc.audio_signals, gc.scenes, b.min, b.max, b.want);
     else if (!words.length) raw = [];
-    else { const r = await askAll(words, mode, gc.params.brief, b, makePropose(ctx, (ctx.deps ?? {}) as SelectDeps)); raw = r.raw; aiWindows = `${r.ok}/${r.total}`; err = r.lastErr; }
+    else { const r = await askAll(words, mode, gc.params.brief, b, makePropose(ctx, (ctx.deps ?? {}) as SelectDeps), () => [], await feedbackHint(ctx, gc.project_id)); raw = r.raw; aiWindows = `${r.ok}/${r.total}`; err = r.lastErr; }
     if (!ctx.r2) throw new StageError("not_configured", "R2 no está configurado en el worker");
     const f = join(dir(ctx, gen), "candidates.json"); writeFileSync(f, JSON.stringify({ raw, mode, ai_windows: aiWindows }));
     await ctx.r2.upload(candKey(gc.workspace_id, gen), f, "application/json");
@@ -118,7 +126,7 @@ const select: StageImpl = {
     // 2) segunda pasada de la IA con lo ya elegido excluido
     if (acc.length < b.want && MODES[mode].model && words.length >= 20) {
       const take = (from: number, to: number) => acc.filter((c) => c.endWord >= from && c.startWord <= to).map((c) => `[${c.startWord}]–[${c.endWord}]`);
-      const r = await askAll(words, mode, brief, { ...b, asked: Math.max(3, Math.min(10, (b.want - acc.length) * 2)) }, propose, take);
+      const r = await askAll(words, mode, brief, { ...b, asked: Math.max(3, Math.min(10, (b.want - acc.length) * 2)) }, propose, take, await feedbackHint(ctx, gc.project_id));
       const merged = pipeline([...raw, ...r.raw]);
       if (merged.length > acc.length) { secondPass = merged.length - acc.length; acc = merged; }
     }
