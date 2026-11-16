@@ -104,7 +104,7 @@ export default function TikTokStudio() {
   return (
     <main className="mx-auto max-w-[1100px] px-4 pb-20 pt-6 md:px-8">
       <h1 className="text-3xl">TikTok</h1>
-      <p className="mt-1 max-w-2xl text-sm text-[var(--muted)]">Conecta varias cuentas, genera los textos con IA y programa los vídeos que elijas. Mientras la app de TikTok no esté auditada, TikTok solo permite publicar en privado.</p>
+      <p className="mt-1 max-w-2xl text-sm text-[var(--muted)]">Conecta varias cuentas, genera los textos con IA y programa los vídeos que elijas. Mientras la app de TikTok no esté auditada, los vídeos llegan como borrador a la bandeja de la cuenta para que los publiques con un toque.</p>
       {msg && <p role="status" aria-live="polite" className="mt-3 rounded-xl border border-[var(--border)] bg-[var(--hover)] px-3 py-2 text-sm">{msg}</p>}
 
       <section aria-label="Cuentas" className="mt-6">
