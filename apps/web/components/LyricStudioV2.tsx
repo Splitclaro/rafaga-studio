@@ -9,6 +9,7 @@ import type { SyncWord } from "@rafaga/lyrics";
 import LyricSyncEditor from "./LyricSyncEditor";
 import Icon from "./Icon";
 import { TRENDING_STYLES } from "../lib/trendingstyles";
+import CollectionsPicker, { useCollections } from "./Collections";
 import LyricPreview from "./LyricPreview";
 import LyricLibrary from "./LyricLibrary";
 import LyricSettings from "./LyricSettings";
@@ -35,6 +36,7 @@ export default function LyricStudioV2() {
   useEffect(() => { void supabase.from("workspace_members").select("workspace_id").limit(1).then(({ data }) => setWsId(data?.[0]?.workspace_id ?? null)); }, []);
   const [projectId, setProjectId] = useState<string | null>(null), [nVar, setNVar] = useState(3), [res, setRes] = useState<720 | 1080>(720), [outFmt, setOutFmt] = useState<LyricComposition["aspect"]>("9:16");
   const [auto, setAuto] = useState<Record<string, "syncing" | "ready" | "failed">>({}), [activeSong, setActiveSong] = useState<Song | null>(null), seen = useRef<Set<string>>(new Set()), opened = useRef(false);
+  const { cols, reload: reloadCols } = useCollections(), [selCol, setSelCol] = useState<string | null>(null);
   const [lyricsDraft, setLyricsDraft] = useState<Record<string, string>>({});
   const [locks, setLocks] = useState({ song_range: true, lyrics_sync: true, style: false, background: true, format: true }), [batch, setBatch] = useState<{ export_ids: string[]; generation_id: string; batch_id?: string } | null>(null);
   const [comp, setComp] = useState<LyricComposition | null>(null);
@@ -118,7 +120,9 @@ export default function LyricStudioV2() {
     let pid = projectId;
     const t = await token(), H = { Authorization: `Bearer ${t}`, "Content-Type": "application/json" };
     if (!pid && (activeSong ?? editing?.song)) { const r = await fetch("/api/lyrics/projects", { method: "POST", headers: H, body: JSON.stringify({ song_id: (activeSong ?? editing!.song).id, mode: comp.mode }) }); const j = await r.json().catch(() => ({})); if (!r.ok) return setMsg(j?.error?.message ?? "No se pudo crear la pieza."); pid = j.project_id; setProjectId(pid); }
-    const base = { ...comp, res, aspect: outFmt }, variants = planLyricVariants(base, nVar, locks, { styles: Array.from({ length: nVar }, (_, i) => surpriseCaption(base.seed * 1000 + i)) });
+    // Fondos: la colección elegida reparte un fondo distinto a cada variante (imágenes o vídeos; los vídeos se repiten en bucle).
+    const bgItems = (cols?.find((c) => c.id === selCol)?.items ?? []).map((it) => ({ ref: `sb:originals/${it.storage_path}`, kind: (it.kind === "photo" ? "image" : "video") as "image" | "video" }));
+    const base = { ...comp, res, aspect: outFmt }, variants = planLyricVariants(base, nVar, bgItems.length ? { ...locks, background: false } : locks, { styles: Array.from({ length: nVar }, (_, i) => surpriseCaption(base.seed * 1000 + i)), ...(bgItems.length ? { collections: bgItems.map((b) => [b]) } : {}) });
     const r = await fetch(`/api/lyrics/projects/${pid}/variants`, { method: "POST", headers: { ...H, "Idempotency-Key": `var-${crypto.randomUUID()}` }, body: JSON.stringify({ variants, zip: true }) });
     const j = await r.json().catch(() => ({})); if (!r.ok) return setMsg(j?.error?.message ?? "No se pudieron generar las variantes.");
     setBatch({ export_ids: j.export_ids, generation_id: j.generation_id, batch_id: j.batch_id }); setMsg(`Generando ${variants.length} variantes. No consume unidades.`);
@@ -196,6 +200,15 @@ export default function LyricStudioV2() {
         <div className="flex flex-wrap items-center gap-3"><label className="flex items-center gap-2">Color del texto <input type="color" value={comp.style.color} onChange={(e) => setComp(validateLyricComposition({ ...comp, style: validateCaptionStyle({ ...comp.style, color: e.target.value }) }))} aria-label="Color del texto" /></label>
           <a href="/app/style-studio" className="font-semibold text-[var(--accent-ink)]">Más ajustes de estilo →</a></div>
       </section>}
+      <section className="card space-y-3 p-4 text-sm" aria-label="Fondos de los vídeos">
+        <h2 className="font-display text-base font-bold">Fondos de tus vídeos</h2>
+        <p className="text-[var(--muted)]">Sube imágenes o vídeos cortos a una colección y elígela: <b>cada variante usa un fondo distinto</b> (hasta 10 vídeos de la misma canción). Los vídeos se repiten en bucle.</p>
+        <CollectionsPicker selected={selCol} onSelect={setSelCol} cols={cols} reload={reloadCols} />
+        {selCol && (() => { const n = cols?.find((c) => c.id === selCol)?.items.length ?? 0; return <p role="status" className={n < nVar ? "text-[var(--warn)]" : "text-[var(--ok)]"}>{n === 0 ? "La colección está vacía: sube al menos una imagen o vídeo." : n < nVar ? `Tienes ${n} fondo${n === 1 ? "" : "s"} para ${nVar} variantes: se repetirán. Sube ${nVar - n} más para que todas sean distintas.` : `${n} fondos: cada una de las ${nVar} variantes tendrá el suyo.`}</p>; })()}
+        <div className="rounded-2xl bg-[var(--surface)] p-3"><p className="flex items-center gap-2 font-semibold"><span className="tag tag-violet !px-2 !py-0.5 !text-xs">Google Flow</span>Genera fondos con IA</p>
+          <p className="mt-1 text-[var(--muted)]">Flow no ofrece conexión directa para otras apps (solo la web y, de pago, la API de Gemini). Genera allí imágenes o vídeos cortos, descárgalos y súbelos a una colección de arriba.</p>
+          <a href="https://labs.google/fx/tools/flow" target="_blank" rel="noopener noreferrer" className="mt-1 inline-block font-semibold text-[var(--accent-ink)]">Abrir Google Flow →</a></div>
+      </section>
       {comp && <LyricSettings composition={comp} onChange={setComp} />}
         </div>
         <div className="min-w-0 space-y-6 lg:sticky lg:top-20">

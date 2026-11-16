@@ -5,7 +5,7 @@
 //  PUT  /api/lyrics/projects/:id        parche de la pieza    → 200 {saved_at}
 import { runAfter } from "../after.ts";
 import { r2FromEnv, r2Url } from "@rafaga/providers/r2";
-import { bearer, rpc, json, mapDbError, idempotencyKey, sessionUser, type Fetch, type DbError } from "../api.ts";
+import { bearer, rpc, rest, json, mapDbError, idempotencyKey, sessionUser, type Fetch, type DbError } from "../api.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 export interface LyricDeps { f?: Fetch; env?: Record<string, string | undefined>; wake?: (req: Request, jobId: string) => void }
@@ -141,6 +141,11 @@ export async function handleLyrics(req: Request, slug: string[], d: LyricDeps = 
     const idem = idempotencyKey(req); if (!idem) return json({ error: { code: "missing_idempotency_key", message: "Falta la cabecera Idempotency-Key." } }, 400);
     const v = body.variants;
     if (!Array.isArray(v) || v.length < 1 || v.length > 10) return json({ error: { code: "invalid_params", message: "Pide entre 1 y 10 variantes." }, field: "variants" }, 400);
+    // Los fondos solo pueden ser medios del propio espacio de trabajo (ni claves de otros espacios ni rutas arbitrarias).
+    const pj = await rest<{ workspace_id: string }>(token, `projects?id=eq.${id}&select=workspace_id`, f);
+    if (!pj[0]) return notFound();
+    const okRef = (ref: unknown) => typeof ref === "string" && (ref.startsWith(`sb:originals/${pj[0].workspace_id}/media/`) || ref.startsWith(`${pj[0].workspace_id}/`)) && !ref.includes("..");
+    for (const x of v) for (const b of ((x as { background?: { items?: { ref?: unknown }[] }; composition?: { background?: { items?: { ref?: unknown }[] } } })?.background?.items ?? (x as { composition?: { background?: { items?: { ref?: unknown }[] } } })?.composition?.background?.items ?? [])) if (!okRef(b?.ref)) return json({ error: { code: "invalid_params", message: "Un fondo no pertenece a este espacio de trabajo." }, field: "background" }, 400);
     const r = await rpc<{ generation_id: string; clip_ids: string[]; export_ids: string[]; batch_id: string | null; job_id: string | null; warnings: unknown[]; replay: boolean }>(token, "request_lyric_variants", { p_project: id, p_variants: v, p_zip: body.zip !== false, p_idem: idem }, f);
     if (r.error) return dbFail(r.error);
     if (r.data!.job_id && !r.data!.replay) wake(req, r.data!.job_id);

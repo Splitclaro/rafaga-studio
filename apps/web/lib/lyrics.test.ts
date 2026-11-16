@@ -209,3 +209,15 @@ test("GET /exports/batches/:id/url: sin ZIP → 409; con ZIP → URL firmada; ot
   const other = await handleExports(new Request(`https://app/api/exports/batches/${j.batch_id}/url`, { headers: { Authorization: `Bearer ${tokenFor(B)}` } }), ["batches", j.batch_id, "url"], { f: fakeSupabaseFetch(db), env: ENV });
   assert.equal(other.status, 404);
 });
+
+test("variantes con fondos propios: aceptan medios del espacio de trabajo y rechazan referencias de otro espacio o con «..» (sin escribir nada)", async () => {
+  const pid = await lyricProject(), UU = "11111111-1111-4111-8111-111111111111", mk = (ref: string) => [{ ...plan(1)[0], background: { ...plan(1)[0].background, kind: "media", items: [{ ref, kind: "image" }], sequence: [0] } }];
+  const before = [await cnt("generations"), await cnt("clips"), await cnt("jobs")];
+  for (const bad of [`sb:originals/${"22222222-2222-4222-8222-222222222222"}/media/${UU}/${UU}.jpg`, `sb:originals/${ws}/media/../${"22222222-2222-4222-8222-222222222222"}/x.jpg`, "otro/archivo.jpg", `${"22222222-2222-4222-8222-222222222222"}/clave.mp4`]) {
+    const r = await call(A, "POST", `/projects/${pid}/variants`, { variants: mk(bad) }, `bg-bad-${Math.random().toString(36).slice(2, 8)}`);
+    assert.equal(r.status, 400, bad); assert.equal(((await r.json()) as { field: string }).field, "background");
+  }
+  assert.deepEqual([await cnt("generations"), await cnt("clips"), await cnt("jobs")], before);
+  const ok = await call(A, "POST", `/projects/${pid}/variants`, { variants: mk(`sb:originals/${ws}/media/${UU}/${UU}.jpg`) }, `bg-ok-${Math.random().toString(36).slice(2, 8)}`);
+  assert.equal(ok.status, 202);
+});

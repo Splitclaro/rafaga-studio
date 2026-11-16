@@ -226,7 +226,16 @@ export async function renderLyricItem(ctx: StageCtx, it: LyricItem, o: { key: st
   }
   const song = await ctx.rpc<{ key: string } | null>("song_by_source", { p_source: it.source_id });
   if (!song) return o.fail("render_failed", "La canción de esta pieza ya no existe");
-  const get = async (key: string, name: string) => { const p = join(o.dir, name); await r2.download(key, p); return p; };
+  const get = async (key: string, name: string) => {
+    const p = join(o.dir, name);
+    if (key.startsWith("sb:")) {   // fondos de las colecciones del usuario (Supabase Storage, bucket «originals»): solo rutas de medios de un espacio de trabajo
+      const m = /^sb:originals\/([0-9a-f-]{36})\/media\/([0-9a-f-]{36})\/([0-9a-f-]{36})\.(mp4|mov|webm|jpg|png|webp)$/.exec(key); if (!m) throw new Error("fondo no permitido");
+      const env = ctx.env ?? process.env, sk = env.SUPABASE_SECRET_KEY || env.SUPABASE_SERVICE_ROLE_KEY;
+      const r = await (ctx.fetch ?? fetch)(`${env.SUPABASE_URL}/storage/v1/object/originals/${key.slice(13)}`, { headers: { Authorization: `Bearer ${sk}`, apikey: String(sk) } });
+      if (!r.ok) throw new Error(`fondo no disponible (${r.status})`); writeFileSync(p, Buffer.from(await r.arrayBuffer())); return p;
+    }
+    await r2.download(key, p); return p;
+  };
   const audio = await get(song.key, "song"), items: string[] = [];
   for (const [i, b] of c.background.items.entries()) items.push(await get(b.ref, `bg${i}`));          // un fondo que falta rompe SOLO esta variante
   const coverFront = c.cover?.front ? await get(c.cover.front, "cover-front") : undefined, coverBack = c.cover?.back ? await get(c.cover.back, "cover-back") : undefined;
