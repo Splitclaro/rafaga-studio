@@ -98,7 +98,7 @@ const render: StageImpl = {
     } catch (e) {
       if (!(e instanceof BatchItemFailed)) { try { await fail("render_failed", (e as Error).message); } catch (x) { e = x; } }
       const b = e as BatchItemFailed;
-      if (b.inBatch) return { output: { failed: b.code } };
+      if (b.inBatch) return { output: { failed: b.code, message: b.message.slice(0, 300) } };   // el motivo queda en la etapa para diagnosticar
       throw new StageError(b.code, b.message);
     }
   },

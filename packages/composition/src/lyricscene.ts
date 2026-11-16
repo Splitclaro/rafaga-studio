@@ -338,7 +338,7 @@ export function lyricRenderArgs(c: LyricComposition, io: RenderIo): string[] {
       chains.push(`[${last}][c${k}]overlay=x='${cx}-overlay_w/2':y='${cy}-overlay_h/2':eval=frame:enable='${en}'[o${k}]`); last = `o${k}`; n++;
     }
   }
-  chains.push(`[${last}]subtitles=${filt(io.ass)}:fontsdir=${filt(io.fontsDir)},format=yuv420p[v]`);
+  chains.push(`[${last}]subtitles=${filt(io.ass)}:fontsdir=${filt(io.fontsDir)},scale=out_range=tv,format=yuv420p[v]`);   // fotos JPG llegan en rango completo (yuvj420p): se normaliza a rango TV para que el MP4 sea H.264/yuv420p estándar
   a.push("-ss", String(c.range.start), "-t", String(D), "-i", io.audio);
   a.push("-filter_complex", chains.join(";"), "-map", "[v]", "-map", `${n}:a:0`, "-c:v", "libx264", "-preset", "superfast", "-crf", "20", "-r", "30", "-c:a", "aac", "-b:a", "192k", "-t", String(D), "-movflags", "+faststart", io.out);
   return a;
