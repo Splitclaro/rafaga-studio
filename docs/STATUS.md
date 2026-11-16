@@ -357,3 +357,9 @@ Probar Lyric Studio con una canción real (canto + instrumental). Siguiente: Sty
 - Sin auditoría de TikTok, la publicación llega como borrador a la bandeja de la app móvil (`private_pending_review`); no es visible en el perfil ni en web.
 - **App enviada a revisión de TikTok (2026-11-16, «In review»):** Login Kit + Content Posting API (borrador, `user.info.basic` + `video.upload`), vídeo demo, páginas `/privacidad` y `/condiciones`. Direct Post NO solicitado: exige selector de privacidad y divulgación comercial en la interfaz (pendiente). Resultado de la revisión: pendiente de TikTok.
 - Pendiente: conectar la cuenta sandbox nueva; verificar de nuevo un borrador extremo a extremo; paridad detallada con OpusClip/Escalium.
+
+## 2026-11-16 (noche) · Opciones de TikTok por publicación, desplegado y verificado
+- Migración 116 (`publications.post_options`) aplicada en producción; push a `main` (`ca7c252`) y `modal deploy` hechos.
+- Verificado en producción: un borrador enviado desde el calendario a «Te Lo Dedico ⭐» con comentarios/dúo/stitch desactivados guardó `post_options` y llegó a `private_pending_review` (bandeja de la app móvil de TikTok).
+- No verificado: Direct Post público (TikTok no lo permite sin auditoría); la paridad detallada con OpusClip/Escalium sigue sin hacerse (la matriz `PARITY_MATRIX_V2.md` es del 2026-11-09 y no refleja los cambios posteriores).
+- Siguiente paso para publicar en abierto sin pasar por el móvil: esperar el resultado de la revisión actual y, después, grabar un vídeo nuevo con estas opciones y pedir Direct Post.

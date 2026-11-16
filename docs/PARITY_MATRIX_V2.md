@@ -37,3 +37,5 @@ Referencias: las capturas/observaciones de LyricTune, OpusClip y Restream de est
 | Editor | Encuadre (desenfocado/rellenar con posición manual/ajustar), Social edits por red, B-roll desde Custom Collections, 4:5 | `app/app/c/[id]`, `composition.ts` | Seguimiento facial; B-roll con IA (proveedor) | 12 combinaciones layout×ratio con FFmpeg real | 🟡 |
 | Lyric Studio | Selector de tramo con forma de onda; «3 mejores momentos» por energía+repetición | `RangePicker`, `moments.ts` | — | 4 tests de momentos | 🟡 |
 | Biblioteca | Vídeos, clips exportados, vídeos con letra, canciones, colecciones, fuentes, estilos con búsqueda, descarga y borrado | `biblioteca` | — | build | 🟡 |
+
+> **Aviso (2026-11-16):** esta matriz no se ha reauditado desde el 2026-11-09. Desde entonces se añadieron, sin cotejo detallado con las referencias: cola de canciones, fondos por variante, 44 estilos, TikTok multi-cuenta (5), calendario de publicaciones y opciones de Direct Post. Ver `docs/STATUS.md` y `docs/AUDIT_2026-11-16.md`. La paridad «detalle a detalle» con OpusClip y Escalium sigue pendiente.
