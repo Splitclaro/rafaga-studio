@@ -27,6 +27,9 @@ const MODES = [["letra", "Letra"], ["texto", "Texto"], ["portada", "Portada"]] a
 const dur = (ms: number | null) => (ms ? `${Math.floor(ms / 60000)}:${String(Math.round(ms / 1000) % 60).padStart(2, "0")}` : "—");
 const fmt = (n: number) => `${(n / 1048576).toFixed(1)} MB`;
 
+const AUDIO_EXT: Record<string, string> = { mp3: "audio/mpeg", wav: "audio/wav", m4a: "audio/mp4", aac: "audio/aac", flac: "audio/flac", ogg: "audio/ogg", oga: "audio/ogg", opus: "audio/ogg" };
+/** Algunos navegadores no informan el tipo de .m4a/.flac/.ogg: se reconoce también por la extensión. */
+const audioMime = (f: File) => (f.type.startsWith("audio/") ? f.type : AUDIO_EXT[f.name.split(".").pop()?.toLowerCase() ?? ""] ?? "");
 async function sha256Hex(f: File) { return [...new Uint8Array(await crypto.subtle.digest("SHA-256", await f.arrayBuffer()))].map((b) => b.toString(16).padStart(2, "0")).join(""); }
 
 export default function LyricStudioV2() {
@@ -57,9 +60,10 @@ export default function LyricStudioV2() {
   useEffect(() => { const s = songs?.find((x) => x.status === "ready" && !seen.current.has(x.id)); if (s) void autoSync(s); }, [songs]);   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (!songs?.some((s) => s.status === "pending")) return; const t = setInterval(() => void load(), 4000); return () => clearInterval(t); }, [songs, load]);
 
-  async function upload(f: File): Promise<boolean> {
+  async function upload(f0: File): Promise<boolean> {
     setMsg(null); setEv(null);
-    if (!f.type.startsWith("audio/")) { setMsg("Sube un archivo de audio: MP3, WAV, M4A, AAC, FLAC u OGG."); return false; }
+    const mime = audioMime(f0), f = mime && mime !== f0.type ? new File([f0], f0.name, { type: mime }) : f0;
+    if (!mime) { setMsg("Sube un archivo de audio: MP3, WAV, M4A, AAC, FLAC u OGG."); return false; }
     if (f.size > MAX_SONG) { setMsg(`La canción pesa ${fmt(f.size)}. El máximo es 60 MB: expórtala en MP3 o M4A.`); return false; }
     setBusy(true);
     const t = await token(), H = { Authorization: `Bearer ${t}`, "Content-Type": "application/json" };
@@ -80,7 +84,7 @@ export default function LyricStudioV2() {
   }
   /** Varias canciones a la vez: se suben una tras otra (hasta 10) y cada una sigue sola: validar → sincronizar. */
   async function uploadMany(list: File[]) {
-    const files = list.filter((f) => f.type.startsWith("audio/")).slice(0, 10);
+    const files = list.filter((f) => audioMime(f)).slice(0, 10);
     if (!files.length) return setMsg("Sube archivos de audio: MP3, WAV, M4A, AAC, FLAC u OGG.");
     if (files.length === 1) return void (await upload(files[0]));
     setUq(files.map((f) => ({ name: f.name, state: "waiting" as const })));
@@ -202,7 +206,7 @@ export default function LyricStudioV2() {
           <span className="text-sm text-[var(--muted)]">MP3, WAV, M4A, AAC, FLAC u OGG · hasta 60 MB y 10 minutos · puedes soltar hasta 10 a la vez, cada una será su propio vídeo</span>
           <span className="btn btn-primary mt-3"><Icon n="upload" className="h-4 w-4" />Elegir archivo</span>
         </label>
-        <input id="song-file" type="file" accept="audio/*" multiple disabled={busy} className="sr-only" onChange={(e) => { const fs = Array.from(e.target.files ?? []); e.target.value = ""; if (fs.length) void uploadMany(fs); }} />
+        <input id="song-file" type="file" accept="audio/*,.mp3,.wav,.m4a,.aac,.flac,.ogg,.opus" multiple disabled={busy} className="sr-only" onChange={(e) => { const fs = Array.from(e.target.files ?? []); e.target.value = ""; if (fs.length) void uploadMany(fs); }} />
         {ev && busy && <div className="mt-3 text-sm" aria-live="polite"><div className="h-2.5 overflow-hidden rounded-full bg-[var(--surface)]"><div className="h-full rounded-full" style={{ background: "var(--grad)", width: `${Math.round((100 * ev.bytesSent) / Math.max(1, ev.totalBytes))}%` }} /></div>
           <p className="tnum mt-1 text-xs text-[var(--muted)]">{fmt(ev.bytesSent)} de {fmt(ev.totalBytes)}</p>
           <button className="btn btn-ghost mt-2 !min-h-9" onClick={() => void ctl.current?.cancel().then(() => { setBusy(false); setMsg("Subida cancelada. No se ha guardado nada."); })}>Cancelar</button></div>}
