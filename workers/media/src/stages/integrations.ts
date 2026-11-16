@@ -139,7 +139,7 @@ async function sendTikTokFile(ctx: StageCtx, f: typeof fetch, H: Record<string, 
   const put = await f(nj.data!.upload_url!, { method: "PUT", headers: { "Content-Type": "video/mp4", "Content-Length": String(size), "Content-Range": `bytes 0-${size - 1}/${size}` }, body: readFileSync(file) });
   if (!put.ok) throw new StageError("publish_failed", `TikTok respondió ${put.status} al recibir el vídeo.`);
   const pid = nj.data!.publish_id!;
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < 30; i++) {   // hasta ~60 s: TikTok tarda en procesar el vídeo subido
     const st = await f(`${TT}/status/fetch/`, { method: "POST", headers: H, body: JSON.stringify({ publish_id: pid }) });
     const sj = (await st.json().catch(() => ({}))) as TtEnv;
     if (sj.data?.status === "PUBLISH_COMPLETE") return { state: "published", external: pid };
