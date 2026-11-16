@@ -351,3 +351,9 @@ Probar Lyric Studio con una canción real (canto + instrumental). Siguiente: Sty
 ## 2026-11-16 · Cola de canciones, letra centrada y auditoría
 - Cola de varias canciones (subida múltiple/arrastre, estado por canción, generar el lote para todas). Letra siempre centrada (motor, preview = export). Canciones de prueba borradas.
 - Auditoría completa en `docs/AUDIT_2026-11-16.md` (1 hallazgo crítico corregido: funciones de worker ejecutables por usuarios; migración 114 aplicada en producción).
+
+## 2026-11-16 · TikTok: 5 cuentas, calendario de publicaciones y revisión de la app
+- Hasta 5 cuentas por espacio (migración 115 aplicada). El calendario muestra las publicaciones de TikTok (mes/semana/lista), permite programar por cuenta, reintentar y cancelar. «Publicar en redes» en un clip abre directamente el popup de fecha; el lote muestra las miniaturas de todos los clips.
+- Sin auditoría de TikTok, la publicación llega como borrador a la bandeja de la app móvil (`private_pending_review`); no es visible en el perfil ni en web.
+- **App enviada a revisión de TikTok (2026-11-16, «In review»):** Login Kit + Content Posting API (borrador, `user.info.basic` + `video.upload`), vídeo demo, páginas `/privacidad` y `/condiciones`. Direct Post NO solicitado: exige selector de privacidad y divulgación comercial en la interfaz (pendiente). Resultado de la revisión: pendiente de TikTok.
+- Pendiente: conectar la cuenta sandbox nueva; verificar de nuevo un borrador extremo a extremo; paridad detallada con OpusClip/Escalium.
