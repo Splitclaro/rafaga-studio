@@ -40,6 +40,11 @@ export default function LyricStudioV2() {
   const [lyricsDraft, setLyricsDraft] = useState<Record<string, string>>({});
   const [locks, setLocks] = useState({ song_range: true, lyrics_sync: true, style: false, background: true, format: true }), [batch, setBatch] = useState<{ export_ids: string[]; generation_id: string; batch_id?: string } | null>(null);
   const [comp, setComp] = useState<LyricComposition | null>(null);
+  // Cola de varias canciones (como Escalium: cada audio es su propio vídeo): subida en serie, sincronización automática de cada una y generación del lote para todas.
+  type Q = { name: string; state: "waiting" | "uploading" | "done" | "error"; note?: string };
+  type Bt = { export_ids: string[]; generation_id: string; batch_id?: string };
+  const [uq, setUq] = useState<Q[]>([]), [batches, setBatches] = useState<Record<string, Bt>>({}), [rst, setRst] = useState<Record<string, string>>({}), [genAll, setGenAll] = useState<string | null>(null);
+  const projects = useRef<Record<string, string>>({});
   const [editing, setEditing] = useState<{ song: Song; url: string; revision: number | null; words: SyncWord[] } | null>(null);
   const ctl = useRef<{ cancel: () => Promise<void> } | null>(null);
   const token = async () => (await supabase.auth.getSession()).data.session?.access_token ?? "";
@@ -52,10 +57,10 @@ export default function LyricStudioV2() {
   useEffect(() => { const s = songs?.find((x) => x.status === "ready" && !seen.current.has(x.id)); if (s) void autoSync(s); }, [songs]);   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (!songs?.some((s) => s.status === "pending")) return; const t = setInterval(() => void load(), 4000); return () => clearInterval(t); }, [songs, load]);
 
-  async function upload(f: File) {
+  async function upload(f: File): Promise<boolean> {
     setMsg(null); setEv(null);
-    if (!f.type.startsWith("audio/")) return setMsg("Sube un archivo de audio: MP3, WAV, M4A, AAC, FLAC u OGG.");
-    if (f.size > MAX_SONG) return setMsg(`La canción pesa ${fmt(f.size)}. El máximo es 60 MB: expórtala en MP3 o M4A.`);
+    if (!f.type.startsWith("audio/")) { setMsg("Sube un archivo de audio: MP3, WAV, M4A, AAC, FLAC u OGG."); return false; }
+    if (f.size > MAX_SONG) { setMsg(`La canción pesa ${fmt(f.size)}. El máximo es 60 MB: expórtala en MP3 o M4A.`); return false; }
     setBusy(true);
     const t = await token(), H = { Authorization: `Bearer ${t}`, "Content-Type": "application/json" };
     let uploadId = "";
@@ -70,8 +75,21 @@ export default function LyricStudioV2() {
       const up = runUpload({ uploadId, file: f, api: httpApi(t), store: localResumeStore, sha256: async () => hash, onEvent: setEv });
       ctl.current = up; await up.promise; ctl.current = null;
       setMsg("Canción subida. Se está validando; en unos segundos podrás crear una pieza.");
-      await load();
-    } catch (e) { setMsg((e as Error).message); } finally { setBusy(false); }
+      await load(); return true;
+    } catch (e) { setMsg((e as Error).message); return false; } finally { setBusy(false); }
+  }
+  /** Varias canciones a la vez: se suben una tras otra (hasta 10) y cada una sigue sola: validar → sincronizar. */
+  async function uploadMany(list: File[]) {
+    const files = list.filter((f) => f.type.startsWith("audio/")).slice(0, 10);
+    if (!files.length) return setMsg("Sube archivos de audio: MP3, WAV, M4A, AAC, FLAC u OGG.");
+    if (files.length === 1) return void (await upload(files[0]));
+    setUq(files.map((f) => ({ name: f.name, state: "waiting" as const })));
+    for (const [i, f] of files.entries()) {
+      setUq((q) => q.map((x, k) => (k === i ? { ...x, state: "uploading" } : x)));
+      const ok = await upload(f);
+      setUq((q) => q.map((x, k) => (k === i ? { ...x, state: ok ? "done" : "error", note: ok ? undefined : "No se pudo subir" } : x)));
+    }
+    setMsg(`${files.length} canciones en la cola: se validan y sincronizan solas.`);
   }
   /** Pide la sincronización (cuesta 1 unidad por minuto solo si hay que transcribir) y abre el editor con la última revisión. */
   async function sync(s: Song) {
@@ -114,18 +132,53 @@ export default function LyricStudioV2() {
     setActiveSong(s); if (openEditor) setEditing({ song: s, url: uj.url, revision: aj.revision ?? null, words: aj.words }); else setEditing(null);
     const ws = (aj.words as SyncWord[]); setComp(validateLyricComposition({ aspect: "9:16", range: { start: Math.max(0, Math.floor((ws[0]?.start ?? 0) - 1)), end: Math.max(Math.floor((ws[0]?.start ?? 0)) + 5, Math.min(Math.floor((ws[0]?.start ?? 0)) + 45, Math.ceil(ws.at(-1)?.end ?? 30))) }, words: ws.map((w) => ({ text: w.text, start: w.start, end: w.end, line: w.line })) }));
   }
+  const rangeOf = (ws: SyncWord[]) => ({ start: Math.max(0, Math.floor((ws[0]?.start ?? 0) - 1)), end: Math.max(Math.floor((ws[0]?.start ?? 0)) + 5, Math.min(Math.floor((ws[0]?.start ?? 0)) + 45, Math.ceil(ws.at(-1)?.end ?? 30))) });
+  async function ensureProject(s: Song, H: Record<string, string>, m: string) {
+    if (projects.current[s.id]) return projects.current[s.id];
+    const r = await fetch("/api/lyrics/projects", { method: "POST", headers: H, body: JSON.stringify({ song_id: s.id, mode: m }) }); const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j?.error?.message ?? "No se pudo crear la pieza."); projects.current[s.id] = j.project_id as string; return j.project_id as string;
+  }
+  /** Genera el lote (N variantes con fondos distintos) para TODAS las canciones sincronizadas, con el estilo, formato y fondos actuales. */
+  async function generateAllSongs() {
+    if (!comp) return setMsg("Abre una canción para elegir el estilo antes de generar el lote.");
+    const targets = (songs ?? []).filter((x) => x.status === "ready" && auto[x.id] === "ready" && !batches[x.id]); if (!targets.length) return setMsg("No hay canciones sincronizadas pendientes de generar.");
+    const t = await token(), H = { Authorization: `Bearer ${t}`, "Content-Type": "application/json" };
+    const bgItems = (cols?.find((c) => c.id === selCol)?.items ?? []).map((it) => ({ ref: `sb:originals/${it.storage_path}`, kind: (it.kind === "photo" ? "image" : "video") as "image" | "video" }));
+    let done = 0; const failed: string[] = [];
+    for (const [i, s] of targets.entries()) {
+      setGenAll(`Generando ${i + 1} de ${targets.length}: ${s.title}`);
+      try {
+        const ws = ((await alignment(s)).words ?? []) as SyncWord[]; if (!ws.length) throw new Error("sin sincronización");
+        const pid = await ensureProject(s, H, comp.mode);
+        const rot = bgItems.length ? bgItems.map((_, k) => bgItems[(k + i * nVar) % bgItems.length]) : bgItems;   // cada canción empieza en un fondo distinto
+        const base = validateLyricComposition({ ...comp, res, aspect: outFmt, range: rangeOf(ws), words: ws.map((w) => ({ text: w.text, start: w.start, end: w.end, line: w.line })) });
+        const variants = planLyricVariants(base, nVar, rot.length ? { ...locks, background: false } : locks, { styles: Array.from({ length: nVar }, (_, k) => surpriseCaption(base.seed * 1000 + k)), ...(rot.length ? { collections: rot.map((b) => [b]) } : {}) });
+        const r = await fetch(`/api/lyrics/projects/${pid}/variants`, { method: "POST", headers: { ...H, "Idempotency-Key": `var-${crypto.randomUUID()}` }, body: JSON.stringify({ variants, zip: true }) });
+        const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j?.error?.message ?? "no se pudo generar");
+        setBatches((b) => ({ ...b, [s.id]: { export_ids: j.export_ids, generation_id: j.generation_id, batch_id: j.batch_id } })); done++;
+      } catch (e) { failed.push(`${s.title}: ${(e as Error).message}`); }
+    }
+    setGenAll(null); setMsg(`${done} de ${targets.length} canciones en marcha (${nVar} variantes cada una). No consume unidades.${failed.length ? ` Fallaron: ${failed.join(" · ")}` : ""}`);
+  }
+  function showSong(s: Song) { const b = batches[s.id]; if (!b) return; setBatch(b); setProjectId(projects.current[s.id] ?? null); setActiveSong(s); }
+  useEffect(() => {   // estado de las exportaciones de todos los lotes mientras haya alguna sin terminar
+    const ids = Object.values(batches).flatMap((b) => b.export_ids); if (!ids.length) return; let stop = false;
+    const tick = async () => { const { data } = await supabase.from("renders").select("id,status").in("id", ids); if (stop) return; setRst(Object.fromEntries((data ?? []).map((r) => [r.id as string, r.status as string])));
+      if ((data ?? []).every((r) => r.status === "ready" || r.status === "failed")) clearInterval(iv); };
+    const iv = setInterval(() => void tick(), 5000); void tick(); return () => { stop = true; clearInterval(iv); };
+  }, [batches]);
   /** Planifica N variantes con candados y las envía: 1 generación, N clips y un lote de exportaciones MP4. */
   async function generate() {
     if (!comp) return setMsg("Abre una canción con «Editar sincronización» para generar variantes.");
     let pid = projectId;
     const t = await token(), H = { Authorization: `Bearer ${t}`, "Content-Type": "application/json" };
-    if (!pid && (activeSong ?? editing?.song)) { const r = await fetch("/api/lyrics/projects", { method: "POST", headers: H, body: JSON.stringify({ song_id: (activeSong ?? editing!.song).id, mode: comp.mode }) }); const j = await r.json().catch(() => ({})); if (!r.ok) return setMsg(j?.error?.message ?? "No se pudo crear la pieza."); pid = j.project_id; setProjectId(pid); }
+    if (!pid && (activeSong ?? editing?.song)) { const r = await fetch("/api/lyrics/projects", { method: "POST", headers: H, body: JSON.stringify({ song_id: (activeSong ?? editing!.song).id, mode: comp.mode }) }); const j = await r.json().catch(() => ({})); if (!r.ok) return setMsg(j?.error?.message ?? "No se pudo crear la pieza."); pid = j.project_id; setProjectId(pid); if (pid) projects.current[(activeSong ?? editing!.song).id] = pid; }
     // Fondos: la colección elegida reparte un fondo distinto a cada variante (imágenes o vídeos; los vídeos se repiten en bucle).
     const bgItems = (cols?.find((c) => c.id === selCol)?.items ?? []).map((it) => ({ ref: `sb:originals/${it.storage_path}`, kind: (it.kind === "photo" ? "image" : "video") as "image" | "video" }));
     const base = { ...comp, res, aspect: outFmt }, variants = planLyricVariants(base, nVar, bgItems.length ? { ...locks, background: false } : locks, { styles: Array.from({ length: nVar }, (_, i) => surpriseCaption(base.seed * 1000 + i)), ...(bgItems.length ? { collections: bgItems.map((b) => [b]) } : {}) });
     const r = await fetch(`/api/lyrics/projects/${pid}/variants`, { method: "POST", headers: { ...H, "Idempotency-Key": `var-${crypto.randomUUID()}` }, body: JSON.stringify({ variants, zip: true }) });
     const j = await r.json().catch(() => ({})); if (!r.ok) return setMsg(j?.error?.message ?? "No se pudieron generar las variantes.");
-    setBatch({ export_ids: j.export_ids, generation_id: j.generation_id, batch_id: j.batch_id }); setMsg(`Generando ${variants.length} variantes. No consume unidades.`);
+    setBatch({ export_ids: j.export_ids, generation_id: j.generation_id, batch_id: j.batch_id }); { const sid = (activeSong ?? editing?.song)?.id; if (sid) setBatches((b) => ({ ...b, [sid]: { export_ids: j.export_ids, generation_id: j.generation_id, batch_id: j.batch_id } })); } setMsg(`Generando ${variants.length} variantes. No consume unidades.`);
   }
   async function createPiece(s: Song) {
     const t = await token(), m = mode[s.id] ?? "letra";
@@ -143,18 +196,35 @@ export default function LyricStudioV2() {
       <div className="grid gap-6 lg:grid-cols-[minmax(0,480px)_minmax(0,1fr)] lg:items-start">
         <div className="min-w-0 space-y-6">
       <section className="card p-4" aria-label="Subir una canción">
-        <label htmlFor="song-file" className={`grid cursor-pointer place-items-center rounded-[20px] border-2 border-dashed border-[#C9D6EC] p-7 text-center ${busy ? "pointer-events-none opacity-60" : "hover:border-[var(--accent)]"}`} style={{ background: "var(--grad-soft)" }}>
+        <label htmlFor="song-file" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); void uploadMany(Array.from(e.dataTransfer.files)); }} className={`grid cursor-pointer place-items-center rounded-[20px] border-2 border-dashed border-[#C9D6EC] p-7 text-center ${busy ? "pointer-events-none opacity-60" : "hover:border-[var(--accent)]"}`} style={{ background: "var(--grad-soft)" }}>
           <span aria-hidden className="ico-tile grad !h-14 !w-14 !rounded-[18px]"><Icon n="music" className="h-6 w-6" /></span>
-          <span className="mt-3 font-display text-lg font-bold text-[var(--ink)]">Subir una canción</span>
-          <span className="text-sm text-[var(--muted)]">MP3, WAV, M4A, AAC, FLAC u OGG · hasta 60 MB y 10 minutos</span>
+          <span className="mt-3 font-display text-lg font-bold text-[var(--ink)]">Subir canciones</span>
+          <span className="text-sm text-[var(--muted)]">MP3, WAV, M4A, AAC, FLAC u OGG · hasta 60 MB y 10 minutos · puedes soltar hasta 10 a la vez, cada una será su propio vídeo</span>
           <span className="btn btn-primary mt-3"><Icon n="upload" className="h-4 w-4" />Elegir archivo</span>
         </label>
-        <input id="song-file" type="file" accept="audio/*" disabled={busy} className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); e.target.value = ""; }} />
+        <input id="song-file" type="file" accept="audio/*" multiple disabled={busy} className="sr-only" onChange={(e) => { const fs = Array.from(e.target.files ?? []); e.target.value = ""; if (fs.length) void uploadMany(fs); }} />
         {ev && busy && <div className="mt-3 text-sm" aria-live="polite"><div className="h-2.5 overflow-hidden rounded-full bg-[var(--surface)]"><div className="h-full rounded-full" style={{ background: "var(--grad)", width: `${Math.round((100 * ev.bytesSent) / Math.max(1, ev.totalBytes))}%` }} /></div>
           <p className="tnum mt-1 text-xs text-[var(--muted)]">{fmt(ev.bytesSent)} de {fmt(ev.totalBytes)}</p>
           <button className="btn btn-ghost mt-2 !min-h-9" onClick={() => void ctl.current?.cancel().then(() => { setBusy(false); setMsg("Subida cancelada. No se ha guardado nada."); })}>Cancelar</button></div>}
         {msg && <p role="status" className="mt-3 text-sm">{msg}</p>}
       </section>
+      {((songs?.length ?? 0) > 1 || uq.length > 0) && (() => {
+        const stateOf = (x: Song) => { const b = batches[x.id];
+          if (b) { const st = b.export_ids.map((id) => rst[id]); const ok = st.filter((v) => v === "ready").length, bad = st.filter((v) => v === "failed").length; return bad + ok === b.export_ids.length ? `Listo · ${ok}/${b.export_ids.length}${bad ? ` (${bad} fallaron)` : ""}` : `Generando · ${ok}/${b.export_ids.length}`; }
+          if (x.status === "pending") return "Validando…"; if (x.status === "failed") return "Error en el archivo";
+          return auto[x.id] === "syncing" ? "Sincronizando…" : auto[x.id] === "failed" ? "Falló la sincronización" : auto[x.id] === "ready" ? "Lista para generar" : "Comprobando…"; };
+        const pending = (songs ?? []).filter((x) => x.status === "ready" && auto[x.id] === "ready" && !batches[x.id]).length;
+        return (
+          <section className="card space-y-3 p-4 text-sm" aria-label="Cola de canciones">
+            <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="font-display text-base font-bold">Cola de canciones</h2>
+              <button className="btn btn-primary !min-h-9" disabled={!comp || !pending || !!genAll} onClick={() => void generateAllSongs()}><Icon n="wand" className="h-4 w-4" />Generar {nVar} variantes para {pending || "las"} {pending === 1 ? "canción lista" : "canciones listas"}</button></div>
+            {!comp && pending > 0 && <p className="text-xs text-[var(--muted)]">Abre una canción para elegir el estilo, el formato y los fondos: se aplicarán a todas.</p>}
+            {genAll && <p role="status" aria-live="polite" className="flex items-center gap-2 text-[var(--muted)]"><span className="ring-run" aria-hidden />{genAll}</p>}
+            {uq.length > 0 && <ul className="space-y-1" aria-label="Subidas">{uq.map((q, i) => <li key={i} className="flex justify-between gap-2 text-xs"><span className="truncate">{q.name}</span><span className="shrink-0 text-[var(--muted)]">{q.state === "waiting" ? "En espera" : q.state === "uploading" ? "Subiendo…" : q.state === "done" ? "Subida" : (q.note ?? "Error")}</span></li>)}</ul>}
+            <ul className="divide-y divide-[var(--border)] rounded-2xl border border-[var(--border)]" aria-label="Estado por canción">{(songs ?? []).map((x) => (
+              <li key={x.id} className="flex flex-wrap items-center gap-2 px-3 py-2"><span className="min-w-0 flex-1 truncate font-medium">{x.title}</span><span className="chip !py-0.5 text-xs">{stateOf(x)}</span>
+                {batches[x.id] && <button className="text-xs font-semibold text-[var(--accent-ink)] underline" onClick={() => showSong(x)}>Ver resultados</button>}</li>))}</ul>
+          </section>); })()}
       <section aria-label="Canciones">
         {songs === null ? <p className="text-sm text-[var(--muted)]">Cargando canciones…</p> : !songs.length ? <p className="card p-4 text-sm text-[var(--muted)]">Aún no hay canciones. Sube la primera para empezar.</p> :
           <ul className="space-y-2">{songs.map((s) => (
