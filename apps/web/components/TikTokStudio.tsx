@@ -130,7 +130,7 @@ export default function TikTokStudio() {
             <ul className="mt-2 grid max-h-96 grid-cols-3 gap-2 overflow-auto pr-1 sm:grid-cols-4" aria-label="Clips listos">{videos.map((v, i) => { const on = pickV.has(v.id), at = rows?.find((r) => r.render === v.id)?.at;
               return (<li key={v.id}><button type="button" aria-pressed={on} onClick={() => setPickV((s) => { const n = new Set(s); if (n.has(v.id)) n.delete(v.id); else n.add(v.id); return n; })} title={v.title}
                 className={`relative block aspect-[9/16] w-full overflow-hidden rounded-xl bg-[var(--ink)] ${on ? "ring-2 ring-[var(--accent)]" : "opacity-80 hover:opacity-100"}`}>
-                <ClipThumb clipId={v.clip_id} className="h-full w-full" />
+                <ClipThumb clipId={v.clip_id} renderId={v.id} className="h-full w-full" />
                 <span className="tnum absolute left-1.5 top-1.5 rounded-md bg-black/70 px-1.5 py-0.5 text-[11px] text-white">{i + 1}</span>
                 {on && <span aria-hidden className="absolute right-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-full bg-[var(--accent)] text-xs text-white">✓</span>}
                 {at && <span className="tnum absolute inset-x-0 bottom-0 bg-black/75 px-1 py-0.5 text-center text-[10px] text-white">{new Date(at).toLocaleString("es", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>}</button></li>); })}</ul></div>

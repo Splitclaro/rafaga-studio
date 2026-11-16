@@ -44,7 +44,7 @@ export default function ExportsV2() {
         <thead className="border-b hairline text-xs text-[var(--muted)]"><tr><th className="p-3">Clip</th><th className="p-3">Versión</th><th className="p-3">Formato</th><th className="p-3">Resolución</th><th className="p-3">Duración</th><th className="p-3">Tamaño</th><th className="p-3">Estado</th><th className="p-3"><span className="sr-only">Acciones</span></th></tr></thead>
         <tbody>{rows.map((r) => { const d = days(r.expires_at), expired = r.status === "ready" && (!r.storage_path || (d != null && d < 0)); return (
           <tr key={r.id} className="border-b hairline last:border-0">
-            <td className="p-3 font-medium"><Link href={`/app/p/${r.clips?.project_id}`} className="flex items-center gap-3 hover:underline"><ClipThumb clipId={r.clip_id} className="h-14 w-8 shrink-0 rounded-md" /><span>{r.clips?.title}</span></Link></td>
+            <td className="p-3 font-medium"><Link href={`/app/p/${r.clips?.project_id}`} className="flex items-center gap-3 hover:underline"><ClipThumb clipId={r.clip_id} renderId={r.id} className="h-14 w-8 shrink-0 rounded-md" /><span>{r.clips?.title}</span></Link></td>
             <td className="tnum p-3">v{r.clip_version}</td>
             <td className="p-3"><span className="chip !min-h-6 !py-0">{r.kind.toUpperCase()}</span> <span className="text-xs text-[var(--muted)]">{r.kind === "mp4" ? `${r.ratio}${r.burn_subtitles ? " · con subtítulos" : " · sin subtítulos"}` : ""}</span></td>
             <td className="tnum p-3">{r.width ? `${r.width}×${r.height}` : "—"}</td><td className="tnum p-3">{dur(r.duration_ms)}</td><td className="tnum p-3">{mb(r.bytes)}</td>
