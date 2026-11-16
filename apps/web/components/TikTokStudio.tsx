@@ -110,7 +110,8 @@ export default function TikTokStudio() {
         <h2 className="text-lg">Cuentas</h2>
         <div className="card mt-2 flex flex-wrap items-end gap-2 p-3">
           <label className="min-w-0 flex-1 text-sm">Nombre en Ráfaga<input value={alias} onChange={(e) => setAlias(e.target.value)} placeholder="Punto de Perreo" maxLength={60} className="mt-1 w-full rounded-full border border-[var(--border)] bg-white px-4 py-2" /></label>
-          <button onClick={connect} disabled={busy === "connect"} className="btn btn-primary">Conectar cuenta de TikTok</button>
+          <button onClick={connect} disabled={busy === "connect" || (accounts?.length ?? 0) >= 5} className="btn btn-primary">Conectar cuenta de TikTok</button>
+          <span className="tnum text-xs text-[var(--muted)]">{accounts?.length ?? 0} de 5 cuentas</span>
           <p className="w-full text-xs text-[var(--muted)]">Antes de conectar, abre TikTok en este navegador con la cuenta que quieres añadir: TikTok conecta la sesión que esté abierta.</p>
         </div>
         {accounts === null && <p className="mt-3 text-sm text-[var(--muted)]">Cargando…</p>}

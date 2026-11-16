@@ -18,7 +18,7 @@ export async function POST(req: Request) {
     const alias = typeof b.alias === "string" ? b.alias.trim().slice(0, 60) : "";
     if (provider === "tiktok" && !t.openId) return NextResponse.json({ error: "exchange_failed", message: "TikTok no devolvió el identificador de la cuenta; vuelve a intentarlo." }, { status: 502 });
     const r = await rpcAs(bearer(req), "oauth_save", { p_provider: provider, p_label: label, p_scopes: t.scopes, p_access: t.accessToken, p_refresh: t.refreshToken, p_expires_at: t.expiresAt, p_account: provider === "tiktok" ? t.openId : "", p_alias: alias || null });
-    if (r.error) return NextResponse.json({ error: "save_failed", message: r.error.includes("not_found") ? "Solo un responsable del espacio puede conectar cuentas." : r.error }, { status: 403 });
+    if (r.error) return NextResponse.json({ error: "save_failed", message: r.error.includes("account_limit") ? "Ya tienes 5 cuentas de TikTok conectadas. Desconecta una para añadir otra." : r.error.includes("not_found") ? "Solo un responsable del espacio puede conectar cuentas." : r.error }, { status: 403 });
     return NextResponse.json({ ok: true, provider, account_label: label, scopes: t.scopes });
   } catch (e) {
     const err = e as OAuthError;

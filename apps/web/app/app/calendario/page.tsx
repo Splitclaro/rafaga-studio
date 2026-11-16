@@ -5,6 +5,10 @@ import Icon from "../../../components/Icon";
 import { supabase } from "../../../lib/supabase";
 import { zonedToUtc, utcToLocalInput, localZone, ZONES } from "../../../lib/tz";
 import { PUBLISH_TARGETS } from "../../../lib/platforms";
+import TikTokScheduleDialog, { type TtAccount, type TtVideo } from "../../../components/TikTokScheduleDialog";
+
+type Pub = { id: string; state: string; scheduled_at: string | null; created_at: string; title: string; description: string | null; connection_id: string | null; error_message: string | null };
+const PUB_STATE: Record<string, string> = { scheduled: "Programada", queued: "En cola", uploading: "Subiendo", processing: "Procesando", published: "Publicada", private_pending_review: "Privada, pendiente", requiere_auditoria: "Requiere auditoría", failed: "Falló", cancelled: "Cancelada" };
 
 type Post = { id: string; title: string; caption: string | null; hashtags: string | null; targets: string[]; clip_id: string | null; lyric_video_id: string | null; scheduled_at: string; timezone: string; status: string };
 type Asset = { id: string; label: string; kind: "clip" | "lyric" };
@@ -24,6 +28,7 @@ export default function Calendario() {
   const [form, setForm] = useState<Form | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [viewTz] = useState(localZone());
+  const [pubs, setPubs] = useState<Pub[]>([]), [accounts, setAccounts] = useState<TtAccount[]>([]), [videos, setVideos] = useState<TtVideo[]>([]), [tt, setTt] = useState<string | null>(null), [openPub, setOpenPub] = useState<Pub | null>(null);
 
   const load = useCallback(async () => {
     const [{ data: p }, { data: rs }, { data: lv }] = await Promise.all([
@@ -35,12 +40,29 @@ export default function Calendario() {
     const ids = [...new Set((rs ?? []).map((r) => r.clip_id))];
     const [{ data: cs }, { data: so }] = await Promise.all([ids.length ? supabase.from("clips").select("id,title").in("id", ids) : { data: [] }, supabase.from("songs").select("id,title")]);
     const ct = new Map((cs ?? []).map((c) => [c.id, c.title])), st = new Map((so ?? []).map((s) => [s.id, s.title]));
+    // Publicaciones reales de TikTok (programadas, en curso y hechas), cuentas conectadas y vídeos exportados listos para programar desde aquí.
+    const { data: s } = await supabase.auth.getSession();
+    const [{ data: pb }, { data: vr }, acc] = await Promise.all([
+      supabase.from("publications").select("id,state,scheduled_at,created_at,title,description,connection_id,error_message").eq("platform", "tiktok").order("created_at", { ascending: false }).limit(300),
+      supabase.from("renders").select("id,created_at,clips!inner(title)").eq("kind", "mp4").eq("status", "ready").not("storage_path", "is", null).order("created_at", { ascending: false }).limit(100),
+      fetch("/api/tiktok", { headers: { Authorization: `Bearer ${s.session?.access_token ?? ""}` } }).then((r) => (r.ok ? r.json() : { accounts: [] })).catch(() => ({ accounts: [] })),
+    ]);
+    setPubs((pb ?? []) as Pub[]); setAccounts(((acc.accounts ?? []) as TtAccount[]).filter((a) => a.status === "connected"));
+    setVideos(((vr ?? []) as unknown as { id: string; clips: { title: string } }[]).map((r) => ({ id: r.id, title: r.clips.title })));
     setAssets([...ids.map((id) => ({ id, label: `Clip · ${ct.get(id) ?? "sin título"}`, kind: "clip" as const })), ...(lv ?? []).map((v) => ({ id: v.id, label: `Letra · ${st.get(v.song_id) ?? "canción"} #${v.variant}`, kind: "lyric" as const }))]);
   }, []);
   useEffect(() => { load(); }, [load]);
 
   const byDay = useMemo(() => { const m = new Map<string, Post[]>(); for (const p of posts ?? []) { const k = utcToLocalInput(p.scheduled_at, viewTz).slice(0, 10); m.set(k, [...(m.get(k) ?? []), p]); } return m; }, [posts, viewTz]);
 
+  const pubAt = (p: Pub) => p.scheduled_at ?? p.created_at;
+  const pubsByDay = useMemo(() => { const m = new Map<string, Pub[]>(); for (const p of pubs) { if (p.state === "cancelled") continue; const k = utcToLocalInput(pubAt(p), viewTz).slice(0, 10); m.set(k, [...(m.get(k) ?? []), p]); } return m; }, [pubs, viewTz]);
+  const accName = (id: string | null) => { const a = accounts.find((x) => x.id === id); return a ? a.alias || a.account_label || "TikTok" : "TikTok"; };
+  async function cancelPub(p: Pub) {
+    const { data: s } = await supabase.auth.getSession();
+    const r = await fetch(`/api/publish/${p.id}/cancel`, { method: "POST", headers: { Authorization: `Bearer ${s.session?.access_token ?? ""}`, "Content-Type": "application/json", "Idempotency-Key": `c-${p.id}-${Date.now()}` }, body: "{}" });
+    setMsg(r.ok ? "Publicación cancelada." : "Esta publicación ya no se puede cancelar."); setOpenPub(null); load();
+  }
   function newPost(day?: string) { setForm({ title: "", caption: "", hashtags: "", targets: [], date: day ?? ymd(new Date()), time: "10:00", tz: viewTz, asset: "", status: "planned" }); setMsg(null); }
   function edit(p: Post) {
     const local = utcToLocalInput(p.scheduled_at, p.timezone);
@@ -77,6 +99,10 @@ export default function Calendario() {
     <button onClick={() => edit(p)} className={`block w-full truncate rounded-md border px-1.5 py-0.5 text-left text-[11px] hairline ${p.status === "cancelled" ? "line-through opacity-50" : p.status === "done" ? "bg-[var(--hover)]" : "bg-white"}`} title={`${p.title} · ${new Date(p.scheduled_at).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" })}`}>
       <span className="mono">{utcToLocalInput(p.scheduled_at, viewTz).slice(11, 16)}</span> {p.title}</button>);
 
+  const PubChip = ({ p }: { p: Pub }) => (
+    <button onClick={() => setOpenPub(p)} className={`block w-full truncate rounded-md border border-[var(--accent)] px-1.5 py-0.5 text-left text-[11px] ${p.state === "failed" ? "bg-[#FFF1F1]" : p.state === "published" ? "bg-[var(--hover)]" : "bg-[var(--accent-soft)]"}`} title={`TikTok · ${accName(p.connection_id)} · ${PUB_STATE[p.state] ?? p.state} · ${p.title}`}>
+      <span className="mono">{utcToLocalInput(pubAt(p), viewTz).slice(11, 16)}</span> ♪ {accName(p.connection_id)} · {p.title}</button>);
+
   const monthStart = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
   const gridStart = startOfWeek(monthStart);
   const days = view === "week" ? Array.from({ length: 7 }, (_, i) => { const d = startOfWeek(cursor); d.setDate(d.getDate() + i); return d; }) : Array.from({ length: 42 }, (_, i) => { const d = new Date(gridStart); d.setDate(d.getDate() + i); return d; });
@@ -87,14 +113,13 @@ export default function Calendario() {
   return (
     <main className="mx-auto max-w-[1240px] px-4 pb-20 pt-8 md:px-10">
       <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
-        <div><h1 className="text-3xl">Calendario</h1><p className="mt-1 max-w-2xl text-[var(--muted)]">Planifica cuándo y dónde publicar cada clip. Por ahora el calendario es un planificador: la publicación automática en redes llegará con las conexiones.</p></div>
-        <div className="flex flex-wrap gap-2"><Link href="/app/automatizaciones" className="btn btn-ghost">Automatizaciones</Link><Link href="/app/analitica" className="btn btn-ghost">Analítica</Link><button onClick={() => newPost()} className="btn btn-primary"><Icon n="plus" className="h-4 w-4" />Nueva publicación</button></div>
+        <div><h1 className="text-3xl">Calendario</h1><p className="mt-1 max-w-2xl text-[var(--muted)]">Planifica y programa tus publicaciones. Las de TikTok se publican solas en la cuenta elegida a la hora programada; el resto de redes son recordatorios para subirlas tú.</p></div>
+        <div className="flex flex-wrap gap-2"><Link href="/app/automatizaciones" className="btn btn-ghost">Automatizaciones</Link><Link href="/app/analitica" className="btn btn-ghost">Analítica</Link><button onClick={() => newPost()} className="btn btn-ghost"><Icon n="plus" className="h-4 w-4" />Nueva nota de publicación</button><button onClick={() => setTt(ymd(new Date()))} className="btn btn-primary"><Icon n="plus" className="h-4 w-4" />Programar en TikTok</button></div>
       </header>
-      <section aria-label="Canales y publicación" className="mb-5 grid gap-3 lg:grid-cols-[1fr_1fr]">
-        <div className="card p-4 text-sm"><span className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Canales conectados</span>
-          <div className="mt-2 flex items-center justify-between"><span><b>YouTube</b><br /><span className="text-[var(--muted)]">Solo lectura. No puede publicar.</span></span><Link href="/app/conexiones" className="font-semibold text-[var(--accent)]">Gestionar</Link></div>
-          <div className="mt-2 flex items-center justify-between border-t hairline pt-2"><span><b>TikTok · Instagram</b><br /><span className="text-[var(--muted)]">Pendiente de aprobación de la plataforma.</span></span><span className="mono text-xs text-[var(--muted)]">sin conectar</span></div></div>
-        <div className="rounded-2xl border border-[#E9D6A8] bg-[#FFFAEB] p-4 text-sm text-[#6B4A00]"><b>Publicación directa no disponible todavía.</b> Mientras tanto, flujo manual: descarga el MP4 desde Exportados, copia título y hashtags y súbelo tú. Ráfaga guarda el estado y la fecha en el calendario.</div>
+      <section aria-label="Cuentas de TikTok" className="mb-5 card p-4 text-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2"><span className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Cuentas de TikTok</span><Link href="/app/tiktok" className="font-semibold text-[var(--accent-ink)]">Gestionar cuentas y lotes</Link></div>
+        {accounts.length ? <ul className="mt-2 flex flex-wrap gap-2">{accounts.map((a) => { const n = pubs.filter((p) => p.connection_id === a.id && p.state === "scheduled").length; return <li key={a.id} className="chip">{a.alias || a.account_label}{a.profile?.paused ? " · en pausa" : ""} · {n} programada{n === 1 ? "" : "s"}</li>; })}</ul>
+          : <p className="mt-2 text-[var(--muted)]">Aún no hay cuentas conectadas. Conéctalas en TikTok para programar desde el calendario (hasta 5).</p>}
       </section>
       {msg && <p role="status" aria-live="polite" className="card mb-4 p-3 text-sm">{msg}</p>}
 
@@ -105,6 +130,13 @@ export default function Calendario() {
         <span className="mono ml-auto text-xs text-[var(--muted)]">Horas en {viewTz}</span>
       </div>
 
+      {(view === "list" || view === "done") && pubs.filter((p) => (view === "done" ? p.state === "published" : p.state !== "cancelled")).length > 0 && (
+        <ul aria-label="Publicaciones de TikTok" className="mb-4 divide-y hairline rounded-2xl border hairline bg-white">{pubs.filter((p) => (view === "done" ? p.state === "published" : p.state !== "cancelled")).sort((a, b) => pubAt(a).localeCompare(pubAt(b))).map((p) => (
+          <li key={p.id} className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm">
+            <span className="mono w-40 shrink-0">{new Date(pubAt(p)).toLocaleString("es", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+            <span className="min-w-0 flex-1"><span className="font-medium">{p.title}</span><span className="block truncate text-xs text-[var(--muted)]">TikTok · {accName(p.connection_id)}{p.error_message ? ` · ${p.error_message}` : ""}</span></span>
+            <span className="chip !py-0.5">{PUB_STATE[p.state] ?? p.state}</span>
+            <span className="flex gap-2 text-xs"><button className="underline" onClick={() => setOpenPub(p)}>Ver</button>{["scheduled", "queued", "failed", "requiere_auditoria"].includes(p.state) && <button className="underline" onClick={() => cancelPub(p)}>Cancelar</button>}</span></li>))}</ul>)}
       {posts === null ? <div className="skeleton h-96" /> : (view === "list" || view === "draft" || view === "done") ? (
         upcoming.length ? (
           <ul className="divide-y hairline rounded-2xl border hairline bg-white">{upcoming.map((p) => (
@@ -121,11 +153,25 @@ export default function Calendario() {
             const k = ymd(d), items = byDay.get(k) ?? [], other = view === "month" && d.getMonth() !== cursor.getMonth(), today = k === ymd(new Date());
             return (<div key={i} className={`min-h-[${view === "week" ? 260 : 96}px] border-b border-r hairline p-1.5 ${other ? "bg-[var(--surface)] text-[var(--muted)]" : ""}`} style={{ minHeight: view === "week" ? 260 : 96 }}>
               <button onClick={() => newPost(k)} className={`mb-1 grid h-6 min-w-6 place-items-center rounded-full px-1 text-xs ${today ? "bg-[var(--accent)] text-white" : "hover:bg-[var(--hover)]"}`} aria-label={`Añadir el ${d.toLocaleDateString("es", { day: "numeric", month: "long" })}`}>{d.getDate()}</button>
-              <div className="space-y-1">{items.slice(0, view === "week" ? 12 : 3).map((p) => <Chip key={p.id} p={p} />)}{items.length > 3 && view === "month" && <button onClick={() => setView("list")} className="text-[11px] underline">+{items.length - 3} más</button>}</div></div>);
+              <div className="space-y-1">{(pubsByDay.get(k) ?? []).slice(0, view === "week" ? 12 : 3).map((p) => <PubChip key={p.id} p={p} />)}{items.slice(0, view === "week" ? 12 : 3).map((p) => <Chip key={p.id} p={p} />)}{(items.length + (pubsByDay.get(k)?.length ?? 0)) > 3 && view === "month" && <button onClick={() => setView("list")} className="text-[11px] underline">ver todo</button>}
+                {!other && k >= ymd(new Date()) && <button onClick={() => setTt(k)} className="text-[11px] text-[var(--muted)] underline" aria-label={`Programar en TikTok el ${d.toLocaleDateString("es", { day: "numeric", month: "long" })}`}>+ TikTok</button>}</div></div>);
           })}</div>
         </div>
       )}
 
+      {tt && <TikTokScheduleDialog accounts={accounts} videos={videos} day={tt} tz={viewTz} onClose={() => setTt(null)} onDone={(m) => { setTt(null); setMsg(m); load(); }} />}
+      {openPub && (
+        <div role="dialog" aria-modal="true" aria-label="Publicación de TikTok" className="fixed inset-0 z-40 grid place-items-center overflow-auto bg-black/30 p-4 backdrop-blur-[2px]" onMouseDown={(e) => e.target === e.currentTarget && setOpenPub(null)}>
+          <div className="card-raised w-full max-w-lg p-5 text-sm">
+            <div className="flex items-center justify-between"><h2 className="text-lg">{openPub.title}</h2><button onClick={() => setOpenPub(null)} aria-label="Cerrar" className="btn btn-ghost !p-1.5"><Icon n="x" className="h-4 w-4" /></button></div>
+            <p className="mt-2">TikTok · {accName(openPub.connection_id)} · <span className="chip !py-0.5">{PUB_STATE[openPub.state] ?? openPub.state}</span></p>
+            <p className="mono mt-1 text-xs text-[var(--muted)]">{new Date(pubAt(openPub)).toLocaleString("es", { dateStyle: "full", timeStyle: "short" })}</p>
+            {openPub.description && <p className="mt-3 whitespace-pre-wrap rounded-xl bg-[var(--surface)] p-3">{openPub.description}</p>}
+            {openPub.error_message && <p role="alert" className="mt-2 text-xs">⚠ {openPub.error_message}</p>}
+            <div className="mt-4 flex gap-2">{["scheduled", "queued", "failed", "requiere_auditoria"].includes(openPub.state) && <button onClick={() => cancelPub(openPub)} className="btn btn-ghost">Cancelar publicación</button>}<button onClick={() => setOpenPub(null)} className="btn btn-primary">Cerrar</button></div>
+            {openPub.state === "scheduled" && <p className="mt-2 text-xs text-[var(--muted)]">Para cambiar la hora o el texto, cancélala y prográmala de nuevo.</p>}
+          </div>
+        </div>)}
       {form && (
         <div role="dialog" aria-modal="true" aria-label="Publicación" className="fixed inset-0 z-40 grid place-items-center overflow-auto bg-black/30 p-4 backdrop-blur-[2px]" onMouseDown={(e) => e.target === e.currentTarget && setForm(null)}>
           <div className="card-raised w-full max-w-xl p-5">

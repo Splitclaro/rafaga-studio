@@ -124,3 +124,11 @@ test("copys: sin clave de IA se devuelve la plantilla y se dice; con IA simulada
   assert.equal(r.status, 200); assert.equal(j.copies[0].source, "plantilla"); assert.match(j.copies[0].description, /^Contando días - Crítika ⭐ #paradedicar/); assert.match(j.note ?? "", /plantilla/);
   assert.equal((await call("POST", ["copy"], { songs: [] })).status, 400);
 });
+
+test("tope de 5 cuentas de TikTok por espacio: la sexta se rechaza y reconectar una existente sigue funcionando", async () => {
+  const before = (await q<{ n: number }>("select count(*)::int n from oauth_connections where provider='tiktok'"))[0].n;
+  for (let i = before; i < 5; i++) assert.ok((await save(`open-id-extra-${i}`, `Cuenta ${i}`, `token-extra-${i}-1234567`)).id);
+  assert.equal((await q<{ n: number }>("select count(*)::int n from oauth_connections where provider='tiktok'"))[0].n, 5);
+  assert.match(JSON.stringify(await save("open-id-sexta", "Sexta", "token-sexta-1234567")), /account_limit/);
+  assert.ok((await save("open-id-bbb", "Te Lo Dedico", "token-dedico-otra-vez1")).id, "reconectar una cuenta existente no cuenta como nueva");
+});
