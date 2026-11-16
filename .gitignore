@@ -19,3 +19,4 @@ evidence/
 
 # Vídeo de ejemplo propio de las demos
 !apps/web/public/demo/*.mp4
+*.tsbuildinfo

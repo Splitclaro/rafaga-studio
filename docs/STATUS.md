@@ -347,3 +347,7 @@ Probar Lyric Studio con una canción real (canto + instrumental). Siguiente: Sty
 - **TikTok multi-cuenta (migración 113 aplicada en producción):** varias conexiones por espacio (`account_key` = open_id, `alias`, `profile`), `publications.connection_id` y `music_origin`; alias y perfil por cuenta (tono, hashtags, franjas, tope diario, privacidad, pausa); duplicados, tope diario, pausa y origen de la música obligatorio; el worker publica con el token de la cuenta de cada publicación. Textos con IA (Groq si hay clave; si no, plantilla indicada como tal). Planificador determinista (`tiktokplan.ts`). Pantalla `/app/tiktok`.
 - **Sin verificar con TikTok real:** hace falta la app de TikTok for Developers (claves `TIKTOK_CLIENT_KEY/SECRET`, URL de retorno, auditoría). Hasta la auditoría, TikTok solo permite publicar en privado. La música comercial puede silenciarse o retirarse: ver `docs/PLAN_TIKTOK_AUTOMATION.md`.
 - Estudios: `replica/escalium/recon.md`, `docs/recon/tiktok-referentes.md`.
+
+## 2026-11-16 · Cola de canciones, letra centrada y auditoría
+- Cola de varias canciones (subida múltiple/arrastre, estado por canción, generar el lote para todas). Letra siempre centrada (motor, preview = export). Canciones de prueba borradas.
+- Auditoría completa en `docs/AUDIT_2026-11-16.md` (1 hallazgo crítico corregido: funciones de worker ejecutables por usuarios; migración 114 aplicada en producción).

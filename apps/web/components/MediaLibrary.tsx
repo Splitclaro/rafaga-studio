@@ -57,9 +57,8 @@ export default function MediaLibrary() {
   }
   async function delSong(s: SongRow) {
     if (!confirm(`¿Borrar la canción «${s.title}» y sus vídeos con letra?`)) return;
-    const { error } = await supabase.from("songs").delete().eq("id", s.id);
-    if (error) return setMsg(error.message);
-    await supabase.storage.from("originals").remove([s.storage_path]); loadLyrics();
+    const { error } = await supabase.rpc("delete_song", { p_song: s.id });   // borra la canción y sus piezas; el worker purga los archivos
+    if (error) return setMsg("No se pudo borrar la canción."); loadLyrics();
   }
   async function delFont(id: string, path: string) {
     if (!confirm("¿Borrar esta fuente? Los clips que la usen no podrán exportarse hasta elegir otra.")) return;

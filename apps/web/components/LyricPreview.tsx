@@ -38,13 +38,13 @@ export default function LyricPreview({ composition, onChange }: { composition: L
     raf.current = requestAnimationFrame(tick); return () => cancelAnimationFrame(raf.current);
   }, [ready, playing, loop, draw, c.duration]);
   useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === "Escape") setFull(false); }; window.addEventListener("keydown", k); return () => window.removeEventListener("keydown", k); }, []);
-  const setPos = (p: { x: number; y: number }) => onChange({ ...c, style: { ...c.style, position: p } });
+  const setPos = (_p: { x: number; y: number }) => { /* la letra queda siempre centrada: la posición es fija */ };
   const move = (e: React.PointerEvent) => { const r = cv.current!.getBoundingClientRect(); setPos(pointerToPosition(((e.clientX - r.left) / r.width) * frame.width, ((e.clientY - r.top) / r.height) * frame.height, frame)); };
   const reset = () => { t0.current = 0; };
   void f;
   return (
     <div ref={box} className={full ? "fixed inset-0 z-50 flex flex-col items-center justify-center bg-black p-4" : "space-y-2"} role={full ? "dialog" : undefined} aria-label="Vista previa de la letra">
-      <canvas ref={cv} width={frame.width} height={frame.height} tabIndex={0} aria-label="Letra: arrastra o usa las flechas para moverla" className="max-h-[70vh] w-auto max-w-full touch-none rounded-lg bg-black"
+      <canvas ref={cv} width={frame.width} height={frame.height} tabIndex={0} aria-label="Vista previa de la letra (siempre centrada)" className="max-h-[70vh] w-auto max-w-full touch-none rounded-lg bg-black"
         onPointerDown={(e) => { (e.target as Element).setPointerCapture(e.pointerId); move(e); }} onPointerMove={(e) => { if (e.buttons) move(e); }}
         onKeyDown={(e) => { if (e.key.startsWith("Arrow")) { e.preventDefault(); setPos(keyNudge(c.style.position, e.key, e.shiftKey)); } }} />
       <div className="flex flex-wrap items-center gap-2 text-xs">

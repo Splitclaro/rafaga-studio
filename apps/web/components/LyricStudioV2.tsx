@@ -46,7 +46,7 @@ export default function LyricStudioV2() {
   // Cola de varias canciones (como Escalium: cada audio es su propio vídeo): subida en serie, sincronización automática de cada una y generación del lote para todas.
   type Q = { name: string; state: "waiting" | "uploading" | "done" | "error"; note?: string };
   type Bt = { export_ids: string[]; generation_id: string; batch_id?: string };
-  const [uq, setUq] = useState<Q[]>([]), [batches, setBatches] = useState<Record<string, Bt>>({}), [rst, setRst] = useState<Record<string, string>>({}), [genAll, setGenAll] = useState<string | null>(null);
+  const [genBusy, setGenBusy] = useState(false), [uq, setUq] = useState<Q[]>([]), [batches, setBatches] = useState<Record<string, Bt>>({}), [rst, setRst] = useState<Record<string, string>>({}), [genAll, setGenAll] = useState<string | null>(null);
   const projects = useRef<Record<string, string>>({});
   const [editing, setEditing] = useState<{ song: Song; url: string; revision: number | null; words: SyncWord[] } | null>(null);
   const ctl = useRef<{ cancel: () => Promise<void> } | null>(null);
@@ -145,6 +145,7 @@ export default function LyricStudioV2() {
   /** Genera el lote (N variantes con fondos distintos) para TODAS las canciones sincronizadas, con el estilo, formato y fondos actuales. */
   async function generateAllSongs() {
     if (!comp) return setMsg("Abre una canción para elegir el estilo antes de generar el lote.");
+    if (genAll) return;
     const targets = (songs ?? []).filter((x) => x.status === "ready" && auto[x.id] === "ready" && !batches[x.id]); if (!targets.length) return setMsg("No hay canciones sincronizadas pendientes de generar.");
     const t = await token(), H = { Authorization: `Bearer ${t}`, "Content-Type": "application/json" };
     const bgItems = (cols?.find((c) => c.id === selCol)?.items ?? []).map((it) => ({ ref: `sb:originals/${it.storage_path}`, kind: (it.kind === "photo" ? "image" : "video") as "image" | "video" }));
@@ -164,6 +165,12 @@ export default function LyricStudioV2() {
     }
     setGenAll(null); setMsg(`${done} de ${targets.length} canciones en marcha (${nVar} variantes cada una). No consume unidades.${failed.length ? ` Fallaron: ${failed.join(" · ")}` : ""}`);
   }
+  async function deleteSong(s: Song) {
+    if (!confirm(`¿Borrar «${s.title}» y todos sus vídeos? No se puede deshacer.`)) return;
+    const { error } = await supabase.rpc("delete_song", { p_song: s.id }); if (error) return setMsg("No se pudo borrar la canción.");
+    delete projects.current[s.id]; setBatches((b) => { const n = { ...b }; delete n[s.id]; return n; }); if (activeSong?.id === s.id) { setActiveSong(null); setBatch(null); }
+    setMsg(`«${s.title}» borrada.`); await load();
+  }
   function showSong(s: Song) { const b = batches[s.id]; if (!b) return; setBatch(b); setProjectId(projects.current[s.id] ?? null); setActiveSong(s); }
   useEffect(() => {   // estado de las exportaciones de todos los lotes mientras haya alguna sin terminar
     const ids = Object.values(batches).flatMap((b) => b.export_ids); if (!ids.length) return; let stop = false;
@@ -173,6 +180,10 @@ export default function LyricStudioV2() {
   }, [batches]);
   /** Planifica N variantes con candados y las envía: 1 generación, N clips y un lote de exportaciones MP4. */
   async function generate() {
+    if (genBusy) return; setGenBusy(true);
+    try { await generateOnce(); } finally { setGenBusy(false); }   // un solo envío a la vez: evita lotes duplicados por doble clic
+  }
+  async function generateOnce() {
     if (!comp) return setMsg("Abre una canción con «Editar sincronización» para generar variantes.");
     let pid = projectId;
     const t = await token(), H = { Authorization: `Bearer ${t}`, "Content-Type": "application/json" };
@@ -227,7 +238,8 @@ export default function LyricStudioV2() {
             {uq.length > 0 && <ul className="space-y-1" aria-label="Subidas">{uq.map((q, i) => <li key={i} className="flex justify-between gap-2 text-xs"><span className="truncate">{q.name}</span><span className="shrink-0 text-[var(--muted)]">{q.state === "waiting" ? "En espera" : q.state === "uploading" ? "Subiendo…" : q.state === "done" ? "Subida" : (q.note ?? "Error")}</span></li>)}</ul>}
             <ul className="divide-y divide-[var(--border)] rounded-2xl border border-[var(--border)]" aria-label="Estado por canción">{(songs ?? []).map((x) => (
               <li key={x.id} className="flex flex-wrap items-center gap-2 px-3 py-2"><span className="min-w-0 flex-1 truncate font-medium">{x.title}</span><span className="chip !py-0.5 text-xs">{stateOf(x)}</span>
-                {batches[x.id] && <button className="text-xs font-semibold text-[var(--accent-ink)] underline" onClick={() => showSong(x)}>Ver resultados</button>}</li>))}</ul>
+                {batches[x.id] && <button className="text-xs font-semibold text-[var(--accent-ink)] underline" onClick={() => showSong(x)}>Ver resultados</button>}
+                <button className="text-xs underline" onClick={() => void deleteSong(x)}>Borrar</button></li>))}</ul>
           </section>); })()}
       <section aria-label="Canciones">
         {songs === null ? <p className="text-sm text-[var(--muted)]">Cargando canciones…</p> : !songs.length ? <p className="card p-4 text-sm text-[var(--muted)]">Aún no hay canciones. Sube la primera para empezar.</p> :
@@ -295,7 +307,7 @@ export default function LyricStudioV2() {
           <label>Formato<select className="ml-1 rounded border hairline px-1" value={outFmt} onChange={(e) => setOutFmt(e.target.value as LyricComposition["aspect"])}>{["9:16", "1:1", "4:5", "16:9"].map((a) => <option key={a}>{a}</option>)}</select></label>
         </div>
         <fieldset className="flex flex-wrap gap-3 text-xs"><legend className="mb-1 text-[var(--muted)]">Mantener igual en todas</legend>{([["song_range", "Canción y tramo"], ["lyrics_sync", "Letra y sincronización"], ["style", "Estilo"], ["background", "Fondo"], ["format", "Formato"]] as const).map(([k, l]) => <label key={k} className="flex items-center gap-1"><input type="checkbox" checked={locks[k]} onChange={(e) => setLocks({ ...locks, [k]: e.target.checked })} />{l}</label>)}</fieldset>
-        <button className="btn btn-primary !min-h-9" onClick={() => void generate()}>Generar {nVar} variantes</button>
+        <button className="btn btn-primary !min-h-9" disabled={genBusy} onClick={() => void generate()}>{genBusy ? "Enviando…" : `Generar ${nVar} variantes`}</button>
       </section>}
       {batch && <LyricResults exportIds={batch.export_ids} generationId={batch.generation_id} batchId={batch.batch_id} projectId={projectId ?? undefined} />}
         </div>

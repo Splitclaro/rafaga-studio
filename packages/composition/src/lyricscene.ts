@@ -28,7 +28,7 @@ export function validateLyricComposition(raw: unknown): LyricComposition {
     .map((w: any) => ({ text: String(w.text).slice(0, 80), start: +w.start, end: +w.end, line: Math.max(0, Math.round(+w.line || 0)) })).sort((a: LyricWord, c: LyricWord) => a.start - c.start);
   return {
     kind: "lyric", v: 1, aspect: LYRIC_ASPECTS.includes(o.aspect) ? o.aspect : "9:16", res: o.res === 720 ? 720 : 1080, fps: 30, mode: o.mode === "texto" || o.mode === "portada" ? o.mode : "letra",
-    range: { start, end }, duration: end - start, words, style: validateCaptionStyle(o.style), preset: o.preset in BEHAVIOUR_PRESETS ? o.preset : "frase_palabra_activa",
+    range: { start, end }, duration: end - start, words, style: { ...validateCaptionStyle(o.style), position: { x: 0.5, y: 0.5 } }, preset: o.preset in BEHAVIOUR_PRESETS ? o.preset : "frase_palabra_activa",
     background: { kind: b.kind === "media" ? "media" : "color", color: hex(b.color, "#000000"), items: Array.isArray(b.items) ? b.items.slice(0, 200) : [], sequence: Array.isArray(b.sequence) ? b.sequence.filter((n: unknown) => Number.isInteger(n)).slice(0, 500) : [],
       interval: num(b.interval, 0.5, 30, 3), order: b.order === "fijo" ? "fijo" : "aleatorio", loop: b.loop !== false, fit: b.fit === "fill" || b.fit === "band" ? b.fit : "preserve" },
     settings: { crop: num(st.crop, 0, 1, 0), dim: num(st.dim, 0, 0.9, 0.2), filter: ["noche", "super8", "bn", "vapor", "cine16", "vhs", "camara_noche", "gran_angular"].includes(st.filter) ? st.filter : "none", shake: !!st.shake, blend: num(st.blend, 0, 2, 0), variation: Math.round(num(st.variation, 0, 100, 0)) },

@@ -90,9 +90,12 @@ export async function handleIntegrations(req: Request, integration: string, rest
 }
 
 // ───────── Cuentas de TikTok y textos ─────────
+const hits = new Map<string, number[]>();   // límite por usuario y hora (en memoria de la instancia): frena el abuso de la IA gratuita
+const allow = (key: string, max: number) => { const now = Date.now(), a = (hits.get(key) ?? []).filter((t) => now - t < 3600_000); if (a.length >= max) { hits.set(key, a); return false; } a.push(now); hits.set(key, a); return true; };
 async function handleTikTok(req: Request, rest: string[], d: IntegrationDeps): Promise<Response> {
   const f = d.f ?? fetch;
-  if (!(await sessionUser(req, f))) return json({ error: { code: "no_session", message: "Inicia sesión." } }, 401);
+  const uid = await sessionUser(req, f);
+  if (!uid) return json({ error: { code: "no_session", message: "Inicia sesión." } }, 401);
   const token = bearer(req), id = rest[0] ?? "", str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
   if (req.method === "GET" && !rest.length) {
     const r = await rpc<Record<string, unknown>[]>(token, "oauth_status", {}, f);
@@ -113,6 +116,7 @@ async function handleTikTok(req: Request, rest: string[], d: IntegrationDeps): P
     return json({ ok: true });
   }
   if (req.method === "POST" && id === "copy" && rest.length === 1) {
+    if (!allow(`tt-copy:${uid}`, 60)) return json({ error: { code: "rate", message: "Demasiadas peticiones de textos seguidas. Espera un momento." } }, 429);
     const songs = (Array.isArray(b.songs) ? b.songs : []).slice(0, 20).map((s) => { const o = (s ?? {}) as Record<string, unknown>; return { title: str(o.title).slice(0, 120), artist: str(o.artist).slice(0, 120) || null, genre: str(o.genre).slice(0, 40) || null, line: str(o.line).slice(0, 200) || null } as SongInfo; }).filter((s) => s.title);
     if (!songs.length) return bad("invalid_copy", "Indica al menos una canción.");
     const profile = cleanProfile((b.profile ?? {}) as Record<string, unknown>), name = str(b.account_name).slice(0, 60) || "TikTok";

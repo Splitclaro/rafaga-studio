@@ -87,3 +87,15 @@ test("lyricShots: reproducible por semilla, cubre la duración y respeta el orde
   assert.notDeepEqual(lyricShots(comp({ seed: 99, background: { kind: "media", items, interval: 2, order: "aleatorio" } })), a);
   assert.deepEqual(lyricShots(comp()), []);
 });
+
+test("la letra SIEMPRE queda centrada en la pantalla: cualquier posición guardada (estilo, título, base de datos) se ignora, en todos los formatos y presets", () => {
+  for (const aspect of ["9:16", "4:5", "1:1", "16:9"] as const) for (const preset of Object.keys(BEHAVIOUR_PRESETS) as (keyof typeof BEHAVIOUR_PRESETS)[]) for (const position of [{ x: 0.2, y: 0.9 }, { x: 0.8, y: 0.1 }, { x: 0.5, y: 0.45 }]) {
+    const c = comp({ aspect, preset, style: { position, size: "L" } }), L = lyricLayout(c);
+    assert.deepEqual(c.style.position, { x: 0.5, y: 0.5 });
+    for (const pg of L.pages) {
+      const cy = pg.box.y + pg.box.h / 2, cx = pg.box.x + pg.box.w / 2;
+      assert.ok(Math.abs(cy - L.frame.height / 2) <= L.lineHeight, `${aspect}/${preset}: centro vertical ${cy} ≠ ${L.frame.height / 2}`);
+      assert.ok(Math.abs(cx - L.frame.width / 2) <= L.frame.width * 0.12, `${aspect}/${preset}: centro horizontal ${cx} ≠ ${L.frame.width / 2}`);
+    }
+  }
+});
