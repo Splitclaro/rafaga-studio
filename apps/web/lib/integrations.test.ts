@@ -151,12 +151,12 @@ test("programada a futuro: queda en scheduled sin llamar a la plataforma hasta q
 });
 
 test("conexión: publish_youtube usa GOOGLE_* y youtube.upload; publish_tiktok usa TIKTOK_CLIENT_KEY y video.publish", async () => {
-  assert.deepEqual(SCOPES.publish_youtube, ["https://www.googleapis.com/auth/youtube.upload"]); assert.deepEqual(SCOPES.publish_tiktok, ["video.publish"]);
-  assert.match(authUrl("tiktok", { clientId: "ck1", redirectUri: "https://app/cb", scopes: SCOPES.publish_tiktok, state: "s", challenge: "c" }), /client_key=ck1.*scope=video\.publish/);
+  assert.deepEqual(SCOPES.publish_youtube, ["https://www.googleapis.com/auth/youtube.upload"]); assert.deepEqual(SCOPES.publish_tiktok, ["user.info.basic", "video.publish", "video.upload"]);
+  assert.match(authUrl("tiktok", { clientId: "ck1", redirectUri: "https://app/cb", scopes: SCOPES.publish_tiktok, state: "s", challenge: "c" }), /client_key=ck1.*scope=user\.info\.basic%2Cvideo\.publish%2Cvideo\.upload/);
   const env = process.env, saved = { ...env };
   Object.assign(env, { GOOGLE_CLIENT_ID: "gid-1234", GOOGLE_CLIENT_SECRET: "gsec-1234", TIKTOK_CLIENT_KEY: "tkey-1234", TIKTOK_CLIENT_SECRET: "tsec-1234" });
   try {
-    for (const [cap, id, scope, param] of [["publish_tiktok", "tkey-1234", "video.publish", "client_key"], ["publish_youtube", "gid-1234", "https://www.googleapis.com/auth/youtube.upload", "client_id"]] as const) {
+    for (const [cap, id, scope, param] of [["publish_tiktok", "tkey-1234", "user.info.basic,video.publish,video.upload", "client_key"], ["publish_youtube", "gid-1234", "https://www.googleapis.com/auth/youtube.upload", "client_id"]] as const) {
       assert.ok(isCap(cap)); const provider = PROVIDER_OF[cap], cfg = providerConfig(provider);
       assert.equal(cfg?.clientId, id);
       const u = new URL(authUrl(provider, { clientId: cfg!.clientId, redirectUri: "https://app/cb", scopes: SCOPES[cap], state: "st", challenge: "ch" }));

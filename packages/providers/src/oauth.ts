@@ -11,7 +11,7 @@ export const SCOPES: Record<Capability, string[]> = {
   import_drive: ["https://www.googleapis.com/auth/drive.readonly"],
   import_dropbox: ["files.metadata.read", "files.content.read", "account_info.read"],
   publish_youtube: ["https://www.googleapis.com/auth/youtube.upload"],
-  publish_tiktok: ["video.publish"],
+  publish_tiktok: ["user.info.basic", "video.publish", "video.upload"],   // los mismos que la app de TikTok for Developers (perfil para el nombre, publicar y subir)
 };
 export const PROVIDER_OF: Record<Capability, OAuthProvider> = { import_youtube: "google", import_drive: "google", import_dropbox: "dropbox", publish_youtube: "google", publish_tiktok: "tiktok" };
 export const ENDPOINTS: Record<OAuthProvider, { auth: string; token: string; revoke: string; whoami: string }> = {
