@@ -17,6 +17,7 @@ export async function saveStyle(rpc: RpcFn, ws: string, id: string | null, name:
   const doc: StyleDoc = { rafagaStyle: 2, style: validateCaptionStyle(style), preset: preset in BEHAVIOUR_PRESETS ? preset : "frase_palabra_activa" };
   if (bytes(doc) > MAX_STYLE_BYTES) return { ok: false, error: "style_too_large", message: MESSAGES.style_too_large };
   const { data, error } = await rpc("save_caption_style", { p_ws: ws, p_id: id, p_name: name.trim(), p_style: doc });
+  if (error?.code === "23505" || /duplicate key|text_styles_workspace_id_name_key/.test(error?.message ?? "")) return { ok: false, error: "invalid_params", message: "Ya tienes un estilo con ese nombre." };
   if (error) { const k = (Object.keys(MESSAGES).find((m) => error.message.includes(m)) ?? "unknown") as keyof typeof MESSAGES; return { ok: false, error: k as never, message: MESSAGES[k] }; }
   return { ok: true, id: String(data) };
 }

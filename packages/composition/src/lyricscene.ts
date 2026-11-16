@@ -10,7 +10,7 @@ export type LyricAspect = "9:16" | "4:5" | "1:1" | "16:9";
 export const LYRIC_ASPECTS: LyricAspect[] = ["9:16", "4:5", "1:1", "16:9"];
 export interface LyricWord { text: string; start: number; end: number; line: number }
 export interface LyricBgItem { ref: string; kind: "image" | "video"; dur?: number }
-export type LyricFilter = "none" | "noche" | "super8" | "bn" | "vapor";
+export type LyricFilter = "none" | "noche" | "super8" | "bn" | "vapor" | "cine16" | "vhs" | "camara_noche" | "gran_angular";
 export interface LyricComposition {
   kind: "lyric"; v: 1; aspect: LyricAspect; res: 720 | 1080; fps: 30; mode: "letra" | "texto" | "portada";
   range: { start: number; end: number }; duration: number; words: LyricWord[]; style: CaptionStyleV2; preset: BehaviourPresetId;
@@ -31,7 +31,7 @@ export function validateLyricComposition(raw: unknown): LyricComposition {
     range: { start, end }, duration: end - start, words, style: validateCaptionStyle(o.style), preset: o.preset in BEHAVIOUR_PRESETS ? o.preset : "frase_palabra_activa",
     background: { kind: b.kind === "media" ? "media" : "color", color: hex(b.color, "#000000"), items: Array.isArray(b.items) ? b.items.slice(0, 200) : [], sequence: Array.isArray(b.sequence) ? b.sequence.filter((n: unknown) => Number.isInteger(n)).slice(0, 500) : [],
       interval: num(b.interval, 0.5, 30, 3), order: b.order === "fijo" ? "fijo" : "aleatorio", loop: b.loop !== false, fit: b.fit === "fill" || b.fit === "band" ? b.fit : "preserve" },
-    settings: { crop: num(st.crop, 0, 1, 0), dim: num(st.dim, 0, 0.9, 0.2), filter: ["noche", "super8", "bn", "vapor"].includes(st.filter) ? st.filter : "none", shake: !!st.shake, blend: num(st.blend, 0, 2, 0), variation: Math.round(num(st.variation, 0, 100, 0)) },
+    settings: { crop: num(st.crop, 0, 1, 0), dim: num(st.dim, 0, 0.9, 0.2), filter: ["noche", "super8", "bn", "vapor", "cine16", "vhs", "camara_noche", "gran_angular"].includes(st.filter) ? st.filter : "none", shake: !!st.shake, blend: num(st.blend, 0, 2, 0), variation: Math.round(num(st.variation, 0, 100, 0)) },
     hook: o.hook && typeof o.hook.text === "string" ? { text: o.hook.text.slice(0, 120), dur: num(o.hook.dur, 0.5, 10, 3), ...(o.hook.start != null ? { start: num(o.hook.start, 0, 7200, 0) } : {}) } : null,
     message: o.message && typeof o.message.text === "string" ? { text: o.message.text.slice(0, 200), start: num(o.message.start, 0, 7200, 0), end: num(o.message.end, 0, 7200, 5) } : null,
     cover: o.cover && typeof o.cover.title === "string" ? { title: o.cover.title.slice(0, 120), ...(typeof o.cover.artist === "string" ? { artist: o.cover.artist.slice(0, 120) } : {}), ...(typeof o.cover.front === "string" ? { front: o.cover.front.slice(0, 200) } : {}), ...(typeof o.cover.back === "string" ? { back: o.cover.back.slice(0, 200) } : {}), motion: o.cover.motion === "estatica" ? "estatica" : "lenta", ...(o.cover.lyrics ? { lyrics: true } : {}) } : null,
@@ -295,9 +295,13 @@ export const LYRIC_FILTERS: Record<Exclude<LyricFilter, "none">, string> = {
   super8: "eq=saturation=1.15:contrast=1.06,colorbalance=rs=0.08:gs=0.04:bs=-0.06,noise=alls=10:allf=t,vignette=PI/5",
   bn: "hue=s=0,eq=contrast=1.18:brightness=-0.02",
   vapor: "colorbalance=rs=0.22:gs=-0.08:bs=0.28,eq=saturation=1.35",
+  cine16: "eq=saturation=0.92:contrast=1.1:gamma=0.97,colorbalance=rs=0.05:gs=0.01:bs=-0.05,noise=alls=22:allf=t+u,unsharp=3:3:0.4,vignette=PI/6",   // película de 16 mm: grano visible, tono cálido, viñeteado suave
+  vhs: "eq=saturation=1.25:contrast=1.08,chromashift=crh=3:cbh=-3,noise=alls=14:allf=t+u,unsharp=5:5:-0.6",
+  camara_noche: "hue=s=0,colorbalance=gs=0.45:gm=0.35:rs=-0.25:bs=-0.25,eq=brightness=0.05:contrast=1.25,noise=alls=16:allf=t,vignette=PI/4",
+  gran_angular: "lenscorrection=k1=-0.16:k2=-0.02,eq=saturation=1.08:contrast=1.04",
 };
 /** Aproximación para el canvas de la vista previa. */
-export const LYRIC_FILTER_CSS: Record<LyricFilter, string> = { none: "none", noche: "saturate(.85) hue-rotate(-12deg) brightness(.92)", super8: "saturate(1.15) contrast(1.06) sepia(.15)", bn: "grayscale(1) contrast(1.18)", vapor: "saturate(1.35) hue-rotate(40deg)" };
+export const LYRIC_FILTER_CSS: Record<LyricFilter, string> = { none: "none", noche: "saturate(.85) hue-rotate(-12deg) brightness(.92)", super8: "saturate(1.15) contrast(1.06) sepia(.15)", bn: "grayscale(1) contrast(1.18)", vapor: "saturate(1.35) hue-rotate(40deg)", cine16: "saturate(.92) contrast(1.1) sepia(.12)", vhs: "saturate(1.25) contrast(1.08)", camara_noche: "grayscale(1) sepia(1) hue-rotate(60deg) saturate(2.2) brightness(1.05) contrast(1.2)", gran_angular: "saturate(1.08) contrast(1.04)" };
 
 /** Rectángulo (escalado + posición) de un plano de fondo según el ajuste: `fill` recorta, `preserve` cabe con negro, `band` banda 16:9 centrada. */
 export function bgRect(fit: "preserve" | "fill" | "band", item: { w: number; h: number }, W: number, H: number) {

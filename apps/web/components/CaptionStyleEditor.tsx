@@ -31,8 +31,10 @@ export default function CaptionStyleEditor({ value, onChange, preset, onPreset, 
   }, [shown]);
   const words = sample.split(" ");
   async function save() {
-    if (!workspaceId) return; const r = await saveStyle(rpcFn, workspaceId, null, name, value, preset);
-    setMsg(r.ok ? "Estilo guardado." : r.message); if (r.ok) void reload();
+    if (!workspaceId) return;
+    const same = saved.find((x) => x.name.trim().toLowerCase() === name.trim().toLowerCase());   // mismo nombre = se actualiza ese estilo (el nombre es único en el espacio)
+    const r = await saveStyle(rpcFn, workspaceId, same?.id ?? null, name, value, preset);
+    setMsg(r.ok ? (same ? `Estilo «${name.trim()}» actualizado.` : "Estilo guardado.") : r.message); if (r.ok) void reload();
   }
   return (
     <section className="space-y-4" aria-label="Editor de estilo">

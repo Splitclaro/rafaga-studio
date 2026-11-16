@@ -1,4 +1,5 @@
 "use client";
+import { renderUrl, clipThumbUrl, pool } from "../../../../lib/r2url";
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -18,7 +19,7 @@ import { STAGE, MODE_LABEL } from "../../../../lib/projects";
 type Project = { brief_data: unknown; id: string; name: string; project_brief: string | null; clip_count: number; mode: string; source_id: string };
 type Job = { id: string; status: string; error_code: string | null; error_message: string | null; created_at: string; updated_at: string; attempts: number; metrics: Record<string, number | string> | null };
 type Scores = { overall?: number; relevance?: number; hook?: number; standalone?: number; closure?: number; label?: string };
-type Clip = { review_status: string; approved_version: number | null; current_version: number; version?: number; ratio?: string; id: string; title: string; thumb_path: string | null; title_source: string; thumb?: string; generation_id: string; favorite: boolean; created_at: string; candidate: { title?: string | null; reason: string | null; brief_fit: string | null; scores: Scores | null; start_ms: number; end_ms: number } | null; url?: string; path?: string; bytes?: number };
+type Clip = { review_status: string; approved_version: number | null; current_version: number; version?: number; ratio?: string; id: string; title: string; thumb_path: string | null; title_source: string; thumb?: string; generation_id: string; favorite: boolean; created_at: string; candidate: { title?: string | null; reason: string | null; brief_fit: string | null; scores: Scores | null; start_ms: number; end_ms: number } | null; url?: string; path?: string; bytes?: number; renderId?: string; r2?: boolean };
 type Gen = { id: string; model: string; created_at: string; params: { rejected?: { reason: string }[]; fallbackReason?: string | null } | null };
 
 const PHASES = ["queued", "extracting", "transcribing", "selecting", "rendering", "done"] as const;
@@ -56,15 +57,18 @@ function ProjectV1({ params }: { params: Promise<{ id: string }> }) {
     setGens((gs ?? []) as Gen[]);
     const list = (cs ?? []) as unknown as Clip[];
     const ids = list.map((c) => c.id);
-    const { data: rs } = ids.length ? await supabase.from("renders").select("clip_id,clip_version,storage_path,probe,ratio,created_at").in("clip_id", ids).eq("status", "ready").order("created_at", { ascending: false }) : { data: [] };
-    const latest = new Map<string, { clip_version: number; storage_path: string; probe: { size?: string | number } | null; ratio: string }>();
-    for (const r of (rs ?? []) as { clip_id: string; clip_version: number; storage_path: string; probe: { size?: string | number } | null; ratio: string }[]) if (!latest.has(r.clip_id)) latest.set(r.clip_id, r);
+    const { data: rs } = ids.length ? await supabase.from("renders").select("id,clip_id,clip_version,storage_path,probe,ratio,created_at").in("clip_id", ids).eq("status", "ready").order("created_at", { ascending: false }) : { data: [] };
+    const latest = new Map<string, { id: string; clip_version: number; storage_path: string; probe: { size?: string | number } | null; ratio: string }>();
+    for (const r of (rs ?? []) as { id: string; clip_id: string; clip_version: number; storage_path: string; probe: { size?: string | number } | null; ratio: string }[]) if (!latest.has(r.clip_id)) latest.set(r.clip_id, r);
     const rp = [...latest.values()].map((r) => r.storage_path);
     const vsg = rp.length ? (await supabase.storage.from("renders").createSignedUrls(rp, 3600)).data ?? [] : [];
     const vmap = new Map(vsg.map((x) => [x.path, x.signedUrl]));
-    for (const c of list) { const r = latest.get(c.id); if (r) { c.path = r.storage_path; c.bytes = Number(r.probe?.size ?? 0); c.version = r.clip_version; c.ratio = r.ratio; c.url = vmap.get(r.storage_path) ?? undefined; } }
+    for (const c of list) { const r = latest.get(c.id); if (r) { c.path = r.storage_path; c.bytes = Number(r.probe?.size ?? 0); c.version = r.clip_version; c.ratio = r.ratio; c.url = vmap.get(r.storage_path) ?? undefined; c.renderId = r.id; } }
+    // Las exportaciones del motor v2 (lyric, clips v2) viven en R2, no en el almacenamiento de Supabase: se firman por la API tras comprobar el acceso.
+    await pool(list.filter((c) => c.path && !c.url && c.renderId), 4, async (c) => { c.url = (await renderUrl(c.renderId!)) ?? undefined; c.r2 = !!c.url; });
     const tp = list.map((c) => c.thumb_path).filter((x): x is string => !!x);
     if (tp.length) { const { data: sg } = await supabase.storage.from("renders").createSignedUrls(tp, 3600); const m = new Map((sg ?? []).map((x) => [x.path, x.signedUrl])); for (const c of list) if (c.thumb_path) c.thumb = m.get(c.thumb_path) ?? undefined; }
+    await pool(list.filter((c) => c.thumb_path && !c.thumb), 4, async (c) => { c.thumb = (await clipThumbUrl(c.id)) ?? undefined; });
     setClips(list);
   }, [id]);
 
@@ -143,6 +147,7 @@ function ProjectV1({ params }: { params: Promise<{ id: string }> }) {
   }
   async function download(c: Clip) {
     if (!c.path) return;
+    if (c.r2 && c.renderId) { const u = await renderUrl(c.renderId); if (u) window.open(u, "_blank", "noopener"); else alert("No se pudo preparar la descarga."); return; }
     const r = await downloadMp4("renders", c.path, `${c.title.replace(/[^\w\-áéíóúñ ]/gi, "").slice(0, 40) || "clip"}.mp4`); if (!r.ok) alert(r.error);
   }
 
@@ -238,7 +243,7 @@ function ProjectV1({ params }: { params: Promise<{ id: string }> }) {
       {!!clips.length && (
         <ClipWall projectId={id} projectName={p.name} showScore={!tool} onFavorite={async (cid, v) => { await supabase.from("clips").update({ favorite: v }).eq("id", cid); setClips((l) => l.map((x) => (x.id === cid ? { ...x, favorite: v } : x))); }}
           onDiscard={async (cid) => { await supabase.rpc("set_clip_feedback", { p_clip: cid, p_feedback: "dislike" }); setClips((l) => l.filter((x) => x.id !== cid)); }}
-          clips={clips.map<WallClip>((c) => ({ id: c.id, title: c.title, title_source: c.title_source, thumb: c.thumb, url: c.url, path: c.path, bytes: c.bytes, favorite: c.favorite, version: c.version ?? c.current_version, ratio: c.ratio,
+          clips={clips.map<WallClip>((c) => ({ id: c.id, title: c.title, title_source: c.title_source, thumb: c.thumb, url: c.url, path: c.path, renderId: c.renderId, r2: c.r2, bytes: c.bytes, favorite: c.favorite, version: c.version ?? c.current_version, ratio: c.ratio,
             review_status: c.review_status, approved_version: c.approved_version, current_version: c.current_version, durMs: c.candidate ? c.candidate.end_ms - c.candidate.start_ms : undefined,
             score: ((o) => (o == null ? null : o > 10 ? o / 10 : o))(c.candidate?.scores?.overall), factors: c.candidate?.scores ?? null, reason: c.candidate?.reason, brief_fit: c.candidate?.brief_fit, startMs: c.candidate?.start_ms, endMs: c.candidate?.end_ms, created_at: c.created_at, hasRender: !!c.path }))} />
       )}

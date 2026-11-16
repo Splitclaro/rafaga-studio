@@ -6,6 +6,7 @@ import { memo, useEffect, useState } from "react";
 import Icon from "../Icon";
 import { supabase } from "../../lib/supabase";
 import { downloadMp4, fileName } from "../../lib/download";
+import { renderUrl } from "../../lib/r2url";
 import { StatusLabel, pieceStatus, fmtDur } from "./status";
 import type { WallClip } from "./ClipCard";
 
@@ -50,6 +51,7 @@ function ClipRowBase({ c, index, selected, onSelect, onFavorite, onDiscard, proj
   async function download() {
     if (!c.path) return;
     setErr(null);
+    if (c.r2 && c.renderId) { const u = await renderUrl(c.renderId); if (u) window.open(u, "_blank", "noopener"); else setErr("No se pudo preparar la descarga."); return; }
     const r = await downloadMp4("renders", c.path, fileName(`${projectName}_${String(index).padStart(2, "0")}-${c.title}`));
     if (!r.ok) setErr(r.error);
   }
@@ -60,6 +62,7 @@ function ClipRowBase({ c, index, selected, onSelect, onFavorite, onDiscard, proj
         <div className="relative mx-auto aspect-[9/16] w-44 shrink-0 overflow-hidden rounded-2xl bg-[var(--ink)] sm:mx-0 sm:w-48">
           {playing && c.url ? <video src={c.url} poster={c.thumb} controls autoPlay playsInline className="absolute inset-0 h-full w-full object-cover" onEnded={() => setPlaying(false)} />
             : c.thumb ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={c.thumb} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
+            : c.url ? <video src={`${c.url}#t=1.2`} muted playsInline preload="metadata" aria-hidden className="absolute inset-0 h-full w-full object-cover" />
             : <div className="absolute inset-0 grid place-items-center text-[11px] text-white/70">{c.hasRender ? "Sin portada" : "Creando…"}</div>}
           {!playing && c.url && <button onClick={() => setPlaying(true)} aria-label={`Reproducir «${c.title}»`} className="absolute inset-0 grid place-items-center"><span className="grid h-12 w-12 place-items-center rounded-full bg-white/90 text-[var(--ink)] shadow"><Icon n="play" className="h-5 w-5" /></span></button>}
           {c.durMs ? <span className="tnum absolute bottom-2 left-2 rounded-md bg-black/70 px-1.5 py-0.5 text-xs text-white">{fmtDur(c.durMs)}</span> : null}

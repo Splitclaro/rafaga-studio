@@ -29,8 +29,8 @@ test("captionToSubtitleStyle da un SubtitleStyle que buildAss acepta y que valid
   assert.equal(captionFromSubtitleStyle(validateStyle({ ...PRESET_LETRA, bold: true })).weight, 700);
 });
 
-test("BEHAVIOUR_PRESETS tiene los 5 presets con todos sus campos; surpriseCaption es reproducible y válido", () => {
-  assert.deepEqual(Object.keys(BEHAVIOUR_PRESETS).sort(), ["entrada_deslizada", "escritura_progresiva", "frase_palabra_activa", "palabra_a_palabra", "texto_estatico"]);
+test("BEHAVIOUR_PRESETS tiene los 8 presets con todos sus campos; surpriseCaption es reproducible y válido", () => {
+  assert.deepEqual(Object.keys(BEHAVIOUR_PRESETS).sort(), ["dos_palabras", "entrada_deslizada", "escritura_progresiva", "frase_palabra_activa", "oracion_completa", "palabra_a_palabra", "texto_estatico", "tres_palabras"]);
   for (const p of Object.values(BEHAVIOUR_PRESETS)) { assert.ok(p.unit && p.group.words >= 1 && p.group.lines >= 1 && p.active && p.entrance && p.exit); assert.equal(typeof p.durationMs, "number"); }
   assert.deepEqual(surpriseCaption(42), surpriseCaption(42)); assert.deepEqual(validateCaptionStyle(surpriseCaption(42)), surpriseCaption(42)); assert.notDeepEqual(surpriseCaption(1), surpriseCaption(2));
 });

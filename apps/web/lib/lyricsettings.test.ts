@@ -9,7 +9,7 @@ test("validateLyricSettings acota recorte, oscurecer, intervalo y tamaño fino, 
   assert.equal(validateLyricSettings(null).filter, "none");
 });
 test("los filtros son exactamente none, noche, super8, bn y vapor, sin etiquetas de otras herramientas", () => {
-  assert.deepEqual(FILTER_OPTIONS.map(([id]) => id), ["none", "noche", "super8", "bn", "vapor"]);
+  assert.deepEqual(FILTER_OPTIONS.map(([id]) => id), ["none", "noche", "super8", "bn", "vapor", "cine16", "vhs", "camara_noche", "gran_angular"]);
   for (const [, label] of FILTER_OPTIONS) assert.ok(!["Midnight", "Noir", "Vaporwave"].includes(label));
 });
 test("filterByClass exige todos los filtros elegidos y deriva la orientación de ancho y alto", () => {

@@ -123,13 +123,16 @@ export function captionToSubtitleStyle(v: CaptionStyleV2): SubtitleStyle {
   });
 }
 
-export type BehaviourPresetId = "frase_palabra_activa" | "palabra_a_palabra" | "escritura_progresiva" | "texto_estatico" | "entrada_deslizada";
+export type BehaviourPresetId = "frase_palabra_activa" | "palabra_a_palabra" | "escritura_progresiva" | "texto_estatico" | "entrada_deslizada" | "dos_palabras" | "tres_palabras" | "oracion_completa";
 export interface BehaviourPreset { id: BehaviourPresetId; label: string; unit: "frase" | "palabra" | "linea"; group: { words: number; lines: number }; active: CaptionStyleV2["active"]; entrance: CaptionStyleV2["entrance"]; exit: "fade" | "corte"; durationMs: number }
 export const BEHAVIOUR_PRESETS: Record<BehaviourPresetId, BehaviourPreset> = {
   frase_palabra_activa: { id: "frase_palabra_activa", label: "Frase con palabra activa", unit: "frase", group: { words: 8, lines: 2 }, active: "color", entrance: "fade", exit: "fade", durationMs: 180 },
   palabra_a_palabra: { id: "palabra_a_palabra", label: "Palabra a palabra", unit: "palabra", group: { words: 1, lines: 1 }, active: "none", entrance: "pop", exit: "corte", durationMs: 120 },
   escritura_progresiva: { id: "escritura_progresiva", label: "Escritura progresiva", unit: "palabra", group: { words: 8, lines: 2 }, active: "none", entrance: "typewriter", exit: "fade", durationMs: 60 },
   texto_estatico: { id: "texto_estatico", label: "Texto estático", unit: "linea", group: { words: 10, lines: 2 }, active: "none", entrance: "none", exit: "corte", durationMs: 0 },
+  dos_palabras: { id: "dos_palabras", label: "2 palabras a la vez", unit: "palabra", group: { words: 2, lines: 1 }, active: "color", entrance: "pop", exit: "corte", durationMs: 140 },
+  tres_palabras: { id: "tres_palabras", label: "3 palabras a la vez", unit: "palabra", group: { words: 3, lines: 1 }, active: "color", entrance: "pop", exit: "corte", durationMs: 140 },
+  oracion_completa: { id: "oracion_completa", label: "Oración por oración", unit: "frase", group: { words: 14, lines: 3 }, active: "none", entrance: "fade", exit: "fade", durationMs: 220 },
   entrada_deslizada: { id: "entrada_deslizada", label: "Entrada deslizada", unit: "linea", group: { words: 8, lines: 2 }, active: "scale", entrance: "slide", exit: "fade", durationMs: 260 },
 };
 /** «Sorpréndeme» para el estilo v2: reproducible con semilla y siempre válido. */

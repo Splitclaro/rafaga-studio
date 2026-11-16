@@ -1,7 +1,7 @@
 // Ajustes de fondo y de imagen de Lyric Studio (puro): validación, filtros con etiquetas propias, clasificación y paquetes oficiales.
 import type { LyricComposition } from "@rafaga/composition";
 
-export const FILTER_OPTIONS = [["none", "Ninguno"], ["noche", "Noche"], ["super8", "Super 8"], ["bn", "Blanco y negro"], ["vapor", "Vapor"]] as const;
+export const FILTER_OPTIONS = [["none", "Ninguno"], ["noche", "Noche"], ["super8", "Super 8"], ["bn", "Blanco y negro"], ["vapor", "Vapor"], ["cine16", "Cine 16 mm (grano)"], ["vhs", "VHS"], ["camara_noche", "Cámara de noche"], ["gran_angular", "Gran angular"]] as const;
 export type FilterId = (typeof FILTER_OPTIONS)[number][0];
 export interface LyricUi { crop: number; dim: number; interval: number; sizeFine: number; filter: FilterId; fit: "preserve" | "fill" | "band"; order: "aleatorio" | "fijo"; loop: boolean; shake: boolean; blend: number; variation: number; color: string }
 const num = (v: unknown, lo: number, hi: number, d: number) => (typeof v === "number" && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : d);

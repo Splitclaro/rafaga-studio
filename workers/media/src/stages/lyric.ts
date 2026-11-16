@@ -248,6 +248,15 @@ export async function renderLyricItem(ctx: StageCtx, it: LyricItem, o: { key: st
   if (!v || v.codec_name !== "h264" || v.pix_fmt !== "yuv420p" || v.width !== size.width || v.height !== size.height) return o.fail("render_failed", "El MP4 resultante no es H.264/yuv420p del tamaño esperado");
   const ahash = firstFrameHash(out), dur = Number(j.format?.duration ?? c.duration);
   await r2.upload(o.key, out, "video/mp4");
+  try {   // portada del clip (fotograma con la primera palabra): nunca bloquea la variante si falla
+    const th = join(o.dir, "thumb.jpg"), first = c.words.find((w) => w.end > c.range.start), at = Math.max(0.5, Math.min(dur - 0.3, (first ? Math.max(0, first.start - c.range.start) : 0) + 0.6));
+    const tr = spawnSync("ffmpeg", ["-y", "-v", "error", "-ss", at.toFixed(2), "-i", out, "-frames:v", "1", "-vf", "scale=480:-2", "-q:v", "4", th], { encoding: "utf8" });
+    if (tr.status === 0 && statSync(th).size > 1000) {
+      const tk = `${it.workspace_id}/${it.source_id}/clips/${it.clip_id}.jpg`; await r2.upload(tk, th, "image/jpeg");
+      await ctx.rpc("record_object", { p_ws: it.workspace_id, p_key: tk, p_bytes: statSync(th).size, p_kind: "preview", p_project: null, p_source: it.source_id, p_render: null, p_expires_at: null });
+      await ctx.rpc("set_clip_thumb", { p_clip: it.clip_id, p_path: tk });
+    }
+  } catch { /* sin portada: la interfaz usa el primer fotograma del vídeo */ }
   await ctx.rpc("finish_render", { p_render: it.render_id, p_status: "ready", p_path: o.key, p_probe: { codec: v.codec_name, pix_fmt: v.pix_fmt, width: v.width, height: v.height, duration_s: dur, ahash }, p_bytes: statSync(out).size, p_duration_ms: Math.round(dur * 1000), p_width: v.width, p_height: v.height, p_error: null });
   return { output: { key: o.key, kind: "mp4", width: v.width, height: v.height, ahash } };
 }

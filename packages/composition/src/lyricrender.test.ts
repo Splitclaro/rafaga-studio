@@ -48,5 +48,5 @@ test("variantHash y nearDuplicates: mismo hash o hash perceptivo a ≤4 bits", (
   assert.equal(variantHash(a), variantHash(b)); assert.notEqual(variantHash(a), variantHash(c)); assert.match(variantHash(a), /^[0-9a-f]{16}$/);
   const pairs = nearDuplicates([{ id: "1", hash: variantHash(a) }, { id: "2", hash: variantHash(b) }, { id: "3", hash: variantHash(c), ahash: "ffff000000000000" }, { id: "4", hash: "x", ahash: "ffff000000000007" }, { id: "5", hash: "y", ahash: "0000ffff00000000" }]);
   assert.deepEqual(pairs, [["1", "2"], ["3", "4"]]);
-  assert.equal(Object.keys(LYRIC_FILTERS).join(), "noche,super8,bn,vapor");
+  assert.equal(Object.keys(LYRIC_FILTERS).join(), "noche,super8,bn,vapor,cine16,vhs,camara_noche,gran_angular");
 });

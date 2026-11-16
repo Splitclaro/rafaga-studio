@@ -194,7 +194,7 @@ export default function LyricStudioV2() {
       </section>}
       {comp && <section className="card space-y-3 p-4 text-sm" aria-label="Estilo del texto">
         <h2 className="font-display text-base font-bold">Estilo del texto</h2>
-        <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4" aria-label="Estilos populares">{TRENDING_STYLES.map((t) => (
+        <ul className="grid max-h-72 grid-cols-3 gap-2 overflow-y-auto pr-1 sm:grid-cols-4" aria-label="Estilos populares">{TRENDING_STYLES.map((t) => (
           <li key={t.id}><button type="button" title={t.name} aria-pressed={comp.preset === t.preset && JSON.stringify(comp.style) === JSON.stringify(validateCaptionStyle(t.style))} onClick={() => setComp(validateLyricComposition({ ...comp, preset: t.preset, style: validateCaptionStyle({ ...t.style, color: comp.style.color }) }))}
             className="chip w-full !justify-center truncate" style={{ fontFamily: `'${validateCaptionStyle(t.style).font}', Inter, sans-serif`, fontWeight: validateCaptionStyle(t.style).weight }}>{t.name}</button></li>))}</ul>
         <div className="flex flex-wrap items-center gap-3"><label className="flex items-center gap-2">Color del texto <input type="color" value={comp.style.color} onChange={(e) => setComp(validateLyricComposition({ ...comp, style: validateCaptionStyle({ ...comp.style, color: e.target.value }) }))} aria-label="Color del texto" /></label>

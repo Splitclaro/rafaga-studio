@@ -5,7 +5,7 @@ import Icon from "../Icon";
 import { StatusLabel, pieceStatus, fmtDur } from "./status";
 
 export type WallClip = {
-  id: string; title: string; title_source: string; thumb?: string; url?: string; path?: string; bytes?: number; favorite: boolean; version: number; ratio?: string;
+  id: string; title: string; title_source: string; thumb?: string; url?: string; path?: string; renderId?: string; r2?: boolean; bytes?: number; favorite: boolean; version: number; ratio?: string;
   review_status: string; approved_version: number | null; current_version: number; durMs?: number; score?: number | null; factors?: { relevance?: number; hook?: number; standalone?: number; closure?: number } | null; reason?: string | null; brief_fit?: string | null; startMs?: number; endMs?: number; created_at: string; hasRender: boolean;
 };
 
@@ -16,6 +16,7 @@ function ClipCardBase({ c, selected, previewing, onSelect, onPreview, aspect = "
     <div className={`relative overflow-hidden rounded-2xl bg-[var(--ink)] ${view === "list" ? "h-24 w-[54px] shrink-0 !rounded-xl" : `${aspect} w-full`}`}>
       {previewing && c.url ? <video src={c.url} poster={c.thumb} autoPlay muted loop playsInline preload="metadata" className="absolute inset-0 h-full w-full object-cover" onClick={() => onPreview(null)} />
         : c.thumb ? <img src={c.thumb} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
+        : c.url ? <video src={`${c.url}#t=1.2`} muted playsInline preload="metadata" aria-hidden className="absolute inset-0 h-full w-full object-cover" />   /* sin portada propia: primer fotograma del vídeo */
         : <div className="absolute inset-0 grid place-items-center bg-[#1a1a1a] text-[11px] text-white/70">{c.hasRender ? "Sin portada" : "Creando…"}</div>}
       {view === "grid" && <>
         <label className="absolute left-2 top-2 grid h-8 w-8 cursor-pointer place-items-center rounded-full bg-white/90 shadow-sm" onClick={(e) => e.stopPropagation()}>
