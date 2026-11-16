@@ -44,8 +44,7 @@ export default function CollectionsPicker({ selected, onSelect, cols, reload }: 
     if (error) return setMsg(error.code === "23505" ? "Ya tienes una colección con ese nombre." : error.message);
     setNewName(""); setMsg(null); await reload(); onSelect(data.id);
   }
-  async function upload(colId: string, input: FileList | null) {
-    const files = input ? Array.from(input) : [];   // copia inmediata: el campo se vacía justo después de elegir y la lista «viva» quedaría vacía
+  async function upload(colId: string, files: File[]) {   // el llamador copia la lista antes de vaciar el campo
     if (!files.length) return;
     const { data: s } = await supabase.auth.getSession();
     const w = await ws();
@@ -112,7 +111,7 @@ export default function CollectionsPicker({ selected, onSelect, cols, reload }: 
                 <div className="flex flex-wrap items-center gap-2">
                   <button onClick={() => onSelect(selected === c.id ? null : c.id)} aria-pressed={selected === c.id} className="font-display min-w-0 flex-1 truncate text-left text-lg">{selected === c.id ? "✓ " : ""}{c.name}</button>
                   <span className="text-xs text-[var(--muted)] tnum">{c.items.length} archivo{c.items.length === 1 ? "" : "s"}</span>
-                  <label className="cursor-pointer rounded-full border border-[var(--border)] px-3 py-1 text-xs">Añadir<input type="file" multiple accept="video/mp4,video/quicktime,video/webm,image/jpeg,image/png,image/webp" className="sr-only" onChange={(e) => { upload(c.id, e.target.files); e.target.value = ""; }} /></label>
+                  <label className="cursor-pointer rounded-full border border-[var(--border)] px-3 py-1 text-xs">Añadir<input type="file" multiple accept="video/mp4,video/quicktime,video/webm,image/jpeg,image/png,image/webp" className="sr-only" onChange={(e) => { const picked = Array.from(e.currentTarget.files ?? []); e.currentTarget.value = ""; void upload(c.id, picked); }} /></label>
                   <button onClick={() => removeCol(c)} className="text-xs underline">Borrar</button>
                 </div>
                 {!!c.items.length && (
