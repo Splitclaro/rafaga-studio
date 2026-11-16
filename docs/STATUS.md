@@ -363,3 +363,8 @@ Probar Lyric Studio con una canción real (canto + instrumental). Siguiente: Sty
 - Verificado en producción: un borrador enviado desde el calendario a «Te Lo Dedico ⭐» con comentarios/dúo/stitch desactivados guardó `post_options` y llegó a `private_pending_review` (bandeja de la app móvil de TikTok).
 - No verificado: Direct Post público (TikTok no lo permite sin auditoría); la paridad detallada con OpusClip/Escalium sigue sin hacerse (la matriz `PARITY_MATRIX_V2.md` es del 2026-11-09 y no refleja los cambios posteriores).
 - Siguiente paso para publicar en abierto sin pasar por el móvil: esperar el resultado de la revisión actual y, después, grabar un vídeo nuevo con estas opciones y pedir Direct Post.
+
+## 2026-11-16 (noche, 2) · Paridad y preparación de Direct Post
+- Paridad: nuevo cotejo en `docs/PARITY_OPUS_ESCALIUM_2026-11-16.md`. Hecho: entrada/salida suaves del audio (Escalium). Faltan, con motivo: llamada a la acción final, título fijo, métricas de TikTok, upscale/doblaje (de pago).
+- Direct Post: la interfaz ya cumple lo que TikTok pide (cuenta visible, privacidad sin valor por defecto, comentarios/dúo/stitch desactivados, divulgación de contenido, declaración de música); el worker nunca amplía la privacidad pedida.
+- **Bloqueo real:** con la app sin auditar, TikTok solo permite Direct Post en cuentas privadas (`unaudited_client_can_only_post_to_private_accounts`). Para grabar un demo con una publicación directa real hay que poner una cuenta de prueba en modo privado en TikTok (decisión del propietario), recoger la revisión actual («Recall»), activar Direct Post + `video.publish` y reenviar.
