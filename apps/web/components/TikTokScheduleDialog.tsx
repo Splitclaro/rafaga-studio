@@ -22,6 +22,8 @@ async function api(path: string, body: unknown, idem?: string) {
 export default function TikTokScheduleDialog({ accounts, videos, day, tz, onClose, onDone }: { accounts: TtAccount[]; videos: TtVideo[]; day: string; tz: string; onClose: () => void; onDone: (msg: string) => void }) {
   const [video, setVideo] = useState(videos[0]?.id ?? ""), [account, setAccount] = useState(accounts[0]?.id ?? ""), [date, setDate] = useState(day), [zone, setZone] = useState(accounts[0]?.profile?.tz || tz);
   const [time, setTime] = useState((accounts[0]?.profile?.slots ?? DEFAULT_PROFILE.slots)[0] ?? "19:00"), [caption, setCaption] = useState(""), [music, setMusic] = useState(""), [privacy, setPrivacy] = useState<string>(accounts[0]?.profile?.privacy ?? DEFAULT_PROFILE.privacy);
+  const [opts, setOpts] = useState({ comment: false, duet: false, stitch: false, commercial: false, own_brand: false, paid_partner: false });   // TikTok exige que empiecen desactivadas
+  const setOpt = (k: keyof typeof opts, v: boolean) => setOpts((o) => ({ ...o, [k]: v }));
   const [busy, setBusy] = useState<string | null>(null), [err, setErr] = useState<string | null>(null), [note, setNote] = useState<string | null>(null);
   const acc = accounts.find((a) => a.id === account), vid = videos.find((v) => v.id === video);
   const pickAccount = (id: string) => { setAccount(id); const a = accounts.find((x) => x.id === id); if (a) { setZone(a.profile?.tz || tz); setPrivacy(a.profile?.privacy ?? DEFAULT_PROFILE.privacy); setTime((a.profile?.slots ?? DEFAULT_PROFILE.slots)[0] ?? time); } };
@@ -38,10 +40,12 @@ export default function TikTokScheduleDialog({ accounts, videos, day, tz, onClos
     setErr(null);
     if (!vid || !acc) return setErr("Elige un vídeo y una cuenta.");
     if (!music) return setErr("Indica el origen de la música: es obligatorio.");
+    if (opts.commercial && !opts.own_brand && !opts.paid_partner) return setErr("Indica si promocionas tu marca o a un tercero.");
+    if (opts.commercial && privacy === "SELF_ONLY") return setErr("El contenido comercial no puede ser privado: elige otra privacidad.");
     if (!now && (!when || when.getTime() < Date.now() + 60_000)) return setErr("Elige una fecha y hora futuras.");
     setBusy("go");
     const title = songOf(vid.title).slice(0, 100) || "Vídeo";
-    const r = await api("/api/publish", { export_id: vid.id, platform: "tiktok", connection_id: acc.id, music_origin: music, title, description: caption.trim() || title, privacy, ...(now ? {} : { scheduled_at: when!.toISOString() }) }, `cal-${crypto.randomUUID()}`);
+    const r = await api("/api/publish", { export_id: vid.id, platform: "tiktok", connection_id: acc.id, music_origin: music, title, description: caption.trim() || title, privacy, options: opts, ...(now ? {} : { scheduled_at: when!.toISOString() }) }, `cal-${crypto.randomUUID()}`);
     setBusy(null);
     if (!r.ok) return setErr(r.j.error?.message ?? "No se pudo programar.");
     onDone(now ? "Publicación enviada a TikTok." : "Publicación programada en TikTok.");
@@ -67,6 +71,14 @@ export default function TikTokScheduleDialog({ accounts, videos, day, tz, onClos
             {note && <p className="text-xs text-[var(--muted)]">{note}</p>}
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2"><label>Origen de la música<select value={music} onChange={(e) => setMusic(e.target.value)} className="input mt-1">{MUSIC.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
               <label>Privacidad<select value={privacy} onChange={(e) => setPrivacy(e.target.value)} className="input mt-1">{Object.entries(PRIVACY).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label></div>
+            <fieldset className="grid gap-1.5"><legend className="mb-1">Interacción</legend>
+              {([["comment", "Permitir comentarios"], ["duet", "Permitir dúos"], ["stitch", "Permitir stitch"]] as const).map(([k, l]) => <label key={k} className="flex items-center gap-2"><input type="checkbox" checked={opts[k]} onChange={(e) => setOpt(k, e.target.checked)} />{l}</label>)}</fieldset>
+            <fieldset className="grid gap-1.5"><legend className="mb-1">Divulgación de contenido</legend>
+              <label className="flex items-center gap-2"><input type="checkbox" checked={opts.commercial} onChange={(e) => { setOpt("commercial", e.target.checked); if (!e.target.checked) { setOpt("own_brand", false); setOpt("paid_partner", false); } }} />Este vídeo promociona una marca, producto o servicio</label>
+              {opts.commercial && <div className="ml-6 grid gap-1.5"><label className="flex items-center gap-2"><input type="checkbox" checked={opts.own_brand} onChange={(e) => setOpt("own_brand", e.target.checked)} />Tu marca (promocionas tu propio negocio)</label>
+                <label className="flex items-center gap-2"><input type="checkbox" checked={opts.paid_partner} onChange={(e) => setOpt("paid_partner", e.target.checked)} />Colaboración de pago (promocionas a un tercero)</label>
+                <p className="text-xs text-[var(--muted)]">{opts.paid_partner ? "Tu vídeo se etiquetará como «Colaboración de pago»." : opts.own_brand ? "Tu vídeo se etiquetará como «Promocionando tu marca»." : "Elige al menos una opción."}</p></div>}</fieldset>
+            <p className="text-xs text-[var(--muted)]">Al publicar aceptas la <a href="https://www.tiktok.com/legal/page/global/music-usage-confirmation/en" target="_blank" rel="noreferrer" className="underline">Confirmación de uso de música</a>{opts.commercial ? " y la " : ""}{opts.commercial && <a href="https://www.tiktok.com/legal/page/global/bc-policy/en" target="_blank" rel="noreferrer" className="underline">Política de contenido de marca</a>} de TikTok.</p>
             <p className="text-xs text-[var(--muted)]">Mientras la app de TikTok no esté auditada, TikTok publica en privado aunque elijas otra privacidad.</p>
             {err && <p role="alert" className="rounded-lg bg-[var(--surface)] p-2 text-xs">⚠ {err}</p>}
             <div className="flex flex-wrap gap-2"><button onClick={() => schedule(false)} disabled={!!busy} className="btn btn-primary">{busy === "go" ? "Enviando…" : "Programar"}</button><button onClick={() => schedule(true)} disabled={!!busy} className="btn btn-ghost">Publicar ahora</button><button onClick={onClose} className="btn btn-ghost">Cancelar</button></div>

@@ -111,7 +111,7 @@ const importStage: StageImpl = {
 };
 
 // ───────── Publicación ─────────
-interface PubJob { publication_id: string; workspace_id: string; platform: "youtube" | "tiktok"; title: string; description: string | null; privacy: string; state: string; object_key: string | null; bytes: number | null; connection_id?: string | null }
+interface PubJob { publication_id: string; workspace_id: string; platform: "youtube" | "tiktok"; title: string; description: string | null; privacy: string; state: string; object_key: string | null; bytes: number | null; connection_id?: string | null; post_options?: { comment?: boolean; duet?: boolean; stitch?: boolean; commercial?: boolean; own_brand?: boolean; paid_partner?: boolean } }
 type Done = { state: "published" | "private_pending_review" | "requiere_auditoria" | "processing"; external?: string | null; code?: string; message?: string };
 export const TIKTOK_UNAUDITED = "unaudited_client_can_only_post_to_private_accounts";
 
@@ -149,6 +149,12 @@ async function sendTikTokFile(ctx: StageCtx, f: typeof fetch, H: Record<string, 
   }
   return { state: "processing", external: pid };
 }
+/** Opciones de interacción y contenido comercial de TikTok; lo que la cuenta tiene desactivado en TikTok no se puede activar desde fuera. Contenido de marca no puede ser privado (lo comprueba el diálogo). */
+export function tikTokFlags(o: PubJob["post_options"], c?: { comment_disabled?: boolean; duet_disabled?: boolean; stitch_disabled?: boolean }) {
+  const x = o ?? {};
+  return { disable_comment: !x.comment || !!c?.comment_disabled, disable_duet: !x.duet || !!c?.duet_disabled, disable_stitch: !x.stitch || !!c?.stitch_disabled,
+    ...(x.commercial ? { brand_content_toggle: !!x.paid_partner, brand_organic_toggle: !!x.own_brand } : {}) };
+}
 async function publishTikTok(ctx: StageCtx, job: PubJob, file: string, f: typeof fetch): Promise<Done> {
   const token = await accessToken(ctx, job.workspace_id, "tiktok", job.connection_id), size = statSync(file).size;
   const H = { Authorization: `Bearer ${token}`, "Content-Type": "application/json; charset=UTF-8" };
@@ -163,13 +169,13 @@ async function publishTikTok(ctx: StageCtx, job: PubJob, file: string, f: typeof
     return sendTikTokFile(ctx, f, H, file, size, nj);
   };
   const info = await f(`${TT}/creator_info/query/`, { method: "POST", headers: H, body: "{}" });
-  const ij = (await info.json().catch(() => ({}))) as { data?: { privacy_level_options?: string[] }; error?: { code?: string; message?: string } };
+  const ij = (await info.json().catch(() => ({}))) as { data?: { privacy_level_options?: string[]; comment_disabled?: boolean; duet_disabled?: boolean; stitch_disabled?: boolean }; error?: { code?: string; message?: string } };
   if (unaudited(ij.error)) return toInbox();
   if (!info.ok || (ij.error?.code && ij.error.code !== "ok")) throw new StageError("publish_failed", `TikTok no devolvió los datos del creador (${info.status}).`);
   const options = ij.data?.privacy_level_options ?? [];
   const level = options.includes(job.privacy) ? job.privacy : options[0];
   if (!level) throw new StageError("publish_failed", "TikTok no ofrece ninguna privacidad para esta cuenta.");
-  const init = await f(`${TT}/video/init/`, { method: "POST", headers: H, body: JSON.stringify({ post_info: { title: (job.description || job.title).slice(0, 2200), privacy_level: level }, source_info: src }) });   // el «título» de TikTok es la descripción completa con hashtags
+  const init = await f(`${TT}/video/init/`, { method: "POST", headers: H, body: JSON.stringify({ post_info: { title: (job.description || job.title).slice(0, 2200), privacy_level: level, ...tikTokFlags(job.post_options, ij.data) }, source_info: src }) });   // el «título» de TikTok es la descripción completa con hashtags
   const nj = (await init.json().catch(() => ({}))) as TtEnv;
   if (unaudited(nj.error)) return toInbox();
   if (!init.ok || (nj.error?.code && nj.error.code !== "ok") || !nj.data?.upload_url || !nj.data.publish_id) throw new StageError("publish_failed", `TikTok rechazó la publicación (${nj.error?.code ?? init.status}).`);

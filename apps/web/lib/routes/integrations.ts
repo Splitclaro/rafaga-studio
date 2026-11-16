@@ -81,9 +81,12 @@ export async function handleIntegrations(req: Request, integration: string, rest
   const conn = str(b.connection_id), music = str(b.music_origin);
   if (conn && !UUID.test(conn)) return bad("invalid_publication", "La cuenta elegida no es válida.");
   if (music && !["own", "licensed", "free", "risk"].includes(music)) return bad("invalid_publication", "El origen de la música no es válido.");
+  const o = (b.options && typeof b.options === "object" ? b.options : {}) as Record<string, unknown>;
+  const options = platform === "tiktok" ? { comment: o.comment === true, duet: o.duet === true, stitch: o.stitch === true, commercial: o.commercial === true, own_brand: o.own_brand === true, paid_partner: o.paid_partner === true } : null;
+  if (options?.commercial && !options.own_brand && !options.paid_partner) return bad("invalid_publication", "Indica si el contenido promociona tu marca o a un tercero.");
   const r = await rpc<{ publication_id: string; state: string; job_id: string | null; replay: boolean }>(token, "request_publication", {
     p_render: str(b.export_id), p_platform: platform, p_title: str(b.title), p_description: str(b.description) || null, p_privacy: str(b.privacy) || null, p_scheduled_at: at, p_idem: idem,
-    p_connection: conn || null, p_music: music || null }, f);
+    p_connection: conn || null, p_music: music || null, p_options: options }, f);
   if (r.error) return dbFail(r.error);
   if (r.data?.job_id && !r.data.replay) wake(req, r.data.job_id);
   return json(r.data, 202);
