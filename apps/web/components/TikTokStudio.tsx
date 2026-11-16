@@ -11,7 +11,7 @@ type Account = { id: string; alias: string | null; account_label: string | null;
 type Video = { id: string; title: string; created_at: string };
 type Queue = { id: string; state: string; scheduled_at: string | null; title: string; connection_id: string | null; error_message: string | null };
 type Row = { render: string; title: string; account: string; at: string; caption: string; source: Copy["source"]; result?: string };
-const STATE: Record<string, string> = { scheduled: "Programada", queued: "En cola", uploading: "Subiendo", processing: "Procesando", published: "Publicada", private_pending_review: "Privada, pendiente", requiere_auditoria: "Requiere auditoría de TikTok", failed: "Falló", cancelled: "Cancelada" };
+const STATE: Record<string, string> = { scheduled: "Programada", queued: "En cola", uploading: "Subiendo", processing: "Procesando", published: "Publicada", private_pending_review: "Borrador en tu bandeja de TikTok", requiere_auditoria: "Requiere auditoría de TikTok", failed: "Falló", cancelled: "Cancelada" };
 const MUSIC: [string, string][] = [["", "Elige el origen de la música…"], ["own", "Música propia"], ["licensed", "Con licencia"], ["free", "Libre de derechos"], ["risk", "Comercial: asumo el riesgo"]];
 const PRIVACY: Record<string, string> = { SELF_ONLY: "Solo yo (privado)", MUTUAL_FOLLOW_FRIENDS: "Amigos", FOLLOWER_OF_CREATOR: "Seguidores", PUBLIC_TO_EVERYONE: "Público" };
 const songOf = (t: string) => t.replace(/\s·\s#\d+$/, "").trim();

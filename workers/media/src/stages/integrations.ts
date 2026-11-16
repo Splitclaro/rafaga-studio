@@ -132,33 +132,48 @@ async function publishYouTube(ctx: StageCtx, job: PubJob, file: string, f: typeo
   return { state: "published", external: j.id };
 }
 
-async function publishTikTok(ctx: StageCtx, job: PubJob, file: string, f: typeof fetch): Promise<Done> {
-  const token = await accessToken(ctx, job.workspace_id, "tiktok", job.connection_id), size = statSync(file).size;
-  const H = { Authorization: `Bearer ${token}`, "Content-Type": "application/json; charset=UTF-8" };
-  const audit = (e: { code?: string } | undefined): Done | null => (e?.code === TIKTOK_UNAUDITED ? { state: "requiere_auditoria", code: "requiere_auditoria", message: "TikTok solo permite publicar en cuentas privadas hasta que la app pase su auditoría." } : null);
-  const info = await f("https://open.tiktokapis.com/v2/post/publish/creator_info/query/", { method: "POST", headers: H, body: "{}" });
-  const ij = (await info.json().catch(() => ({}))) as { data?: { privacy_level_options?: string[] }; error?: { code?: string; message?: string } };
-  const a0 = audit(ij.error); if (a0) return a0;
-  if (!info.ok || (ij.error?.code && ij.error.code !== "ok")) throw new StageError("publish_failed", `TikTok no devolvió los datos del creador (${info.status}).`);
-  const options = ij.data?.privacy_level_options ?? [];
-  const level = options.includes(job.privacy) ? job.privacy : options[0];
-  if (!level) throw new StageError("publish_failed", "TikTok no ofrece ninguna privacidad para esta cuenta.");
-  const init = await f("https://open.tiktokapis.com/v2/post/publish/video/init/", { method: "POST", headers: H, body: JSON.stringify({
-    post_info: { title: (job.description || job.title).slice(0, 2200), privacy_level: level }   /* el «título» de TikTok es la descripción completa con hashtags */, source_info: { source: "FILE_UPLOAD", video_size: size, chunk_size: size, total_chunk_count: 1 } }) });
-  const nj = (await init.json().catch(() => ({}))) as { data?: { publish_id?: string; upload_url?: string }; error?: { code?: string; message?: string } };
-  const a1 = audit(nj.error); if (a1) return a1;
-  if (!init.ok || (nj.error?.code && nj.error.code !== "ok") || !nj.data?.upload_url || !nj.data.publish_id) throw new StageError("publish_failed", `TikTok rechazó la publicación (${nj.error?.code ?? init.status}).`);
-  const put = await f(nj.data.upload_url, { method: "PUT", headers: { "Content-Type": "video/mp4", "Content-Length": String(size), "Content-Range": `bytes 0-${size - 1}/${size}` }, body: readFileSync(file) });
+const TT = "https://open.tiktokapis.com/v2/post/publish";
+type TtEnv = { data?: { publish_id?: string; upload_url?: string; status?: string; fail_reason?: string }; error?: { code?: string; message?: string } };
+/** Sube el MP4 a la URL que dio TikTok y espera el estado. «SEND_TO_USER_INBOX» = borrador entregado en la bandeja del creador. */
+async function sendTikTokFile(ctx: StageCtx, f: typeof fetch, H: Record<string, string>, file: string, size: number, nj: TtEnv): Promise<Done> {
+  const put = await f(nj.data!.upload_url!, { method: "PUT", headers: { "Content-Type": "video/mp4", "Content-Length": String(size), "Content-Range": `bytes 0-${size - 1}/${size}` }, body: readFileSync(file) });
   if (!put.ok) throw new StageError("publish_failed", `TikTok respondió ${put.status} al recibir el vídeo.`);
-  const pid = nj.data.publish_id;
+  const pid = nj.data!.publish_id!;
   for (let i = 0; i < 6; i++) {
-    const st = await f("https://open.tiktokapis.com/v2/post/publish/status/fetch/", { method: "POST", headers: H, body: JSON.stringify({ publish_id: pid }) });
-    const sj = (await st.json().catch(() => ({}))) as { data?: { status?: string; fail_reason?: string } };
+    const st = await f(`${TT}/status/fetch/`, { method: "POST", headers: H, body: JSON.stringify({ publish_id: pid }) });
+    const sj = (await st.json().catch(() => ({}))) as TtEnv;
     if (sj.data?.status === "PUBLISH_COMPLETE") return { state: "published", external: pid };
+    if (sj.data?.status === "SEND_TO_USER_INBOX") return { state: "private_pending_review", external: pid, message: "Enviado como borrador a tu bandeja de TikTok: ábrelo en la app de TikTok (Bandeja → Notificaciones del sistema) y pulsa Publicar con la privacidad que quieras." };
     if (sj.data?.status === "FAILED") throw new StageError("publish_failed", `TikTok falló: ${sj.data.fail_reason ?? "sin motivo"}.`);
     await (ctx.deps?.sleep as ((ms: number) => Promise<void>) | undefined)?.(2000) ?? await new Promise((r) => setTimeout(r, 2000));
   }
   return { state: "processing", external: pid };
+}
+async function publishTikTok(ctx: StageCtx, job: PubJob, file: string, f: typeof fetch): Promise<Done> {
+  const token = await accessToken(ctx, job.workspace_id, "tiktok", job.connection_id), size = statSync(file).size;
+  const H = { Authorization: `Bearer ${token}`, "Content-Type": "application/json; charset=UTF-8" };
+  const src = { source: "FILE_UPLOAD", video_size: size, chunk_size: size, total_chunk_count: 1 };
+  const unaudited = (e: { code?: string } | undefined) => e?.code === TIKTOK_UNAUDITED;
+  /** Respaldo sin auditoría: TikTok no permite la publicación directa pública, pero sí enviar el vídeo como borrador a la bandeja del creador (permiso video.upload). */
+  const toInbox = async (): Promise<Done> => {
+    const r = await f(`${TT}/inbox/video/init/`, { method: "POST", headers: H, body: JSON.stringify({ source_info: src }) });
+    const nj = (await r.json().catch(() => ({}))) as TtEnv;
+    if (unaudited(nj.error)) return { state: "requiere_auditoria", code: "requiere_auditoria", message: "TikTok no deja publicar ni enviar borradores desde una app sin auditar a esta cuenta. Añádela como usuario de prueba del sandbox o envía la app a auditoría." };
+    if (!r.ok || (nj.error?.code && nj.error.code !== "ok") || !nj.data?.upload_url || !nj.data.publish_id) throw new StageError("publish_failed", `TikTok rechazó el borrador (${nj.error?.code ?? r.status}).`);
+    return sendTikTokFile(ctx, f, H, file, size, nj);
+  };
+  const info = await f(`${TT}/creator_info/query/`, { method: "POST", headers: H, body: "{}" });
+  const ij = (await info.json().catch(() => ({}))) as { data?: { privacy_level_options?: string[] }; error?: { code?: string; message?: string } };
+  if (unaudited(ij.error)) return toInbox();
+  if (!info.ok || (ij.error?.code && ij.error.code !== "ok")) throw new StageError("publish_failed", `TikTok no devolvió los datos del creador (${info.status}).`);
+  const options = ij.data?.privacy_level_options ?? [];
+  const level = options.includes(job.privacy) ? job.privacy : options[0];
+  if (!level) throw new StageError("publish_failed", "TikTok no ofrece ninguna privacidad para esta cuenta.");
+  const init = await f(`${TT}/video/init/`, { method: "POST", headers: H, body: JSON.stringify({ post_info: { title: (job.description || job.title).slice(0, 2200), privacy_level: level }, source_info: src }) });   // el «título» de TikTok es la descripción completa con hashtags
+  const nj = (await init.json().catch(() => ({}))) as TtEnv;
+  if (unaudited(nj.error)) return toInbox();
+  if (!init.ok || (nj.error?.code && nj.error.code !== "ok") || !nj.data?.upload_url || !nj.data.publish_id) throw new StageError("publish_failed", `TikTok rechazó la publicación (${nj.error?.code ?? init.status}).`);
+  return sendTikTokFile(ctx, f, H, file, size, nj);
 }
 
 const publish: StageImpl = {

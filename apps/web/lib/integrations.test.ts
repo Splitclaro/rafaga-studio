@@ -107,20 +107,38 @@ test("YouTube: privacidad elegida (private por defecto) y private_pending_review
   assert.equal((await call("POST", "publish", [], { export_id: render, platform: "youtube", title: "x", privacy: "SELF_ONLY" }, "publish-key-yt-3")).status, 400);
 });
 
-test("TikTok sin auditar → requiere_auditoria y el privacy_level enviado es uno de privacy_level_options", async () => {
+test("TikTok sin auditar: la publicación directa se rechaza y se entrega como borrador en la bandeja del creador (private_pending_review)", async () => {
   await connect("tiktok");
-  const levels: string[] = [];
+  const levels: string[] = [], seen: string[] = [];
   const f = (async (url: string, init?: RequestInit) => {
-    if (String(url).includes("creator_info")) return json({ data: { privacy_level_options: ["SELF_ONLY"] }, error: { code: "ok" } });
-    if (String(url).includes("video/init")) { levels.push((JSON.parse(String(init!.body)) as { post_info: { privacy_level: string } }).post_info.privacy_level); return json({ error: { code: TIKTOK_UNAUDITED, message: "x" } }, 403); }
+    const u = String(url); seen.push(u.split("/").slice(-4, -1).join("/"));
+    if (u.includes("creator_info")) return json({ data: { privacy_level_options: ["SELF_ONLY"] }, error: { code: "ok" } });
+    if (u.includes("inbox/video/init")) return json({ data: { publish_id: "inb1", upload_url: "https://upload.example.com/inbox" }, error: { code: "ok" } });
+    if (u.includes("video/init")) { levels.push((JSON.parse(String(init!.body)) as { post_info: { privacy_level: string } }).post_info.privacy_level); return json({ error: { code: TIKTOK_UNAUDITED, message: "x" } }, 403); }
+    if (u.includes("upload.example.com")) return new Response(null, { status: 201 });
+    if (u.includes("status/fetch")) return json({ data: { status: "SEND_TO_USER_INBOX" } });
     throw new Error("no debería llamarse " + url);
   }) as unknown as typeof fetch;
   const r = await call("POST", "publish", [], { export_id: render, platform: "tiktok", title: "TT", privacy: "PUBLIC_TO_EVERYONE" }, "publish-key-tt-1");
   const p = (await r.json()) as { publication_id: string };
   const o = await STAGE_IMPLS.publish.run(ctxWith({ fetch: f }), row({ publication_id: p.publication_id }));
-  assert.equal(o.output.state, "requiere_auditoria"); assert.deepEqual(levels, ["SELF_ONLY"]);
+  assert.equal(o.output.state, "private_pending_review"); assert.deepEqual(levels, ["SELF_ONLY"]); assert.ok(seen.some((x) => x.includes("inbox")));
   const [s] = await q<{ state: string; error_message: string }>(`select state, error_message from publications where id='${p.publication_id}'`);
-  assert.equal(s.state, "requiere_auditoria"); assert.match(s.error_message, /auditor/i);
+  assert.equal(s.state, "private_pending_review"); assert.match(s.error_message, /borrador/i);
+});
+
+test("TikTok sin auditar y el borrador también rechazado → requiere_auditoria con el motivo", async () => {
+  const f = (async (url: string) => {
+    const u = String(url);
+    if (u.includes("creator_info")) return json({ error: { code: TIKTOK_UNAUDITED } }, 403);
+    if (u.includes("inbox/video/init")) return json({ error: { code: TIKTOK_UNAUDITED } }, 403);
+    throw new Error("no debería llamarse " + url);
+  }) as unknown as typeof fetch;
+  const r = await call("POST", "publish", [], { export_id: render, platform: "tiktok", title: "TT3", privacy: "SELF_ONLY" }, "publish-key-tt-9");
+  const p = (await r.json()) as { publication_id: string };
+  const o = await STAGE_IMPLS.publish.run(ctxWith({ fetch: f }), row({ publication_id: p.publication_id }));
+  assert.equal(o.output.state, "requiere_auditoria");
+  const [s] = await q<{ state: string }>(`select state from publications where id='${p.publication_id}'`); assert.equal(s.state, "requiere_auditoria");
 });
 
 test("TikTok con cuenta auditada: init FILE_UPLOAD, PUT y status/fetch hasta PUBLISH_COMPLETE", async () => {

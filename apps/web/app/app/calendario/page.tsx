@@ -7,8 +7,8 @@ import { zonedToUtc, utcToLocalInput, localZone, ZONES } from "../../../lib/tz";
 import { PUBLISH_TARGETS } from "../../../lib/platforms";
 import TikTokScheduleDialog, { type TtAccount, type TtVideo } from "../../../components/TikTokScheduleDialog";
 
-type Pub = { id: string; state: string; scheduled_at: string | null; created_at: string; title: string; description: string | null; connection_id: string | null; error_message: string | null };
-const PUB_STATE: Record<string, string> = { scheduled: "Programada", queued: "En cola", uploading: "Subiendo", processing: "Procesando", published: "Publicada", private_pending_review: "Privada, pendiente", requiere_auditoria: "Requiere auditoría", failed: "Falló", cancelled: "Cancelada" };
+type Pub = { id: string; render_id?: string; music_origin?: string | null; privacy?: string; state: string; scheduled_at: string | null; created_at: string; title: string; description: string | null; connection_id: string | null; error_message: string | null };
+const PUB_STATE: Record<string, string> = { scheduled: "Programada", queued: "En cola", uploading: "Subiendo", processing: "Procesando", published: "Publicada", private_pending_review: "Borrador en tu bandeja de TikTok", requiere_auditoria: "Requiere auditoría", failed: "Falló", cancelled: "Cancelada" };
 
 type Post = { id: string; title: string; caption: string | null; hashtags: string | null; targets: string[]; clip_id: string | null; lyric_video_id: string | null; scheduled_at: string; timezone: string; status: string };
 type Asset = { id: string; label: string; kind: "clip" | "lyric" };
@@ -43,7 +43,7 @@ export default function Calendario() {
     // Publicaciones reales de TikTok (programadas, en curso y hechas), cuentas conectadas y vídeos exportados listos para programar desde aquí.
     const { data: s } = await supabase.auth.getSession();
     const [{ data: pb }, { data: vr }, acc] = await Promise.all([
-      supabase.from("publications").select("id,state,scheduled_at,created_at,title,description,connection_id,error_message").eq("platform", "tiktok").order("created_at", { ascending: false }).limit(300),
+      supabase.from("publications").select("id,render_id,music_origin,privacy,state,scheduled_at,created_at,title,description,connection_id,error_message").eq("platform", "tiktok").order("created_at", { ascending: false }).limit(300),
       supabase.from("renders").select("id,created_at,clips!inner(title)").eq("kind", "mp4").eq("status", "ready").not("storage_path", "is", null).order("created_at", { ascending: false }).limit(100),
       fetch("/api/tiktok", { headers: { Authorization: `Bearer ${s.session?.access_token ?? ""}` } }).then((r) => (r.ok ? r.json() : { accounts: [] })).catch(() => ({ accounts: [] })),
     ]);
@@ -62,6 +62,15 @@ export default function Calendario() {
     const { data: s } = await supabase.auth.getSession();
     const r = await fetch(`/api/publish/${p.id}/cancel`, { method: "POST", headers: { Authorization: `Bearer ${s.session?.access_token ?? ""}`, "Content-Type": "application/json", "Idempotency-Key": `c-${p.id}-${Date.now()}` }, body: "{}" });
     setMsg(r.ok ? "Publicación cancelada." : "Esta publicación ya no se puede cancelar."); setOpenPub(null); load();
+  }
+  /** Reintentar: cancela la publicación fallida o bloqueada y crea otra con los mismos datos (la base de datos no admite dos activas del mismo vídeo en la cuenta). */
+  async function retryPub(p: Pub) {
+    if (!p.render_id || !p.connection_id) return setMsg("Faltan datos para reintentar: prográmala de nuevo.");
+    const { data: s } = await supabase.auth.getSession(), H = { Authorization: `Bearer ${s.session?.access_token ?? ""}`, "Content-Type": "application/json" };
+    await fetch(`/api/publish/${p.id}/cancel`, { method: "POST", headers: { ...H, "Idempotency-Key": `c-${p.id}-${Date.now()}` }, body: "{}" });
+    const r = await fetch("/api/publish", { method: "POST", headers: { ...H, "Idempotency-Key": `retry-${p.id}-${Date.now()}` }, body: JSON.stringify({ export_id: p.render_id, platform: "tiktok", connection_id: p.connection_id, music_origin: p.music_origin ?? "risk", title: p.title.slice(0, 100), description: p.description ?? p.title, privacy: p.privacy ?? "SELF_ONLY" }) });
+    const j = await r.json().catch(() => ({}));
+    setMsg(r.ok ? "Publicación reenviada a TikTok." : (j?.error?.message ?? "No se pudo reintentar.")); setOpenPub(null); load();
   }
   function newPost(day?: string) { setForm({ title: "", caption: "", hashtags: "", targets: [], date: day ?? ymd(new Date()), time: "10:00", tz: viewTz, asset: "", status: "planned" }); setMsg(null); }
   function edit(p: Post) {
@@ -168,7 +177,7 @@ export default function Calendario() {
             <p className="mono mt-1 text-xs text-[var(--muted)]">{new Date(pubAt(openPub)).toLocaleString("es", { dateStyle: "full", timeStyle: "short" })}</p>
             {openPub.description && <p className="mt-3 whitespace-pre-wrap rounded-xl bg-[var(--surface)] p-3">{openPub.description}</p>}
             {openPub.error_message && <p role="alert" className="mt-2 text-xs">⚠ {openPub.error_message}</p>}
-            <div className="mt-4 flex gap-2">{["scheduled", "queued", "failed", "requiere_auditoria"].includes(openPub.state) && <button onClick={() => cancelPub(openPub)} className="btn btn-ghost">Cancelar publicación</button>}<button onClick={() => setOpenPub(null)} className="btn btn-primary">Cerrar</button></div>
+            <div className="mt-4 flex gap-2">{["failed", "requiere_auditoria"].includes(openPub.state) && <button onClick={() => retryPub(openPub)} className="btn btn-primary">Reintentar</button>}{["scheduled", "queued", "failed", "requiere_auditoria"].includes(openPub.state) && <button onClick={() => cancelPub(openPub)} className="btn btn-ghost">Cancelar publicación</button>}<button onClick={() => setOpenPub(null)} className="btn btn-ghost">Cerrar</button></div>
             {openPub.state === "scheduled" && <p className="mt-2 text-xs text-[var(--muted)]">Para cambiar la hora o el texto, cancélala y prográmala de nuevo.</p>}
           </div>
         </div>)}
