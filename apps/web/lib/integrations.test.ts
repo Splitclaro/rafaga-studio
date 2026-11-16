@@ -84,7 +84,7 @@ test("import válido: sube a R2, registra el objeto y la fuente queda lista para
   assert.equal(((await again.json()) as { replay: boolean }).replay, true);
 });
 
-const connect = async (provider: string, token = "token-de-prueba-123456") => db.exec(`insert into oauth_connections(workspace_id, provider, scopes, access_token, status, created_by) values ('${wsA}','${provider}','{}','${token}','connected','${A}') on conflict (workspace_id, provider) do nothing`);
+const connect = async (provider: string, token = "token-de-prueba-123456") => db.exec(`insert into oauth_connections(workspace_id, provider, scopes, access_token, status, created_by) values ('${wsA}','${provider}','{}','${token}','connected','${A}') on conflict (workspace_id, provider, account_key) do nothing`);
 const json = (b: unknown, status = 200, headers: Record<string, string> = {}) => new Response(JSON.stringify(b), { status, headers: { "content-type": "application/json", ...headers } });
 
 test("YouTube: privacidad elegida (private por defecto) y private_pending_review si la respuesta la deja en privado", async () => {

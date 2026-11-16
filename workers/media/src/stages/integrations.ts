@@ -19,19 +19,19 @@ const scrub = (s: string) => s.replace(/(access_token|refresh_token|client_secre
 // ───────── Tokens ─────────
 const CFG: Record<OAuthProvider, [string, string]> = { google: ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"], dropbox: ["DROPBOX_CLIENT_ID", "DROPBOX_CLIENT_SECRET"], tiktok: ["TIKTOK_CLIENT_KEY", "TIKTOK_CLIENT_SECRET"] };
 interface Conn { access_token: string; refresh_token: string | null; expires_at: string | null; scopes: string[]; status: string }
-async function accessToken(ctx: StageCtx, ws: string, provider: OAuthProvider): Promise<string> {
+async function accessToken(ctx: StageCtx, ws: string, provider: OAuthProvider, conn?: string | null): Promise<string> {
   let c: Conn;
-  try { c = await ctx.rpc<Conn>("oauth_token_for", { p_ws: ws, p_provider: provider }); } catch { throw new StageError("not_connected", "Conecta la cuenta en Conexiones antes de continuar."); }
+  try { c = await ctx.rpc<Conn>("oauth_token_for", { p_ws: ws, p_provider: provider, ...(conn ? { p_conn: conn } : {}) }); } catch { throw new StageError("not_connected", "Conecta la cuenta en Conexiones antes de continuar."); }
   if (!c || c.status === "revoked") throw new StageError("not_connected", "La conexión está revocada. Vuelve a conectarla.");
   if (!needsRefresh(c.expires_at)) return c.access_token;
   const [idk, sk] = CFG[provider], id = ctx.env?.[idk], secret = ctx.env?.[sk];
   if (!c.refresh_token || !id || !secret) throw new StageError("not_connected", "La conexión caducó. Vuelve a conectarla.");
   try {
     const t = await refreshTokens(provider, { clientId: id, clientSecret: secret }, c.refresh_token, c.scopes, ctx.fetch);
-    await ctx.rpc("oauth_touch_for", { p_ws: ws, p_provider: provider, p_access: t.accessToken, p_expires_at: t.expiresAt, p_status: "connected", p_error: null });
+    await ctx.rpc("oauth_touch_for", { p_ws: ws, p_provider: provider, p_access: t.accessToken, p_expires_at: t.expiresAt, p_status: "connected", p_error: null, ...(conn ? { p_conn: conn } : {}) });
     return t.accessToken;
   } catch (e) {
-    await ctx.rpc("oauth_touch_for", { p_ws: ws, p_provider: provider, p_access: null, p_expires_at: null, p_status: "expired", p_error: scrub((e as Error).message) });
+    await ctx.rpc("oauth_touch_for", { p_ws: ws, p_provider: provider, p_access: null, p_expires_at: null, p_status: "expired", p_error: scrub((e as Error).message), ...(conn ? { p_conn: conn } : {}) });
     throw new StageError("not_connected", "La conexión caducó. Vuelve a conectarla.");
   }
 }
@@ -111,7 +111,7 @@ const importStage: StageImpl = {
 };
 
 // ───────── Publicación ─────────
-interface PubJob { publication_id: string; workspace_id: string; platform: "youtube" | "tiktok"; title: string; description: string | null; privacy: string; state: string; object_key: string | null; bytes: number | null }
+interface PubJob { publication_id: string; workspace_id: string; platform: "youtube" | "tiktok"; title: string; description: string | null; privacy: string; state: string; object_key: string | null; bytes: number | null; connection_id?: string | null }
 type Done = { state: "published" | "private_pending_review" | "requiere_auditoria" | "processing"; external?: string | null; code?: string; message?: string };
 export const TIKTOK_UNAUDITED = "unaudited_client_can_only_post_to_private_accounts";
 
@@ -133,7 +133,7 @@ async function publishYouTube(ctx: StageCtx, job: PubJob, file: string, f: typeo
 }
 
 async function publishTikTok(ctx: StageCtx, job: PubJob, file: string, f: typeof fetch): Promise<Done> {
-  const token = await accessToken(ctx, job.workspace_id, "tiktok"), size = statSync(file).size;
+  const token = await accessToken(ctx, job.workspace_id, "tiktok", job.connection_id), size = statSync(file).size;
   const H = { Authorization: `Bearer ${token}`, "Content-Type": "application/json; charset=UTF-8" };
   const audit = (e: { code?: string } | undefined): Done | null => (e?.code === TIKTOK_UNAUDITED ? { state: "requiere_auditoria", code: "requiere_auditoria", message: "TikTok solo permite publicar en cuentas privadas hasta que la app pase su auditoría." } : null);
   const info = await f("https://open.tiktokapis.com/v2/post/publish/creator_info/query/", { method: "POST", headers: H, body: "{}" });
@@ -144,7 +144,7 @@ async function publishTikTok(ctx: StageCtx, job: PubJob, file: string, f: typeof
   const level = options.includes(job.privacy) ? job.privacy : options[0];
   if (!level) throw new StageError("publish_failed", "TikTok no ofrece ninguna privacidad para esta cuenta.");
   const init = await f("https://open.tiktokapis.com/v2/post/publish/video/init/", { method: "POST", headers: H, body: JSON.stringify({
-    post_info: { title: job.title.slice(0, 90), privacy_level: level }, source_info: { source: "FILE_UPLOAD", video_size: size, chunk_size: size, total_chunk_count: 1 } }) });
+    post_info: { title: (job.description || job.title).slice(0, 2200), privacy_level: level }   /* el «título» de TikTok es la descripción completa con hashtags */, source_info: { source: "FILE_UPLOAD", video_size: size, chunk_size: size, total_chunk_count: 1 } }) });
   const nj = (await init.json().catch(() => ({}))) as { data?: { publish_id?: string; upload_url?: string }; error?: { code?: string; message?: string } };
   const a1 = audit(nj.error); if (a1) return a1;
   if (!init.ok || (nj.error?.code && nj.error.code !== "ok") || !nj.data?.upload_url || !nj.data.publish_id) throw new StageError("publish_failed", `TikTok rechazó la publicación (${nj.error?.code ?? init.status}).`);

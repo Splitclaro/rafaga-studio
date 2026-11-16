@@ -14,6 +14,7 @@ const NAV: (NavItem & { glyph: string })[] = [
   { href: "/app/style-studio", label: "Style Studio", icon: "type", glyph: "Aa", ready: true, group: "Lyric Studio" },
   { href: "/app/biblioteca", label: "Biblioteca", icon: "grid", glyph: "▥", ready: true, group: "Lyric Studio" },
   { href: "/app/calendario", label: "Calendario", icon: "calendar", glyph: "▦", ready: true, group: "Publicar" },
+  { href: "/app/tiktok", label: "TikTok", icon: "film", glyph: "♫", ready: true, group: "Publicar" },
   { href: "/app/analitica", label: "Analítica", icon: "chart", glyph: "▥", ready: true, group: "Publicar" },
   { href: "/app/conexiones", label: "Conexiones", icon: "link", glyph: "⚭", ready: true, group: "Publicar" },
   { href: "/app/exports", label: "Exportados", icon: "download", glyph: "⇪", ready: true, group: "Publicar" },

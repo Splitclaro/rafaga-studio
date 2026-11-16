@@ -3,7 +3,7 @@
 export type OAuthProvider = "google" | "dropbox" | "tiktok";
 export type Capability = "import_youtube" | "import_drive" | "import_dropbox" | "publish_youtube" | "publish_tiktok";
 export interface ProviderConfig { clientId: string; clientSecret: string }
-export interface Tokens { accessToken: string; refreshToken: string | null; expiresAt: string | null; scopes: string[]; accountLabel: string | null }
+export interface Tokens { accessToken: string; refreshToken: string | null; expiresAt: string | null; scopes: string[]; accountLabel: string | null; openId?: string | null }
 
 /** Permisos mínimos por capacidad. Publicar en YouTube exige `youtube.upload` y revisión de Google: no se pide hasta que esté autorizado. */
 export const SCOPES: Record<Capability, string[]> = {
@@ -43,10 +43,10 @@ export function authUrl(provider: OAuthProvider, o: { clientId: string; redirect
 export class OAuthError extends Error { status: number; constructor(status: number, message: string) { super(message); this.status = status; } }
 const scrub = (s: string) => s.replace(/(client_secret|refresh_token|access_token)=[^&\s]+/g, "$1=…").slice(0, 300);
 type Fetch = typeof fetch;
-interface TokenResp { access_token?: string; refresh_token?: string; expires_in?: number; scope?: string; error?: string; error_description?: string }
+interface TokenResp { open_id?: string; access_token?: string; refresh_token?: string; expires_in?: number; scope?: string; error?: string; error_description?: string }
 export function parseTokens(j: TokenResp, now = Date.now(), fallbackScopes: string[] = [], prevRefresh: string | null = null): Tokens {
   if (!j.access_token) throw new OAuthError(400, `${j.error ?? "token_error"}: ${j.error_description ?? "sin access_token"}`);
-  return { accessToken: j.access_token, refreshToken: j.refresh_token ?? prevRefresh, expiresAt: j.expires_in ? new Date(now + j.expires_in * 1000).toISOString() : null, scopes: j.scope ? j.scope.split(/[ ,]+/).filter(Boolean) : fallbackScopes, accountLabel: null };
+  return { accessToken: j.access_token, refreshToken: j.refresh_token ?? prevRefresh, expiresAt: j.expires_in ? new Date(now + j.expires_in * 1000).toISOString() : null, scopes: j.scope ? j.scope.split(/[ ,]+/).filter(Boolean) : fallbackScopes, accountLabel: null, openId: j.open_id ?? null };
 }
 async function post(url: string, body: URLSearchParams, f: Fetch, who: string, headers: Record<string, string> = {}): Promise<TokenResp> {
   const r = await f(url, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json", ...headers }, body });
