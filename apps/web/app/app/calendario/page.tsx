@@ -44,11 +44,11 @@ export default function Calendario() {
     const { data: s } = await supabase.auth.getSession();
     const [{ data: pb }, { data: vr }, acc] = await Promise.all([
       supabase.from("publications").select("id,render_id,music_origin,privacy,state,scheduled_at,created_at,title,description,connection_id,error_message").eq("platform", "tiktok").order("created_at", { ascending: false }).limit(300),
-      supabase.from("renders").select("id,created_at,clips!inner(title)").eq("kind", "mp4").eq("status", "ready").not("storage_path", "is", null).order("created_at", { ascending: false }).limit(100),
+      supabase.from("renders").select("id,created_at,clip_id,clips!inner(title)").eq("kind", "mp4").eq("status", "ready").not("storage_path", "is", null).order("created_at", { ascending: false }).limit(100),
       fetch("/api/tiktok", { headers: { Authorization: `Bearer ${s.session?.access_token ?? ""}` } }).then((r) => (r.ok ? r.json() : { accounts: [] })).catch(() => ({ accounts: [] })),
     ]);
     setPubs((pb ?? []) as Pub[]); setAccounts(((acc.accounts ?? []) as TtAccount[]).filter((a) => a.status === "connected"));
-    setVideos(((vr ?? []) as unknown as { id: string; clips: { title: string } }[]).map((r) => ({ id: r.id, title: r.clips.title })));
+    setVideos(((vr ?? []) as unknown as { id: string; clip_id: string; clips: { title: string } }[]).map((r) => ({ id: r.id, title: r.clips.title, clipId: r.clip_id })));
     setAssets([...ids.map((id) => ({ id, label: `Clip · ${ct.get(id) ?? "sin título"}`, kind: "clip" as const })), ...(lv ?? []).map((v) => ({ id: v.id, label: `Letra · ${st.get(v.song_id) ?? "canción"} #${v.variant}`, kind: "lyric" as const }))]);
   }, []);
   useEffect(() => { load(); }, [load]);

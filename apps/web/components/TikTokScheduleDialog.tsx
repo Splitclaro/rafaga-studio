@@ -3,12 +3,13 @@
 // Usa la misma API que la pantalla de TikTok (/api/publish): la base de datos aplica tope diario, duplicados y pausa.
 import { useState } from "react";
 import Icon from "./Icon";
+import ClipThumb from "./ui/ClipThumb";
 import { supabase } from "../lib/supabase";
 import { zonedToUtc, ZONES } from "../lib/tz";
 import { DEFAULT_PROFILE, type AccountProfile, type Copy } from "../lib/tiktokplan";
 
 export type TtAccount = { id: string; alias: string | null; account_label: string | null; status: string; profile: AccountProfile };
-export type TtVideo = { id: string; title: string };
+export type TtVideo = { id: string; title: string; clipId?: string };
 const MUSIC: [string, string][] = [["", "Elige el origen de la música…"], ["own", "Música propia"], ["licensed", "Con licencia"], ["free", "Libre de derechos"], ["risk", "Comercial: asumo el riesgo"]];
 const PRIVACY: Record<string, string> = { SELF_ONLY: "Solo yo (privado)", MUTUAL_FOLLOW_FRIENDS: "Amigos", FOLLOWER_OF_CREATOR: "Seguidores", PUBLIC_TO_EVERYONE: "Público" };
 const songOf = (t: string) => t.replace(/\s·\s#\d+$/, "").trim();
@@ -53,7 +54,11 @@ export default function TikTokScheduleDialog({ accounts, videos, day, tz, onClos
         {!accounts.length ? <p className="mt-4 text-sm">No hay cuentas de TikTok conectadas. <a href="/app/tiktok" className="font-semibold text-[var(--accent-ink)] underline">Conecta una cuenta</a> para programar desde el calendario.</p>
           : !videos.length ? <p className="mt-4 text-sm">No hay vídeos exportados listos. Genera variantes en Lyric Studio o exporta un clip.</p> : (
           <div className="mt-4 grid gap-3 text-sm">
-            <label>Vídeo<select value={video} onChange={(e) => setVideo(e.target.value)} className="input mt-1">{videos.map((v) => <option key={v.id} value={v.id}>{v.title}</option>)}</select></label>
+            {videos.length > 1 ? <div><span className="block">Vídeo</span>
+              <ul className="mt-1 flex max-h-44 gap-2 overflow-x-auto pb-1" role="radiogroup" aria-label="Vídeo">{videos.map((v) => (
+                <li key={v.id} className="shrink-0"><button type="button" role="radio" aria-checked={video === v.id} onClick={() => setVideo(v.id)} className={`relative block h-40 w-[90px] overflow-hidden rounded-xl bg-[var(--ink)] ${video === v.id ? "ring-2 ring-[var(--accent)]" : "opacity-80"}`} title={v.title}>
+                  {v.clipId ? <ClipThumb clipId={v.clipId} className="h-full w-full" /> : null}</button></li>))}</ul></div>
+              : vid?.clipId ? <div className="flex items-center gap-3"><span className="relative block h-28 w-16 shrink-0 overflow-hidden rounded-lg bg-[var(--ink)]"><ClipThumb clipId={vid.clipId} className="h-full w-full" /></span><span className="text-xs text-[var(--muted)]">Este vídeo se publicará en la cuenta y a la hora que elijas.</span></div> : null}
             <label>Cuenta<select value={account} onChange={(e) => pickAccount(e.target.value)} className="input mt-1">{accounts.map((a) => <option key={a.id} value={a.id}>{a.alias || a.account_label}{a.profile?.paused ? " (en pausa)" : ""}</option>)}</select></label>
             <div className="grid grid-cols-3 gap-2"><label>Fecha<input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="input mt-1" /></label><label>Hora<input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="input mt-1" /></label>
               <label>Zona horaria<select value={zone} onChange={(e) => setZone(e.target.value)} className="input mt-1">{[...new Set([zone, tz, ...ZONES])].map((t) => <option key={t}>{t}</option>)}</select></label></div>

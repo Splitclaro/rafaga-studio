@@ -7,6 +7,7 @@ import Icon from "../Icon";
 import { supabase } from "../../lib/supabase";
 import { downloadMp4, fileName } from "../../lib/download";
 import { renderUrl } from "../../lib/r2url";
+import PublishPopup from "../PublishPopup";
 import { StatusLabel, pieceStatus, fmtDur } from "./status";
 import type { WallClip } from "./ClipCard";
 
@@ -20,7 +21,7 @@ function ClipRowBase({ c, index, selected, onSelect, onFavorite, onDiscard, proj
   onFavorite: (id: string, v: boolean) => void | Promise<void>; onDiscard: (id: string) => void | Promise<void>; projectName: string;
 }) {
   const st = pieceStatus(c);
-  const [playing, setPlaying] = useState(false);
+  const [playing, setPlaying] = useState(false), [pub, setPub] = useState(false), [pubMsg, setPubMsg] = useState<string | null>(null);
   const [hook, setHook] = useState<string | null>(null);
   useEffect(() => { let on = true; supabase.from("clip_versions").select("composition").eq("clip_id", c.id).eq("version", c.current_version).single().then(({ data }) => { const w = ((data?.composition as { words?: { text: string }[] } | null)?.words ?? []).map((x) => x.text); if (!on || !w.length) return; const txt = w.join(" "); setHook(txt.match(/^.{12,170}?[.!?]/)?.[0] ?? w.slice(0, 16).join(" ") + "…"); }); return () => { on = false; }; }, [c.id, c.current_version]);
   const [text, setText] = useState<string | null>(null), [open, setOpen] = useState(false), [err, setErr] = useState<string | null>(null), [bd, setBd] = useState(false);
@@ -91,7 +92,9 @@ function ClipRowBase({ c, index, selected, onSelect, onFavorite, onDiscard, proj
           </div>
 
           <div className="mt-4 flex flex-wrap gap-2">
-            <Link href={`/app/calendario?clip=${c.id}`} className="btn btn-ghost !py-2 !text-sm">Publicar en redes</Link>
+            {c.r2 && c.renderId ? <button onClick={() => setPub(true)} className="btn btn-ghost !py-2 !text-sm">Publicar en redes</button> : <Link href={`/app/calendario?clip=${c.id}`} className="btn btn-ghost !py-2 !text-sm">Publicar en redes</Link>}
+            {pub && c.renderId && <PublishPopup renderId={c.renderId} clipId={c.id} title={c.title} onClose={() => setPub(false)} onDone={setPubMsg} />}
+            {pubMsg && <span role="status" className="text-xs text-[var(--muted)]">{pubMsg}</span>}
             {c.startMs != null && c.endMs != null && <button onClick={exportXml} title="Secuencia para Premiere Pro, DaVinci Resolve o Final Cut: apunta al vídeo original por nombre" className="btn btn-ghost !py-2 !text-sm">Exportar XML</button>}
             <button onClick={download} disabled={!c.path} title={c.path ? "" : "Aún no hay MP4: ábrelo en el editor y pulsa Exportar"} className="btn btn-primary !py-2 !text-sm"><Icon n="download" className="h-4 w-4" />Descargar</button>
             <Link href={`/app/c/${c.id}`} className="btn btn-ghost !py-2 !text-sm"><Icon n="scissors" className="h-4 w-4" />Editar</Link>

@@ -3,12 +3,13 @@
 // La publicación real depende de la app de TikTok for Developers del propietario: sin auditoría, TikTok solo permite publicaciones privadas.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
+import ClipThumb from "./ui/ClipThumb";
 import { pkce, randomState } from "@rafaga/providers/oauth";
 import { planSchedule, SUGGESTED_PROFILES, DEFAULT_PROFILE, type AccountProfile, type PlanAccount, type Copy } from "../lib/tiktokplan";
 import { utcToLocalInput, zonedToUtc, ZONES } from "../lib/tz";
 
 type Account = { id: string; alias: string | null; account_label: string | null; status: string; last_error: string | null; profile: AccountProfile };
-type Video = { id: string; title: string; created_at: string };
+type Video = { id: string; title: string; created_at: string; clip_id: string };
 type Queue = { id: string; state: string; scheduled_at: string | null; title: string; connection_id: string | null; error_message: string | null };
 type Row = { render: string; title: string; account: string; at: string; caption: string; source: Copy["source"]; result?: string };
 const STATE: Record<string, string> = { scheduled: "Programada", queued: "En cola", uploading: "Subiendo", processing: "Procesando", published: "Publicada", private_pending_review: "Borrador en tu bandeja de TikTok", requiere_auditoria: "Requiere auditoría de TikTok", failed: "Falló", cancelled: "Cancelada" };
@@ -32,10 +33,10 @@ export default function TikTokStudio() {
     const a = await api("/api/tiktok");
     setAccounts(a.ok ? (a.j.accounts as Account[]) : []);
     const [{ data: rs }, { data: ps }] = await Promise.all([
-      supabase.from("renders").select("id,created_at,clips!inner(title)").eq("kind", "mp4").eq("status", "ready").not("storage_path", "is", null).order("created_at", { ascending: false }).limit(80),
+      supabase.from("renders").select("id,created_at,clip_id,clips!inner(title)").eq("kind", "mp4").eq("status", "ready").not("storage_path", "is", null).order("created_at", { ascending: false }).limit(80),
       supabase.from("publications").select("id,state,scheduled_at,title,connection_id,error_message").eq("platform", "tiktok").order("scheduled_at", { ascending: true, nullsFirst: false }).limit(100),
     ]);
-    setVideos(((rs ?? []) as unknown as { id: string; created_at: string; clips: { title: string } }[]).map((r) => ({ id: r.id, title: r.clips.title, created_at: r.created_at })));
+    setVideos(((rs ?? []) as unknown as { id: string; created_at: string; clip_id: string; clips: { title: string } }[]).map((r) => ({ id: r.id, title: r.clips.title, created_at: r.created_at, clip_id: r.clip_id })));
     setQueue((ps ?? []) as Queue[]);
   }, []);
   useEffect(() => { void load(); }, [load]);
@@ -123,9 +124,16 @@ export default function TikTokStudio() {
         <h2 className="text-lg">Programar un lote</h2>
         <p className="text-sm text-[var(--muted)]">Elige los vídeos y las cuentas. Cada vídeo va a una sola cuenta; los horarios respetan las franjas y el tope diario de cada una.</p>
         <div className="mt-3 grid gap-4 md:grid-cols-2">
-          <div className="card p-3"><h3 className="text-sm font-semibold">Vídeos listos ({pickV.size})</h3>
-            {!videos.length && <p className="mt-2 text-sm text-[var(--muted)]">No hay exportaciones MP4 listas. Genera variantes en Lyric Studio.</p>}
-            <ul className="mt-2 max-h-64 space-y-1 overflow-auto">{videos.map((v) => <li key={v.id}><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={pickV.has(v.id)} onChange={() => setPickV((s) => { const n = new Set(s); if (n.has(v.id)) n.delete(v.id); else n.add(v.id); return n; })} /><span className="truncate">{v.title}</span></label></li>)}</ul></div>
+          <div className="card p-3"><div className="flex items-center justify-between"><h3 className="text-sm font-semibold">Clips listos ({pickV.size} elegidos)</h3>
+              {!!videos.length && <button type="button" className="text-xs underline" onClick={() => setPickV((s) => (s.size === videos.length ? new Set() : new Set(videos.map((v) => v.id))))}>{pickV.size === videos.length ? "Quitar todos" : "Elegir todos"}</button>}</div>
+            {!videos.length && <p className="mt-2 text-sm text-[var(--muted)]">No hay clips exportados listos. Genera variantes en Lyric Studio o exporta un clip.</p>}
+            <ul className="mt-2 grid max-h-96 grid-cols-3 gap-2 overflow-auto pr-1 sm:grid-cols-4" aria-label="Clips listos">{videos.map((v, i) => { const on = pickV.has(v.id), at = rows?.find((r) => r.render === v.id)?.at;
+              return (<li key={v.id}><button type="button" aria-pressed={on} onClick={() => setPickV((s) => { const n = new Set(s); if (n.has(v.id)) n.delete(v.id); else n.add(v.id); return n; })} title={v.title}
+                className={`relative block aspect-[9/16] w-full overflow-hidden rounded-xl bg-[var(--ink)] ${on ? "ring-2 ring-[var(--accent)]" : "opacity-80 hover:opacity-100"}`}>
+                <ClipThumb clipId={v.clip_id} className="h-full w-full" />
+                <span className="tnum absolute left-1.5 top-1.5 rounded-md bg-black/70 px-1.5 py-0.5 text-[11px] text-white">{i + 1}</span>
+                {on && <span aria-hidden className="absolute right-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-full bg-[var(--accent)] text-xs text-white">✓</span>}
+                {at && <span className="tnum absolute inset-x-0 bottom-0 bg-black/75 px-1 py-0.5 text-center text-[10px] text-white">{new Date(at).toLocaleString("es", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>}</button></li>); })}</ul></div>
           <div className="card p-3"><h3 className="text-sm font-semibold">Cuentas ({pickA.size})</h3>
             {!connected.length && <p className="mt-2 text-sm text-[var(--muted)]">Conecta una cuenta para poder programar.</p>}
             <ul className="mt-2 space-y-1">{connected.map((a) => <li key={a.id}><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={pickA.has(a.id)} onChange={() => setPickA((s) => { const n = new Set(s); if (n.has(a.id)) n.delete(a.id); else n.add(a.id); return n; })} />{a.alias || a.account_label}{a.profile?.paused ? " (en pausa)" : ""}</label></li>)}</ul>

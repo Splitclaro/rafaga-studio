@@ -2,13 +2,14 @@
 // Resultados de un lote de variantes: estado de cada una, avisos de casi duplicadas, descarga y «Reintentar» solo de la fallida.
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
+import PublishPopup from "./PublishPopup";
 
 type R = { id: string; status: string; ratio: string; kind: string; clip_id: string; error_code: string | null; clips?: { title: string } | null };
 const STATE: Record<string, string> = { queued: "En cola", running: "Renderizando", ready: "Lista", failed: "Falló", cancelled: "Cancelada" };
 
 const FORMATS = [["srt", "SRT"], ["vtt", "VTT"], ["lrc", "LRC"], ["lrc_word", "LRC por palabra"], ["ass", "ASS karaoke"], ["txt", "Texto"]] as const;
 export default function LyricResults({ exportIds, generationId, projectId, batchId }: { exportIds: string[]; generationId?: string; projectId?: string; batchId?: string }) {
-  const [fmt, setFmt] = useState<(typeof FORMATS)[number][0]>("srt"), [pubOpen, setPubOpen] = useState<string | null>(null), [pf, setPf] = useState({ platform: "youtube", title: "", privacy: "private", at: "" });
+  const [fmt, setFmt] = useState<(typeof FORMATS)[number][0]>("srt"), [pubOpen, setPubOpen] = useState<R | null>(null);
   const [rows, setRows] = useState<R[]>([]), [warn, setWarn] = useState<{ code: string; variants: number[] }[]>([]), [msg, setMsg] = useState<string | null>(null), [busy, setBusy] = useState<string | null>(null);
   const load = useCallback(async () => {
     if (!exportIds.length) return;
@@ -24,13 +25,6 @@ export default function LyricResults({ exportIds, generationId, projectId, batch
     const items = rows.map((r) => ({ clip_id: r.clip_id, version: 1, aspect: r.ratio, burn_subtitles: false, kind: fmt }));
     const res = await fetch("/api/exports", { method: "POST", headers: { Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token ?? ""}`, "Content-Type": "application/json", "Idempotency-Key": `lf-${crypto.randomUUID()}` }, body: JSON.stringify({ items, zip: false }) });
     setMsg(res.ok ? "Preparando el archivo de letra en Exportados." : "No se pudo preparar el archivo.");
-  }
-  /** Publicar o programar un MP4 (YouTube o TikTok): POST /api/publish con las mismas reglas y estados que clipping. */
-  async function publish(r: R) {
-    const body: Record<string, unknown> = { export_id: r.id, platform: pf.platform, title: pf.title.trim() || r.clips?.title || "Letra", privacy: pf.platform === "tiktok" ? (pf.privacy === "private" ? "SELF_ONLY" : "PUBLIC_TO_EVERYONE") : pf.privacy };
-    if (pf.at) body.scheduled_at = new Date(pf.at).toISOString();
-    const res = await fetch("/api/publish", { method: "POST", headers: { Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token ?? ""}`, "Content-Type": "application/json", "Idempotency-Key": `pub-${crypto.randomUUID()}` }, body: JSON.stringify(body) });
-    const j = await res.json().catch(() => ({})); setMsg(res.ok ? (j.state === "scheduled" ? "Programada. No se llama a la plataforma hasta la hora elegida." : "Publicando. Verás el estado en Conexiones.") : (j?.error?.message ?? "No se pudo publicar.")); setPubOpen(null);
   }
   /** Compartir: crea una entrega con clip y versión fijados; el enlace se gestiona en Entregas. */
   async function zip() {
@@ -53,15 +47,9 @@ export default function LyricResults({ exportIds, generationId, projectId, batch
           <span>{r.clips?.title ?? `Variante ${i + 1}`} · {r.ratio} · <span className="text-[var(--muted)]">{STATE[r.status] ?? r.status}</span></span>
           <span className="flex gap-2">
             {r.status === "ready" && <button className="btn btn-ghost !min-h-8" disabled={busy === r.id} onClick={() => void download(r)}>Descargar</button>}
-            {r.status === "ready" && r.kind === "mp4" && <button className="btn btn-ghost !min-h-8" onClick={() => setPubOpen(pubOpen === r.id ? null : r.id)}>Publicar</button>}
+            {r.status === "ready" && r.kind === "mp4" && <button className="btn btn-ghost !min-h-8" onClick={() => setPubOpen(r)}>Publicar en redes</button>}
             {(r.status === "failed" || r.status === "cancelled") && <button className="btn btn-ghost !min-h-8" disabled={busy === r.id} onClick={() => void retry(r)}>Reintentar</button>}
           </span>
-          {pubOpen === r.id && <div className="flex w-full flex-wrap items-center gap-2 text-xs">
-            <select aria-label="Plataforma" className="rounded border hairline px-1 py-1" value={pf.platform} onChange={(e) => setPf({ ...pf, platform: e.target.value })}><option value="youtube">YouTube</option><option value="tiktok">TikTok</option></select>
-            <input aria-label="Título" className="rounded border hairline px-2 py-1" placeholder="Título" maxLength={100} value={pf.title} onChange={(e) => setPf({ ...pf, title: e.target.value })} />
-            <select aria-label="Privacidad" className="rounded border hairline px-1 py-1" value={pf.privacy} onChange={(e) => setPf({ ...pf, privacy: e.target.value })}><option value="private">Privado</option><option value="public">Público</option></select>
-            <input aria-label="Programar para" type="datetime-local" className="rounded border hairline px-1 py-1" value={pf.at} onChange={(e) => setPf({ ...pf, at: e.target.value })} />
-            <button className="btn btn-primary !min-h-8" onClick={() => void publish(r)}>{pf.at ? "Programar" : "Publicar"}</button></div>}
         </li>))}</ul>
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <select aria-label="Formato de letra" className="rounded border hairline px-2 py-1" value={fmt} onChange={(e) => setFmt(e.target.value as typeof fmt)}>{FORMATS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
@@ -70,6 +58,7 @@ export default function LyricResults({ exportIds, generationId, projectId, batch
       <p className="text-xs text-[var(--muted)]">Si una variante falla, las demás siguen disponibles.</p>
       {batchId && <button className="btn btn-ghost !min-h-8" onClick={() => void zip()}>Descargar ZIP del lote</button>}
       {msg && <p role="status" className="text-sm">{msg}</p>}
+      {pubOpen && <PublishPopup renderId={pubOpen.id} clipId={pubOpen.clip_id} title={pubOpen.clips?.title ?? "Letra"} onClose={() => setPubOpen(null)} onDone={setMsg} />}
     </section>
   );
 }
