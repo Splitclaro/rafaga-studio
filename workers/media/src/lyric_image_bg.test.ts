@@ -28,3 +28,11 @@ test("un fondo JPG (rango completo) produce MP4 H.264 yuv420p estándar, no yuvj
 test("los efectos de cámara nuevos (cine 16 mm, VHS, cámara de noche, gran angular) renderizan MP4 H.264 yuv420p del tamaño esperado", () => {
   for (const filter of ["cine16", "vhs", "camara_noche", "gran_angular"]) assert.equal(render(comp({ settings: { filter }, preset: "tres_palabras" }), `f-${filter}`), "720,1280,yuv420p", filter);
 });
+
+test("entrada y salida suaves del audio: el render sigue siendo MP4 H.264 con audio y la duración pedida", () => {
+  const c = comp({ settings: { fadeIn: 1, fadeOut: 1 } });
+  assert.match(lyricRenderArgs(c, { audio: song, items: [photo], ass: join(tmp, "x.ass"), fontsDir: FONTS, out: join(tmp, "fade.mp4") }).join(" "), /afade=t=in.*afade=t=out/);
+  assert.equal(render(c, "fade"), "720,1280,yuv420p");
+  const d = spawnSync("ffprobe", ["-v", "error", "-show_entries", "stream=codec_type", "-of", "csv=p=0", join(tmp, "fade.mp4")], { encoding: "utf8" }).stdout;
+  assert.match(d, /audio/);
+});

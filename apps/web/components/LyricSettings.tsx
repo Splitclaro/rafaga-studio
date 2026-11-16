@@ -14,7 +14,7 @@ export default function LyricSettings({ composition, onChange }: { composition: 
       <label><span className={lbl}>Ajuste</span><select className={field} value={ui.fit} onChange={(e) => set({ fit: e.target.value as LyricUi["fit"] })}><option value="preserve">Mantener proporción</option><option value="fill">Llenar</option><option value="band">Banda</option></select></label>
       <label><span className={lbl}>Filtro</span><select className={field} value={ui.filter} onChange={(e) => set({ filter: e.target.value as LyricUi["filter"] })}>{FILTER_OPTIONS.map(([id, l]) => <option key={id} value={id}>{l}</option>)}</select></label>
       {range("Cambiar de plano cada (s)", "interval", 2, 15, 0.5)}{range("Recorte cinematográfico", "crop", 0, 1, 0.05)}{range("Oscurecer", "dim", 0, 0.8, 0.05)}
-      {range("Fundir con el vídeo", "blend", 0, 2, 0.1)}{range("Ligeras variaciones", "variation", 0, 100, 5)}
+      {range("Fundir con el vídeo", "blend", 0, 2, 0.1)}{range("Ligeras variaciones", "variation", 0, 100, 5)}{range("Entrada suave del audio (s)", "fadeIn", 0, 5, 0.5)}{range("Salida suave del audio (s)", "fadeOut", 0, 5, 0.5)}
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={ui.loop} onChange={(e) => set({ loop: e.target.checked })} />Repetir en bucle</label>
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={ui.shake} onChange={(e) => set({ shake: e.target.checked })} />Sacudida</label>
       <label className="flex items-center gap-2 text-sm"><input type="color" value={ui.color} onChange={(e) => set({ color: e.target.value })} aria-label="Color sólido" />Color sólido</label>

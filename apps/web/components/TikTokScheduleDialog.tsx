@@ -21,12 +21,12 @@ async function api(path: string, body: unknown, idem?: string) {
 
 export default function TikTokScheduleDialog({ accounts, videos, day, tz, onClose, onDone }: { accounts: TtAccount[]; videos: TtVideo[]; day: string; tz: string; onClose: () => void; onDone: (msg: string) => void }) {
   const [video, setVideo] = useState(videos[0]?.id ?? ""), [account, setAccount] = useState(accounts[0]?.id ?? ""), [date, setDate] = useState(day), [zone, setZone] = useState(accounts[0]?.profile?.tz || tz);
-  const [time, setTime] = useState((accounts[0]?.profile?.slots ?? DEFAULT_PROFILE.slots)[0] ?? "19:00"), [caption, setCaption] = useState(""), [music, setMusic] = useState(""), [privacy, setPrivacy] = useState<string>(accounts[0]?.profile?.privacy ?? DEFAULT_PROFILE.privacy);
+  const [time, setTime] = useState((accounts[0]?.profile?.slots ?? DEFAULT_PROFILE.slots)[0] ?? "19:00"), [caption, setCaption] = useState(""), [music, setMusic] = useState(""), [privacy, setPrivacy] = useState<string>("");   // TikTok exige que la privacidad no tenga valor por defecto: la elige quien publica
   const [opts, setOpts] = useState({ comment: false, duet: false, stitch: false, commercial: false, own_brand: false, paid_partner: false });   // TikTok exige que empiecen desactivadas
   const setOpt = (k: keyof typeof opts, v: boolean) => setOpts((o) => ({ ...o, [k]: v }));
   const [busy, setBusy] = useState<string | null>(null), [err, setErr] = useState<string | null>(null), [note, setNote] = useState<string | null>(null);
   const acc = accounts.find((a) => a.id === account), vid = videos.find((v) => v.id === video);
-  const pickAccount = (id: string) => { setAccount(id); const a = accounts.find((x) => x.id === id); if (a) { setZone(a.profile?.tz || tz); setPrivacy(a.profile?.privacy ?? DEFAULT_PROFILE.privacy); setTime((a.profile?.slots ?? DEFAULT_PROFILE.slots)[0] ?? time); } };
+  const pickAccount = (id: string) => { setAccount(id); const a = accounts.find((x) => x.id === id); if (a) { setZone(a.profile?.tz || tz); setTime((a.profile?.slots ?? DEFAULT_PROFILE.slots)[0] ?? time); } };
   let when: Date | null = null; try { when = zonedToUtc(`${date}T${time}`, zone).utc; } catch { when = null; }
 
   async function writeCopy() {
@@ -39,6 +39,7 @@ export default function TikTokScheduleDialog({ accounts, videos, day, tz, onClos
   async function schedule(now: boolean) {
     setErr(null);
     if (!vid || !acc) return setErr("Elige un vídeo y una cuenta.");
+    if (!privacy) return setErr("Elige quién puede ver el vídeo.");
     if (!music) return setErr("Indica el origen de la música: es obligatorio.");
     if (opts.commercial && !opts.own_brand && !opts.paid_partner) return setErr("Indica si promocionas tu marca o a un tercero.");
     if (opts.commercial && privacy === "SELF_ONLY") return setErr("El contenido comercial no puede ser privado: elige otra privacidad.");
@@ -63,6 +64,7 @@ export default function TikTokScheduleDialog({ accounts, videos, day, tz, onClos
                 <li key={v.id} className="shrink-0"><button type="button" role="radio" aria-checked={video === v.id} onClick={() => setVideo(v.id)} className={`relative block h-40 w-[90px] overflow-hidden rounded-xl bg-[var(--ink)] ${video === v.id ? "ring-2 ring-[var(--accent)]" : "opacity-80"}`} title={v.title}>
                   {v.clipId ? <ClipThumb clipId={v.clipId} renderId={v.id} className="h-full w-full" /> : null}</button></li>))}</ul></div>
               : vid?.clipId ? <div className="flex items-center gap-3"><span className="relative block h-28 w-16 shrink-0 overflow-hidden rounded-lg bg-[var(--ink)]"><ClipThumb clipId={vid.clipId} renderId={vid.id} className="h-full w-full" /></span><span className="text-xs text-[var(--muted)]">Este vídeo se publicará en la cuenta y a la hora que elijas.</span></div> : null}
+            <p className="text-xs text-[var(--muted)]">Se publicará como <strong className="text-[var(--ink)]">{acc?.account_label || acc?.alias || "tu cuenta"}</strong> en TikTok.</p>
             <label>Cuenta<select value={account} onChange={(e) => pickAccount(e.target.value)} className="input mt-1">{accounts.map((a) => <option key={a.id} value={a.id}>{a.alias || a.account_label}{a.profile?.paused ? " (en pausa)" : ""}</option>)}</select></label>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-3"><label>Fecha<input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="input mt-1" /></label><label>Hora<input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="input mt-1" /></label>
               <label>Zona horaria<select value={zone} onChange={(e) => setZone(e.target.value)} className="input mt-1">{[...new Set([zone, tz, ...ZONES])].map((t) => <option key={t}>{t}</option>)}</select></label></div>
@@ -70,7 +72,7 @@ export default function TikTokScheduleDialog({ accounts, videos, day, tz, onClos
             <div className="flex flex-wrap items-center gap-2"><button type="button" onClick={writeCopy} disabled={busy === "copy"} className="btn btn-ghost !min-h-9"><Icon n="wand" className="h-4 w-4" />{busy === "copy" ? "Escribiendo…" : "Escribir el texto con IA"}</button><span className="tnum text-xs text-[var(--muted)]">{caption.length} / 2200</span></div>
             {note && <p className="text-xs text-[var(--muted)]">{note}</p>}
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2"><label>Origen de la música<select value={music} onChange={(e) => setMusic(e.target.value)} className="input mt-1">{MUSIC.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
-              <label>Privacidad<select value={privacy} onChange={(e) => setPrivacy(e.target.value)} className="input mt-1">{Object.entries(PRIVACY).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label></div>
+              <label>Privacidad<select value={privacy} onChange={(e) => setPrivacy(e.target.value)} className="input mt-1"><option value="">Elige quién puede ver el vídeo…</option>{Object.entries(PRIVACY).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label></div>
             <fieldset className="grid gap-1.5"><legend className="mb-1">Interacción</legend>
               {([["comment", "Permitir comentarios"], ["duet", "Permitir dúos"], ["stitch", "Permitir stitch"]] as const).map(([k, l]) => <label key={k} className="flex items-center gap-2"><input type="checkbox" checked={opts[k]} onChange={(e) => setOpt(k, e.target.checked)} />{l}</label>)}</fieldset>
             <fieldset className="grid gap-1.5"><legend className="mb-1">Divulgación de contenido</legend>

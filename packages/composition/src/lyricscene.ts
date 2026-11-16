@@ -15,7 +15,7 @@ export interface LyricComposition {
   kind: "lyric"; v: 1; aspect: LyricAspect; res: 720 | 1080; fps: 30; mode: "letra" | "texto" | "portada";
   range: { start: number; end: number }; duration: number; words: LyricWord[]; style: CaptionStyleV2; preset: BehaviourPresetId;
   background: { kind: "media" | "color"; color: string; items: LyricBgItem[]; sequence: number[]; interval: number; order: "aleatorio" | "fijo"; loop: boolean; fit: "preserve" | "fill" | "band" };
-  settings: { crop: number; dim: number; filter: LyricFilter; shake: boolean; blend: number; variation: number };
+  settings: { crop: number; dim: number; filter: LyricFilter; shake: boolean; blend: number; variation: number; fadeIn: number; fadeOut: number };
   hook: { text: string; dur: number; start?: number } | null; message: { text: string; start: number; end: number } | null; cover: { title: string; artist?: string; front?: string; back?: string; motion?: "lenta" | "estatica"; lyrics?: boolean } | null; seed: number; variant_hash?: string;
 }
 const num = (v: unknown, lo: number, hi: number, d: number) => (typeof v === "number" && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : d);
@@ -31,7 +31,7 @@ export function validateLyricComposition(raw: unknown): LyricComposition {
     range: { start, end }, duration: end - start, words, style: { ...validateCaptionStyle(o.style), position: { x: 0.5, y: 0.5 } }, preset: o.preset in BEHAVIOUR_PRESETS ? o.preset : "frase_palabra_activa",
     background: { kind: b.kind === "media" ? "media" : "color", color: hex(b.color, "#000000"), items: Array.isArray(b.items) ? b.items.slice(0, 200) : [], sequence: Array.isArray(b.sequence) ? b.sequence.filter((n: unknown) => Number.isInteger(n)).slice(0, 500) : [],
       interval: num(b.interval, 0.5, 30, 3), order: b.order === "fijo" ? "fijo" : "aleatorio", loop: b.loop !== false, fit: b.fit === "fill" || b.fit === "band" ? b.fit : "preserve" },
-    settings: { crop: num(st.crop, 0, 1, 0), dim: num(st.dim, 0, 0.9, 0.2), filter: ["noche", "super8", "bn", "vapor", "cine16", "vhs", "camara_noche", "gran_angular"].includes(st.filter) ? st.filter : "none", shake: !!st.shake, blend: num(st.blend, 0, 2, 0), variation: Math.round(num(st.variation, 0, 100, 0)) },
+    settings: { crop: num(st.crop, 0, 1, 0), dim: num(st.dim, 0, 0.9, 0.2), filter: ["noche", "super8", "bn", "vapor", "cine16", "vhs", "camara_noche", "gran_angular"].includes(st.filter) ? st.filter : "none", shake: !!st.shake, blend: num(st.blend, 0, 2, 0), variation: Math.round(num(st.variation, 0, 100, 0)), fadeIn: num(st.fadeIn, 0, 5, 0), fadeOut: num(st.fadeOut, 0, 5, 0) },
     hook: o.hook && typeof o.hook.text === "string" ? { text: o.hook.text.slice(0, 120), dur: num(o.hook.dur, 0.5, 10, 3), ...(o.hook.start != null ? { start: num(o.hook.start, 0, 7200, 0) } : {}) } : null,
     message: o.message && typeof o.message.text === "string" ? { text: o.message.text.slice(0, 200), start: num(o.message.start, 0, 7200, 0), end: num(o.message.end, 0, 7200, 5) } : null,
     cover: o.cover && typeof o.cover.title === "string" ? { title: o.cover.title.slice(0, 120), ...(typeof o.cover.artist === "string" ? { artist: o.cover.artist.slice(0, 120) } : {}), ...(typeof o.cover.front === "string" ? { front: o.cover.front.slice(0, 200) } : {}), ...(typeof o.cover.back === "string" ? { back: o.cover.back.slice(0, 200) } : {}), motion: o.cover.motion === "estatica" ? "estatica" : "lenta", ...(o.cover.lyrics ? { lyrics: true } : {}) } : null,
@@ -344,7 +344,10 @@ export function lyricRenderArgs(c: LyricComposition, io: RenderIo): string[] {
   }
   chains.push(`[${last}]subtitles=${filt(io.ass)}:fontsdir=${filt(io.fontsDir)},scale=out_range=tv,format=yuv420p[v]`);   // fotos JPG llegan en rango completo (yuvj420p): se normaliza a rango TV para que el MP4 sea H.264/yuv420p estándar
   a.push("-ss", String(c.range.start), "-t", String(D), "-i", io.audio);
-  a.push("-filter_complex", chains.join(";"), "-map", "[v]", "-map", `${n}:a:0`, "-c:v", "libx264", "-preset", "superfast", "-crf", "20", "-r", "30", "-c:a", "aac", "-b:a", "192k", "-t", String(D), "-movflags", "+faststart", io.out);
+  const fi = Math.min(c.settings.fadeIn, D / 2), fo = Math.min(c.settings.fadeOut, D / 2);   // entrada y salida suaves del volumen
+  const af = [fi > 0 ? `afade=t=in:st=0:d=${fi.toFixed(2)}` : "", fo > 0 ? `afade=t=out:st=${(D - fo).toFixed(2)}:d=${fo.toFixed(2)}` : ""].filter(Boolean).join(",");
+  if (af) chains.push(`[${n}:a:0]${af}[a]`);
+  a.push("-filter_complex", chains.join(";"), "-map", "[v]", "-map", af ? "[a]" : `${n}:a:0`, "-c:v", "libx264", "-preset", "superfast", "-crf", "20", "-r", "30", "-c:a", "aac", "-b:a", "192k", "-t", String(D), "-movflags", "+faststart", io.out);
   return a;
 }
 

@@ -173,7 +173,7 @@ async function publishTikTok(ctx: StageCtx, job: PubJob, file: string, f: typeof
   if (unaudited(ij.error)) return toInbox();
   if (!info.ok || (ij.error?.code && ij.error.code !== "ok")) throw new StageError("publish_failed", `TikTok no devolvió los datos del creador (${info.status}).`);
   const options = ij.data?.privacy_level_options ?? [];
-  const level = options.includes(job.privacy) ? job.privacy : options[0];
+  const level = options.includes(job.privacy) ? job.privacy : options.includes("SELF_ONLY") ? "SELF_ONLY" : undefined;   // si la privacidad pedida no está disponible, nunca se amplía: se usa la más restrictiva o se falla
   if (!level) throw new StageError("publish_failed", "TikTok no ofrece ninguna privacidad para esta cuenta.");
   const init = await f(`${TT}/video/init/`, { method: "POST", headers: H, body: JSON.stringify({ post_info: { title: (job.description || job.title).slice(0, 2200), privacy_level: level, ...tikTokFlags(job.post_options, ij.data) }, source_info: src }) });   // el «título» de TikTok es la descripción completa con hashtags
   const nj = (await init.json().catch(() => ({}))) as TtEnv;

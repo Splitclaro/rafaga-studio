@@ -3,7 +3,7 @@ import type { LyricComposition } from "@rafaga/composition";
 
 export const FILTER_OPTIONS = [["none", "Ninguno"], ["noche", "Noche"], ["super8", "Super 8"], ["bn", "Blanco y negro"], ["vapor", "Vapor"], ["cine16", "Cine 16 mm (grano)"], ["vhs", "VHS"], ["camara_noche", "Cámara de noche"], ["gran_angular", "Gran angular"]] as const;
 export type FilterId = (typeof FILTER_OPTIONS)[number][0];
-export interface LyricUi { crop: number; dim: number; interval: number; sizeFine: number; filter: FilterId; fit: "preserve" | "fill" | "band"; order: "aleatorio" | "fijo"; loop: boolean; shake: boolean; blend: number; variation: number; color: string }
+export interface LyricUi { fadeIn: number; fadeOut: number; crop: number; dim: number; interval: number; sizeFine: number; filter: FilterId; fit: "preserve" | "fill" | "band"; order: "aleatorio" | "fijo"; loop: boolean; shake: boolean; blend: number; variation: number; color: string }
 const num = (v: unknown, lo: number, hi: number, d: number) => (typeof v === "number" && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : d);
 
 /** Valida los ajustes de la interfaz: recorte 0–1, oscurecer 0–0,8, intervalo 2–15 s, tamaño fino 0,6–1,6; filtro desconocido → ninguno. */
@@ -12,7 +12,7 @@ export function validateLyricSettings(raw: unknown): LyricUi {
   return {
     crop: num(o.crop, 0, 1, 0), dim: num(o.dim, 0, 0.8, 0.2), interval: num(o.interval, 2, 15, 3), sizeFine: num(o.sizeFine, 0.6, 1.6, 1),
     filter: FILTER_OPTIONS.some(([id]) => id === o.filter) ? (o.filter as FilterId) : "none", fit: o.fit === "fill" || o.fit === "band" ? o.fit : "preserve",
-    order: o.order === "fijo" ? "fijo" : "aleatorio", loop: o.loop !== false, shake: o.shake === true, blend: num(o.blend, 0, 2, 0), variation: Math.round(num(o.variation, 0, 100, 0)),
+    order: o.order === "fijo" ? "fijo" : "aleatorio", loop: o.loop !== false, shake: o.shake === true, fadeIn: num(o.fadeIn, 0, 5, 0), fadeOut: num(o.fadeOut, 0, 5, 0), blend: num(o.blend, 0, 2, 0), variation: Math.round(num(o.variation, 0, 100, 0)),
     color: typeof o.color === "string" && /^#[0-9a-f]{6}$/i.test(o.color) ? o.color.toUpperCase() : "#000000",
   };
 }
@@ -20,7 +20,7 @@ export function validateLyricSettings(raw: unknown): LyricUi {
 export function settingsToComposition(c: LyricComposition, ui: LyricUi): LyricComposition {
   const u = validateLyricSettings(ui);
   return { ...c, background: { ...c.background, color: u.color, interval: u.interval, order: u.order, loop: u.loop, fit: u.fit },
-    settings: { ...c.settings, crop: u.crop, dim: u.dim, filter: u.filter, shake: u.shake, blend: u.blend, variation: u.variation } };
+    settings: { ...c.settings, crop: u.crop, dim: u.dim, filter: u.filter, shake: u.shake, blend: u.blend, variation: u.variation, fadeIn: u.fadeIn, fadeOut: u.fadeOut } };
 }
 export const orientationOf = (w: number, h: number): "vertical" | "horizontal" | "cuadrado" => (Math.abs(w - h) / Math.max(w, h, 1) < 0.05 ? "cuadrado" : h > w ? "vertical" : "horizontal");
 export interface MediaClass { category?: string | null; motion?: string | null; mood?: string | null; width?: number | null; height?: number | null }
