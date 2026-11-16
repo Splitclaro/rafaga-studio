@@ -44,11 +44,12 @@ export default function CollectionsPicker({ selected, onSelect, cols, reload }: 
     if (error) return setMsg(error.code === "23505" ? "Ya tienes una colección con ese nombre." : error.message);
     setNewName(""); setMsg(null); await reload(); onSelect(data.id);
   }
-  async function upload(colId: string, files: FileList | null) {
-    if (!files?.length) return;
+  async function upload(colId: string, input: FileList | null) {
+    const files = input ? Array.from(input) : [];   // copia inmediata: el campo se vacía justo después de elegir y la lista «viva» quedaría vacía
+    if (!files.length) return;
     const { data: s } = await supabase.auth.getSession();
     const w = await ws();
-    for (const f of Array.from(files)) {
+    for (const f of files) {
       const mime = MEDIA.includes(f.type) ? f.type : /\.mov$/i.test(f.name) ? "video/quicktime" : /\.mp4$/i.test(f.name) ? "video/mp4" : /\.jpe?g$/i.test(f.name) ? "image/jpeg" : /\.png$/i.test(f.name) ? "image/png" : "";
       if (!mime) { setMsg(`«${f.name}» no es un vídeo (MP4, MOV, WebM) ni una foto (JPG, PNG, WebP).`); continue; }
       if (f.size > MAX_UPLOAD_BYTES) { setMsg(`«${f.name}» supera ${MAX_UPLOAD_BYTES / 1048576} MB.`); continue; }
