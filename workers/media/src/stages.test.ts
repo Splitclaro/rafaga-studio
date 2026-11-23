@@ -17,7 +17,7 @@ test("--list imprime las etapas en orden y no lee el entorno; --list-flags impri
   const r = run(["--list"], { SUPABASE_URL: undefined, SUPABASE_SECRET_KEY: undefined, SUPABASE_SERVICE_ROLE_KEY: undefined });
   assert.equal(r.status, 0); assert.deepEqual(r.stdout.trim().split("\n"), [...STAGES]);
   const f = run(["--list-flags"]);
-  assert.deepEqual(f.stdout.trim().split("\n"), ["--list", "--list-flags", "--drain", "--max-idle-s", "--sweep", "--keep-alive", "--plan", "--purge", "--zernio-event"]);
+  assert.deepEqual(f.stdout.trim().split("\n"), ["--list", "--list-flags", "--drain", "--max-idle-s", "--sweep", "--keep-alive", "--plan", "--purge"]);
 });
 
 test("sin credenciales sale con 78 nombrando la variable; etapa desconocida sale con 64", () => {

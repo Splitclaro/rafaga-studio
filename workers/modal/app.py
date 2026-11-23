@@ -2,10 +2,9 @@
 import hmac, json, os, subprocess
 import modal
 try:  # FastAPI solo existe en la imagen; `modal deploy` importa este archivo en local sin ella.
-    from fastapi import Header, HTTPException, Request
+    from fastapi import Header, HTTPException
 except ImportError:  # pragma: no cover
     Header = None
-    Request = None
     HTTPException = None
 
 NODE_VERSION = "24.22.3"
@@ -70,7 +69,7 @@ def _plan_and_spawn():
 
 @app.function(image=image, secrets=[secret], cpu=2.0, memory=4096, timeout=3600, max_containers=MAX_PARALLEL)   # tope duro de contenedores: protege el presupuesto de 1 USD
 def drain():
-    return _node("--drain", "--max-idle-s", "60", timeout=3540).returncode
+    return _node("--drain", "--max-idle-s", "15", timeout=3540).returncode   # espera corta tras vaciar la cola: Modal cobra el contenedor mientras está activo
 
 @app.function(image=image, secrets=[secret], cpu=2.0, memory=4096, timeout=3600, max_containers=1)
 def run_legacy():  # tipos v1 durante la coexistencia; mismo código que en Actions
@@ -83,21 +82,7 @@ def dispatch(body: dict, x_rafaga_wake: str | None = (Header(default=None) if He
         raise HTTPException(status_code=401, detail="bad_wake_secret")
     return {"accepted": True, "plan": _plan_and_spawn()}
 
-@app.function(image=image, secrets=[secret], timeout=60)
-@modal.fastapi_endpoint(method="POST")
-async def zernio_webhook(request: "Request"):  # eventos firmados de Zernio; la firma se verifica en Node sobre el cuerpo original
-    raw = (await request.body()).decode("utf-8", "replace")
-    p = subprocess.run(["node", "workers/media/src/stage.ts", "--zernio-event"], cwd="/repo", env=_env(), capture_output=True, text=True, timeout=30,
-                       input=json.dumps({"body": raw, "signature": request.headers.get("x-zernio-signature")}))
-    try:
-        res = json.loads(p.stdout.strip().splitlines()[-1])
-    except Exception:
-        raise HTTPException(status_code=500, detail="webhook_failed")
-    if res.get("http") != 200:
-        raise HTTPException(status_code=int(res.get("http", 500)), detail=str(res.get("result")))
-    return {"ok": True, "result": res.get("result")}
-
-@app.function(image=image, secrets=[secret], timeout=120, schedule=modal.Period(minutes=3))
+@app.function(image=image, secrets=[secret], timeout=120, schedule=modal.Period(hours=6))   # el barrido frecuente lo hace pg_cron (migración 118); aquí solo respaldo y purgas
 def sweeper():
     _node("--sweep", timeout=60)  # sweep_stale + enqueue_due_publications
     _plan_and_spawn()

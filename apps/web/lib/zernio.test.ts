@@ -3,17 +3,12 @@
 import { test, before } from "node:test";
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import type { PGlite } from "@electric-sql/pglite";
-import { freshDb, A } from "../../../supabase/tests/migrate.ts";
+import { freshDb, A, B } from "../../../supabase/tests/migrate.ts";
 import { fakeSupabaseFetch, tokenFor, SERVICE_TOKEN } from "../../../supabase/tests/fake-supabase.ts";
 import { handleIntegrations } from "./routes/integrations.ts";
-import { STAGE_IMPLS } from "../../../workers/media/src/stages/integrations.ts";
-import { handleZernioEvent } from "../../../workers/media/src/zernio_event.ts";
+import { handle, eventToUpdate as edgeEventToUpdate, verifySignature as edgeVerify } from "../../../supabase/functions/zernio-webhook/events.ts";
 import { zernioConfig, verifySignature, eventToUpdate } from "@rafaga/providers/zernio";
-import type { StageCtx, StageRow } from "../../../workers/media/src/stages/registry.ts";
 
 let db: PGlite, wsA: string; const renders: string[] = [];
 const ACC1 = "acc_perreo_0001", ACC2 = "acc_dedico_0001", ACC3 = "acc_tercera_001";
@@ -46,14 +41,15 @@ const zernio = (async (url: string | URL, init?: RequestInit) => {
 
 const call = (method: string, rest: string[], body?: unknown, idem?: string, integration = "publish", env: Record<string, string | undefined> = ENV()) =>
   handleIntegrations(new Request(`https://app/api/${integration}/${rest.join("/")}`, { method, headers: { Authorization: `Bearer ${tokenFor(A)}`, "Content-Type": "application/json", ...(idem ? { "Idempotency-Key": idem } : {}) }, ...(method === "GET" ? {} : { body: JSON.stringify(body ?? {}) }) }),
-    integration, rest, { f: fakeSupabaseFetch(db), wake: () => {}, provider: zernio, env });
+    integration, rest, { f: fakeSupabaseFetch(db), wake: () => {}, provider: zernio, env, fileBytes: async () => new Uint8Array(2048) });
 const inDays = (n: number) => new Date(Date.now() + n * 86400000).toISOString();
 const CONSENT = { preview_confirmed: true, express_consent: true, caption_reviewed: true, music_declared: true };
 const pub = (render: string, extra: Record<string, unknown> = {}, idem = "idem-" + Math.random().toString(36).slice(2, 12)) =>
   call("POST", [], { provider: "zernio", export_id: render, zernio_account_id: ACC1, title: "Canción - Artista", description: "Canción #musica", scheduled_at: inDays(1), consent: CONSENT, options: { comment: true }, ...extra }, idem);
-const workerCtx = (env = ENV()): StageCtx => ({ workerId: "w", componentVersions: {}, log: () => {}, tmpDir: mkdtempSync(join(tmpdir(), "zn-")), rpc: rpcSvc as never, fetch: zernio,
-  r2: { download: async (_k: string, d: string) => { writeFileSync(d, Buffer.alloc(2048)); }, upload: async () => {}, remove: async () => {} } as never, env });
-const runPub = (id: string, params: Record<string, unknown> = {}, env = ENV()) => STAGE_IMPLS.publish.run(workerCtx(env), { id: "s", params: { publication_id: id, ...params } } as unknown as StageRow);
+const rpcUser = async (who: string, fn: string, a: Record<string, unknown>) => (await (await fakeSupabaseFetch(db)(`https://x/rest/v1/rpc/${fn}`, { method: "POST", headers: { Authorization: `Bearer ${tokenFor(who)}` }, body: JSON.stringify(a) })).json()) as Record<string, unknown>;
+const retry = (id: string) => call("POST", [id, "retry"], {});
+const cancel = (id: string) => call("POST", [id, "cancel"], {});
+const body = async (r: Response) => (await r.json()) as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 const row = async (id: string) => (await q<Record<string, unknown>>(`select state, zernio_post_id, error_code, retry_at, post_url, scheduled_at, attempts, external_id, consent, provider from publications where id='${id}'`))[0];
 const sign = (body: string, secret = "whsec_test_123") => createHmac("sha256", secret).update(body).digest("hex");
 
@@ -106,15 +102,12 @@ test("publicar: tercera cuenta bloqueada, sin consentimiento rechazado, fecha ve
   assert.equal((await q<{ n: number }>("select count(*)::int n from publications where provider='zernio'"))[0].n, 0);
 });
 
-test("publicar y programar: se encola al confirmar, la fecha va en UTC a Zernio, la clave no llega a la subida y el consentimiento queda registrado", async () => {
+test("publicar y programar: se envía a Zernio desde el servidor web al confirmar, la fecha va en UTC, la clave no llega a la subida y el consentimiento queda registrado", async () => {
   calls = []; const when = inDays(2);
   const r = await pub(renders[1], { scheduled_at: when, options: { comment: true, duet: false, stitch: false } }, "idem-programar-1"); assert.equal(r.status, 202);
-  const p = (await r.json()) as { publication_id: string; job_id: string }; assert.ok(p.job_id);
-  assert.equal((await row(p.publication_id)).state, "queued"); assert.equal((await row(p.publication_id)).provider, "zernio");
-  const replay = (await (await pub(renders[1], { scheduled_at: when }, "idem-programar-1")).json()) as { replay: boolean; publication_id: string }; assert.equal(replay.replay, true); assert.equal(replay.publication_id, p.publication_id);
-  assert.equal((await pub(renders[1], { scheduled_at: when }, "idem-otra-clave-2")).status, 409, "mismo vídeo y cuenta: duplicado");
-  await runPub(p.publication_id);
-  const x = await row(p.publication_id); assert.equal(x.state, "scheduled"); assert.match(String(x.zernio_post_id), /^zp_/); assert.equal(x.external_id, p.publication_id);
+  const p = await body(r); assert.equal(p.state, "scheduled", JSON.stringify(p)); assert.equal(p.job_id, undefined, "no se encola ningún trabajo en Modal");
+  const x = await row(p.publication_id); assert.equal(x.state, "scheduled"); assert.equal(x.provider, "zernio"); assert.match(String(x.zernio_post_id), /^zp_/); assert.equal(x.external_id, p.publication_id);
+  assert.equal((await q<{ n: number }>(`select count(*)::int n from jobs where kind='publish'`))[0].n, 0, "ningún job de publicación para el worker");
   assert.equal((x.consent as Record<string, unknown>).express_consent, true); assert.ok((x.consent as Record<string, unknown>).user);
   const post = calls.find((c) => c.method === "POST" && c.url.endsWith("/posts"))!; const b = post.body as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
   assert.equal(post.headers["Idempotency-Key"], p.publication_id); assert.equal(b.scheduledFor, new Date(when).toISOString()); assert.equal(b.publishNow, undefined);
@@ -122,77 +115,82 @@ test("publicar y programar: se encola al confirmar, la fecha va en UTC a Zernio,
   assert.equal(b.tiktokSettings.express_consent_given, true); assert.equal(b.tiktokSettings.content_preview_confirmed, true); assert.equal(b.platforms.length, 1); assert.equal(b.platforms[0].accountId, ACC1); assert.equal(b.externalId, p.publication_id);
   const put = calls.find((c) => c.method === "PUT")!; assert.equal(put.headers.Authorization, undefined, "la clave de API no se envía al uploadUrl"); assert.equal(put.headers["Content-Type"], "video/mp4");
   assert.ok(calls.filter((c) => c.url.startsWith("https://zernio.com")).every((c) => c.headers.Authorization === "Bearer zk_secret_test_key_123"));
-  // Una segunda ejecución no reenvía; y enqueue_due_publications no vuelve a enviar la ya programada en Zernio aunque venza.
-  calls = []; await runPub(p.publication_id); assert.equal(calls.length, 0);
+  const replay = await body(await pub(renders[1], { scheduled_at: when }, "idem-programar-1")); assert.equal(replay.replay, true); assert.equal(replay.publication_id, p.publication_id);
+  assert.equal((await pub(renders[1], { scheduled_at: when }, "idem-otra-clave-2")).status, 409, "mismo vídeo y cuenta: duplicado");
+  calls = []; assert.equal((await retry(p.publication_id)).status, 200); assert.equal(calls.filter((c) => c.method === "POST").length, 0, "reintentar una ya enviada no la reenvía");
   await db.exec(`update publications set scheduled_at = now() - interval '1 minute' where id='${p.publication_id}'`);
-  assert.equal(await rpcSvc<number>("enqueue_due_publications"), 0); assert.equal((await row(p.publication_id)).state, "scheduled");
+  assert.equal(await rpcSvc<number>("enqueue_due_publications"), 0, "enqueue_due_publications no vuelve a enviar la de Zernio al vencer"); assert.equal((await row(p.publication_id)).state, "scheduled");
+});
+
+test("sin cuota de render: publicar en Zernio no necesita a Modal (ni jobs, ni worker, ni /api/wake)", async () => {
+  let woken = 0; calls = [];
+  const r = await handleIntegrations(new Request("https://app/api/publish/", { method: "POST", headers: { Authorization: `Bearer ${tokenFor(A)}`, "Content-Type": "application/json", "Idempotency-Key": "idem-sin-modal-1" }, body: JSON.stringify({ provider: "zernio", export_id: renders[18], zernio_account_id: ACC2, title: "t", description: "d", scheduled_at: inDays(3), consent: CONSENT, options: {} }) }),
+    "publish", [], { f: fakeSupabaseFetch(db), wake: () => { woken++; }, provider: zernio, env: ENV(), fileBytes: async () => new Uint8Array(10) });
+  assert.equal(r.status, 202); assert.equal(woken, 0); assert.equal((await body(r)).state, "scheduled");
 });
 
 test("fecha que vence antes de llamar a Zernio: no se envía (evita una publicación inmediata no deseada)", async () => {
-  const r = (await (await pub(renders[2], { scheduled_at: inDays(1) })).json()) as { publication_id: string };
+  mode = "rate"; const r = await body(await pub(renders[2], { scheduled_at: inDays(1) })); mode = "ok"; assert.equal(r.state, "queued");
   await db.exec(`update publications set scheduled_at = now() + interval '5 seconds' where id='${r.publication_id}'`); calls = [];
-  await runPub(r.publication_id);
-  assert.equal(calls.filter((c) => c.method === "POST").length, 0); const x = await row(r.publication_id); assert.equal(x.state, "failed"); assert.equal(x.error_code, "schedule_in_past");
+  const out = await body(await retry(r.publication_id));
+  assert.equal(calls.filter((c) => c.method === "POST" && c.url.endsWith("/posts")).length, 0); assert.equal(out.state, "failed"); assert.equal(out.code, "schedule_in_past");
 });
 
 test("«Publicar ahora» es una acción explícita: envía publishNow y queda en proceso", async () => {
-  calls = []; const r = (await (await pub(renders[3], { publish_now: true, scheduled_at: undefined })).json()) as { publication_id: string }; await runPub(r.publication_id);
-  assert.equal(((calls.find((c) => c.method === "POST" && c.url.endsWith("/posts"))!.body) as { publishNow: boolean }).publishNow, true); assert.equal((await row(r.publication_id)).state, "processing");
+  calls = []; const r = await body(await pub(renders[3], { publish_now: true, scheduled_at: undefined }));
+  assert.equal(((calls.find((c) => c.method === "POST" && c.url.endsWith("/posts"))!.body) as { publishNow: boolean }).publishNow, true); assert.equal(r.state, "processing"); assert.equal((await row(r.publication_id)).state, "processing");
 });
 
-test("límite de Zernio (429): sigue pendiente con reintento programado y la clave de idempotencia no cambia; 402 detiene el envío sin tarjeta", async () => {
-  const r = (await (await pub(renders[4])).json()) as { publication_id: string };
-  mode = "rate"; await runPub(r.publication_id); let x = await row(r.publication_id);
-  assert.equal(x.state, "queued"); assert.equal(x.error_code, "zernio_hold"); assert.ok(x.retry_at); assert.equal(x.attempts, 1);
-  mode = "ok"; await db.exec(`update publications set retry_at = now() - interval '1 second' where id='${r.publication_id}'`);
-  assert.equal(await rpcSvc<number>("enqueue_due_publications"), 1);
-  calls = []; await runPub(r.publication_id, { attempt: 1 }); x = await row(r.publication_id); assert.equal(x.state, "scheduled");
+test("límite de Zernio (429): sigue pendiente con reintento y la misma clave de idempotencia; 402 detiene el envío sin tarjeta", async () => {
+  mode = "rate"; const r = await body(await pub(renders[4])); mode = "ok";
+  let x = await row(r.publication_id); assert.equal(r.state, "queued"); assert.equal(x.state, "queued"); assert.equal(x.error_code, "zernio_hold"); assert.ok(x.retry_at); assert.equal(x.attempts, 1);
+  calls = []; const again = await body(await retry(r.publication_id)); x = await row(r.publication_id); assert.equal(again.state, "scheduled"); assert.equal(x.state, "scheduled");
   assert.equal(calls.find((c) => c.method === "POST" && c.url.endsWith("/posts"))!.headers["Idempotency-Key"], r.publication_id);
-  const p2 = (await (await pub(renders[5])).json()) as { publication_id: string }; mode = "payment"; await runPub(p2.publication_id); mode = "ok";
-  const y = await row(p2.publication_id); assert.equal(y.state, "failed"); assert.equal(y.error_code, "zernio_payment");
+  mode = "payment"; const p2 = await body(await pub(renders[5])); mode = "ok";
+  const y = await row(p2.publication_id); assert.equal(y.state, "failed"); assert.equal(y.error_code, "zernio_payment"); assert.equal(p2.code, "zernio_payment");
 });
 
 test("resultado indeterminado (red): se reintenta con la misma clave y, pasadas 23 h, no se reenvía sin conciliación", async () => {
-  const r = (await (await pub(renders[6])).json()) as { publication_id: string };
-  mode = "net"; await runPub(r.publication_id); mode = "ok"; let x = await row(r.publication_id); assert.equal(x.error_code, "zernio_indeterminate"); assert.equal(x.state, "queued");
+  mode = "net"; const r = await body(await pub(renders[6])); mode = "ok"; let x = await row(r.publication_id); assert.equal(x.error_code, "zernio_indeterminate"); assert.equal(x.state, "queued");
   await db.exec(`update publications set created_at = now() - interval '25 hours' where id='${r.publication_id}'`); calls = [];
-  await runPub(r.publication_id, { attempt: 1 }); x = await row(r.publication_id);
+  await retry(r.publication_id); x = await row(r.publication_id);
   assert.equal(calls.filter((c) => c.method === "POST").length, 0); assert.equal(x.error_code, "zernio_reconcile"); assert.equal(x.state, "failed");
 });
 
-test("cuenta que no admite publicación pública: no se sube nada y se explica el motivo", async () => {
-  const r = (await (await pub(renders[7])).json()) as { publication_id: string };
-  mode = "no_public"; calls = []; await runPub(r.publication_id); mode = "ok";
+test("cuenta que no admite publicación pública: se rechaza antes de crear nada y, si cambia después, no se sube nada", async () => {
+  mode = "no_public"; const pre = await pub(renders[7]); assert.equal(pre.status, 409); assert.equal((await body(pre)).error.code, "account_cannot_post"); mode = "ok";
+  mode = "rate"; const r = await body(await pub(renders[7])); mode = "no_public"; calls = [];
+  await retry(r.publication_id); mode = "ok";
   assert.equal(calls.filter((c) => c.method === "PUT" || c.url.endsWith("/posts")).length, 0); assert.equal((await row(r.publication_id)).error_code, "account_cannot_post");
 });
 
-test("cancelar propaga a Zernio; si ya estaba publicada se refleja el resultado real", async () => {
-  const a = (await (await pub(renders[8])).json()) as { publication_id: string }; await runPub(a.publication_id);
-  const c = await call("POST", [a.publication_id, "cancel"], {}); assert.equal(c.status, 200); const cj = (await c.json()) as { job_id?: string }; assert.ok(cj.job_id, "se encola la cancelación en Zernio");
-  assert.equal((await row(a.publication_id)).state, "cancelled"); calls = []; await runPub(a.publication_id, { action: "cancel" });
+test("cancelar propaga a Zernio; si ya estaba publicada se refleja el resultado real; sin enviar no se llama a Zernio", async () => {
+  const a = await body(await pub(renders[8])); calls = [];
+  const c = await cancel(a.publication_id); assert.equal(c.status, 200); assert.equal((await body(c)).cancelled_at_provider, true);
   assert.equal(calls.filter((x) => x.method === "DELETE").length, 1); assert.equal((await row(a.publication_id)).state, "cancelled");
-  const b = (await (await pub(renders[9])).json()) as { publication_id: string }; await runPub(b.publication_id);
-  await call("POST", [b.publication_id, "cancel"], {}); mode = "published_on_delete_400"; await runPub(b.publication_id, { action: "cancel" }); mode = "ok";
-  assert.equal((await row(b.publication_id)).state, "published");
-  const d = (await (await pub(renders[10])).json()) as { publication_id: string }; await call("POST", [d.publication_id, "cancel"], {});   // aún sin enviar: no hay nada que borrar en Zernio
-  calls = []; await runPub(d.publication_id); assert.equal(calls.filter((x) => x.method === "POST").length, 0, "una publicación cancelada no se envía");
+  const b = await body(await pub(renders[9])); mode = "published_on_delete_400"; const cb = await body(await cancel(b.publication_id)); mode = "ok";
+  assert.equal(cb.cancelled_at_provider, false); assert.equal(cb.reason, "already_published"); assert.equal((await row(b.publication_id)).state, "published");
+  mode = "rate"; const d = await body(await pub(renders[10])); mode = "ok"; calls = [];
+  await cancel(d.publication_id); assert.equal(calls.length, 0, "aún sin enviar: nada que borrar en Zernio");
+  assert.equal((await body(await retry(d.publication_id))).state, "cancelled"); assert.equal(calls.filter((x) => x.method === "POST").length, 0, "una publicación cancelada no se envía");
 });
 
 test("límite de 15 vídeos por cuenta en 24 h: el 16.º se rechaza con daily_cap y otra cuenta no se ve afectada", async () => {
   const day = Date.parse(inDays(20));
   for (let i = 2; i < 17; i++) assert.equal((await pub(renders[i], { zernio_account_id: ACC2, scheduled_at: new Date(day + i * 60000).toISOString() })).status, 202, `vídeo ${i}`);
   const over = await pub(renders[0], { zernio_account_id: ACC2, scheduled_at: new Date(day + 30 * 60000).toISOString() });
-  assert.equal(over.status, 409); assert.equal(((await over.json()) as { error: { code: string } }).error.code, "daily_cap");
+  assert.equal(over.status, 409); assert.equal((await body(over)).error.code, "daily_cap");
   assert.equal((await pub(renders[0], { zernio_account_id: ACC1, scheduled_at: new Date(day + 30 * 60000).toISOString() })).status, 202);
 });
 
-test("webhook: firma obligatoria, deduplicado por id de evento, «Publicada · enlace pendiente» hasta recibir url_resolved", async () => {
-  const r = (await (await pub(renders[1], { zernio_account_id: ACC2, scheduled_at: inDays(9) }, "idem-webhook-1")).json()) as { publication_id: string }; await runPub(r.publication_id);
+test("webhook (Edge Function): firma obligatoria, deduplicado por id de evento, «Publicada · enlace pendiente» hasta recibir url_resolved", async () => {
+  const r = await body(await pub(renders[1], { zernio_account_id: ACC2, scheduled_at: inDays(9) }, "idem-webhook-1"));
   const zp = String((await row(r.publication_id)).zernio_post_id);
   const ev = (id: string, event: string, extra: Record<string, unknown> = {}) => JSON.stringify({ id, event, timestamp: new Date().toISOString(), post: { id: zp, status: "published" }, platform: { name: "tiktok", status: "published" }, ...extra });
-  const send = (body: string, sig = sign(body)) => handleZernioEvent(rpcSvc as never, ENV(), { body, signature: sig });
+  const rpc = (args: Record<string, unknown>) => rpcSvc<Record<string, unknown>>("zernio_event", args);
+  const send = async (b: string, sig?: string) => handle(b, sig ?? sign(b), "whsec_test_123", rpc);
   assert.equal((await send(ev("e1", "post.published"), "00")).http, 401); assert.equal((await send(ev("e1", "post.published"), "")).http, 401);
-  assert.equal((await handleZernioEvent(rpcSvc as never, { ...ENV(), ZERNIO_WEBHOOK_SECRET: "" }, { body: "{}", signature: "x" })).http, 503);
+  assert.equal((await handle("{}", "x", "", rpc)).http, 503);
   assert.equal((await send(ev("e1", "post.published"))).result, "applied"); let x = await row(r.publication_id); assert.equal(x.state, "published"); assert.equal(x.post_url, null);
   assert.equal((await send(ev("e1", "post.published"))).result, "duplicate", "el mismo id de evento no se aplica dos veces");
   const url = "https://www.tiktok.com/@telodedico.music/video/123456789";
@@ -201,13 +199,22 @@ test("webhook: firma obligatoria, deduplicado por id de evento, «Publicada · e
   assert.equal((await send(ev("e3", "post.failed", { platform: { name: "tiktok", error: "x" } }))).result, "applied");
   assert.equal((await send(JSON.stringify({ id: "e4", event: "post.published", post: { id: "zp_desconocido" }, platform: { name: "tiktok" } }))).result, "unknown_post");
   assert.equal((await send(JSON.stringify({ id: "e5", event: "post.published", post: { id: zp }, platform: { name: "instagram" } }))).result, "ignored");
-  assert.equal(verifySignature("{}", sign("{}"), "whsec_test_123"), true); assert.equal(eventToUpdate({ id: "z", event: "account.disconnected" }), null);
 });
 
-test("seguridad de funciones: el worker (service_role) sí; un usuario no puede ejecutar finish_zernio ni zernio_event", async () => {
-  const names = ["finish_zernio", "zernio_event", "publication_job", "enqueue_due_publications"];
-  const rows = await q<{ n: string; auth: boolean; anon: boolean; svc: boolean }>(`select p.proname n, has_function_privilege('authenticated', p.oid,'execute') auth, has_function_privilege('anon', p.oid,'execute') anon, has_function_privilege('service_role', p.oid,'execute') svc from pg_proc p join pg_namespace s on s.oid=p.pronamespace where s.nspname='public' and p.proname in (${names.map((n) => `'${n}'`).join(",")})`);
-  assert.equal(rows.length, 4); for (const x of rows) { assert.equal(x.auth, false, x.n); assert.equal(x.anon, false, x.n); assert.equal(x.svc, true, x.n); }
-  const cl = await q<{ auth: boolean; anon: boolean }>(`select has_function_privilege('authenticated', p.oid,'execute') auth, has_function_privilege('anon', p.oid,'execute') anon from pg_proc p where p.proname='request_zernio_publication'`);
-  assert.deepEqual(cl[0], { auth: true, anon: false });
+test("la Edge Function y el cliente del servidor interpretan igual las firmas y los eventos", async () => {
+  const b = JSON.stringify({ id: "p1", event: "post.tiktok.url_resolved", post: { id: "zp_9" }, platform: { name: "tiktok", publishedUrl: "https://www.tiktok.com/@x/video/1" } });
+  assert.equal(verifySignature(b, sign(b), "whsec_test_123"), await edgeVerify(b, sign(b), "whsec_test_123")); assert.equal(await edgeVerify(b, sign(b, "otro"), "whsec_test_123"), false);
+  for (const e of ["post.scheduled", "post.published", "post.platform.published", "post.tiktok.url_resolved", "post.failed", "post.platform.failed", "post.partial", "account.disconnected"])
+    for (const plat of ["tiktok", "instagram"]) { const ev = { id: "i", event: e, post: { id: "zp_1" }, platform: { name: plat, publishedUrl: "https://www.tiktok.com/@x/video/1", error: "boom" } }; assert.deepEqual(edgeEventToUpdate(ev), eventToUpdate(ev), `${e}/${plat}`); }
+});
+
+test("seguridad de funciones: solo el servicio ejecuta zernio_event; el usuario las de cliente; otro usuario no toca publicaciones ajenas ni estados no permitidos", async () => {
+  const rows = await q<{ n: string; auth: boolean; anon: boolean; svc: boolean }>(`select p.proname n, has_function_privilege('authenticated', p.oid,'execute') auth, has_function_privilege('anon', p.oid,'execute') anon, has_function_privilege('service_role', p.oid,'execute') svc from pg_proc p join pg_namespace s on s.oid=p.pronamespace where s.nspname='public' and p.proname in ('zernio_event','enqueue_due_publications','request_zernio_publication','zernio_send_context','record_zernio_send')`);
+  assert.equal(rows.length, 5);
+  for (const x of rows) { assert.equal(x.anon, false, x.n); const svcOnly = ["zernio_event", "enqueue_due_publications"].includes(x.n); assert.equal(x.auth, !svcOnly, x.n); assert.equal(x.svc, true, x.n); }
+  const id = (await q<{ id: string }>(`select id from publications where provider='zernio' and state='scheduled' limit 1`))[0].id;
+  assert.match(JSON.stringify(await rpcUser(B, "record_zernio_send", { p_publication: id, p_state: "failed", p_zernio_post: null, p_code: null, p_message: null, p_retry_at: null })), /not_found|P0002/);
+  assert.match(JSON.stringify(await rpcUser(B, "zernio_send_context", { p_publication: id })), /not_found|P0002/);
+  assert.match(JSON.stringify(await rpcUser(A, "record_zernio_send", { p_publication: id, p_state: "published", p_zernio_post: null, p_code: null, p_message: null, p_retry_at: null })), /invalid_state/);
+  assert.match(JSON.stringify(await rpcUser(B, "request_zernio_publication", { p_render: renders[0], p_title: "x", p_description: null, p_scheduled_at: inDays(1), p_publish_now: false, p_idem: "idem-ajeno-1234", p_account: ACC1, p_username: "@x", p_options: {}, p_consent: CONSENT, p_ws: wsA })), /not_found|P0002/);
 });

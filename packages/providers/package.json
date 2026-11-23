@@ -10,7 +10,8 @@
     "./groq": "./src/groq.ts",
     "./r2": "./src/r2.ts",
     "./net": "./src/net.ts",
-    "./zernio": "./src/zernio.ts"
+    "./zernio": "./src/zernio.ts",
+    "./zernio-send": "./src/zernio_send.ts"
   },
   "dependencies": {
     "@rafaga/selection": "workspace:*"

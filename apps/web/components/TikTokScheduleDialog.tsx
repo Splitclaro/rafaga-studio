@@ -65,6 +65,8 @@ export default function TikTokScheduleDialog({ accounts, videos, day, tz, onClos
         consent: { preview_confirmed: review, express_consent: consent, caption_reviewed: true, music_declared: true }, ...(now ? { publish_now: true } : { scheduled_at: when!.toISOString() }) }, `cal-${crypto.randomUUID()}`);
       setBusy(null);
       if (!rz.ok) return setErr(rz.j.error?.message ?? "No se pudo programar.");
+      if (rz.j.state === "failed") return setErr(rz.j.message ?? "Zernio no pudo aceptar el envío.");
+      if (rz.j.state === "queued") return onDone("Retenida por límite de Zernio: pulsa «Reintentar el envío» en el calendario en unos minutos.");
       return onDone(now ? `Publicación enviada a ${zsel.username}.` : `Publicación programada en ${zsel.username}: Zernio la publicará a la hora elegida.`);
     }
     if (!privacy) return setErr("Elige quién puede ver el vídeo.");

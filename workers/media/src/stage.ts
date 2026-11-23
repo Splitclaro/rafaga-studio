@@ -10,11 +10,11 @@ import { r2FromEnv } from "@rafaga/providers/r2";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-export const FLAGS = ["--list", "--list-flags", "--drain", "--max-idle-s", "--sweep", "--keep-alive", "--plan", "--purge", "--zernio-event"];
+export const FLAGS = ["--list", "--list-flags", "--drain", "--max-idle-s", "--sweep", "--keep-alive", "--plan", "--purge"];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 export const COMPONENT_VERSIONS = { worker: "stage-v1", asr_model: process.env.GROQ_STT_MODEL || "whisper-large-v3", llm_model: process.env.GROQ_EDITORIAL_MODEL || "openai/gpt-oss-120b" };
 
-export interface MainDeps { rpc?: Rpc; out?: (s: string) => void; err?: (s: string) => void; env?: Record<string, string | undefined>; stdin?: string }
+export interface MainDeps { rpc?: Rpc; out?: (s: string) => void; err?: (s: string) => void; env?: Record<string, string | undefined> }
 
 async function makeRpc(env: Record<string, string | undefined>): Promise<Rpc | number> {
   const url = env.SUPABASE_URL, key = env.SUPABASE_SECRET_KEY || env.SUPABASE_SERVICE_ROLE_KEY;
@@ -28,8 +28,6 @@ async function makeRpc(env: Record<string, string | undefined>): Promise<Rpc | n
   }) as Rpc;
 }
 
-async function readStdin() { const c: Buffer[] = []; for await (const x of process.stdin) c.push(x as Buffer); return Buffer.concat(c).toString("utf8"); }
-
 export async function main(argv: string[], deps: MainDeps = {}): Promise<number> {
   const out = deps.out ?? ((s: string) => process.stdout.write(s + "\n")), err = deps.err ?? ((s: string) => process.stderr.write(s + "\n"));
   const env = deps.env ?? process.env;
@@ -37,7 +35,7 @@ export async function main(argv: string[], deps: MainDeps = {}): Promise<number>
   if (a === "--list") { STAGES.forEach((s) => out(s)); return 0; }
   if (a === "--list-flags") { FLAGS.forEach((s) => out(s)); return 0; }
   // Comprobación de uso ANTES de leer el entorno.
-  const known = ["--drain", "--sweep", "--keep-alive", "--plan", "--purge", "--zernio-event"];
+  const known = ["--drain", "--sweep", "--keep-alive", "--plan", "--purge"];
   if (!a || (!known.includes(a) && !isStage(a))) { err(`Uso: stage.ts ${FLAGS.join(" | ")} | <etapa> <jobId>`); return 64; }
   if (isStage(a) && !UUID.test(b ?? "")) { err("Falta el id del trabajo (uuid)."); return 64; }
   let rpc = deps.rpc;
@@ -51,12 +49,6 @@ export async function main(argv: string[], deps: MainDeps = {}): Promise<number>
   try {
     if (a === "--plan") { const p = await rpc<{ ready: number; legacy: number }>("dispatch_plan"); out(JSON.stringify({ ready: Number(p?.ready ?? 0), legacy: Number(p?.legacy ?? 0) })); return 0; }
     if (a === "--sweep") { await rpc("sweep_stale"); await rpc("enqueue_due_publications"); return 0; }
-    if (a === "--zernio-event") {   // stdin: {"body": "<cuerpo original>", "signature": "<X-Zernio-Signature>"}
-      const { handleZernioEvent } = await import("./zernio_event.ts");
-      let input: { body?: unknown; signature?: unknown };
-      try { input = JSON.parse(deps.stdin ?? (await readStdin())); } catch { out(JSON.stringify({ http: 400, result: "bad_input" })); return 0; }
-      out(JSON.stringify(await handleZernioEvent(rpc, env, { body: typeof input.body === "string" ? input.body : "", signature: typeof input.signature === "string" ? input.signature : null }))); return 0;
-    }
     if (a === "--keep-alive") { await rpc("keep_alive"); return 0; }
     if (a === "--drain") { const i = argv.indexOf("--max-idle-s"); const n = await drain(ctx, i > 0 ? Number(argv[i + 1]) || 60 : 60); out(JSON.stringify({ processed: n })); return 0; }
     if (a === "--purge") {

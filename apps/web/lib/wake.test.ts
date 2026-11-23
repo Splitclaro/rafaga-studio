@@ -51,7 +51,8 @@ test("Actions (o sin definir): despacha solo si no hay ejecución en curso", asy
 test("app.py: secreto con compare_digest, versiones fijadas, programaciones y solo opciones que stage.ts admite", () => {
   const py = readFileSync(new URL("../../../workers/modal/app.py", import.meta.url), "utf8");
   for (const s of ["X-Rafaga-Wake", "hmac.compare_digest", "8206a48ce342b5075d0e0293e468a61198a55b3ef479bec3f7e83b04a18667d4", 'NODE_VERSION = "24.22.3"', "opencv-python-headless==4.10.0.84"]) assert.ok(py.includes(s), s);
-  assert.match(py, /schedule=modal\.Period\(minutes=3\)\)\s*\ndef sweeper\(\):\s*\n\s*_node\("--sweep"/);
+  assert.match(py, /schedule=modal\.Period\(hours=6\)\)[^\n]*\ndef sweeper\(\):\s*\n\s*_node\("--sweep"/);   // el barrido frecuente lo hace pg_cron (migración 118)
+  assert.match(py, /"--max-idle-s", "15"/);
   assert.match(py, /schedule=modal\.Period\(days=1\)\)\s*\ndef keep_alive\(\):\s*\n\s*_node\("--keep-alive"/);
   const flags = spawnSync(process.execPath, [fileURLToPath(new URL("../../../workers/media/src/stage.ts", import.meta.url)), "--list-flags"], { encoding: "utf8" }).stdout.trim().split("\n");
   const used = [...new Set([...py.matchAll(/"(--[a-z-]+)"/g)].map((m) => m[1]))];

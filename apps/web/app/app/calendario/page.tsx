@@ -66,6 +66,14 @@ export default function Calendario() {
     const r = await fetch(`/api/publish/${p.id}/cancel`, { method: "POST", headers: { Authorization: `Bearer ${s.session?.access_token ?? ""}`, "Content-Type": "application/json", "Idempotency-Key": `c-${p.id}-${Date.now()}` }, body: "{}" });
     setMsg(r.ok ? "Publicación cancelada." : "Esta publicación ya no se puede cancelar."); setOpenPub(null); load();
   }
+  /** Zernio: reintenta el envío retenido o dudoso (misma Idempotency-Key en el servidor: no duplica). */
+  async function retryZernio(p: Pub) {
+    const { data: s } = await supabase.auth.getSession();
+    const r = await fetch(`/api/publish/${p.id}/retry`, { method: "POST", headers: { Authorization: `Bearer ${s.session?.access_token ?? ""}`, "Content-Type": "application/json" }, body: "{}" });
+    const j = (await r.json().catch(() => ({}))) as { state?: string; message?: string; error?: { message?: string } };
+    setMsg(!r.ok ? j.error?.message ?? "No se pudo reintentar." : j.state === "scheduled" || j.state === "processing" ? "Enviada a Zernio." : j.message ?? "Sigue retenida; vuelve a intentarlo en unos minutos.");
+    setOpenPub(null); load();
+  }
   /** Reintentar: cancela la publicación fallida o bloqueada y crea otra con los mismos datos (la base de datos no admite dos activas del mismo vídeo en la cuenta). */
   async function retryPub(p: Pub) {
     if (!p.render_id || !p.connection_id) return setMsg("Faltan datos para reintentar: prográmala de nuevo.");
@@ -181,7 +189,7 @@ export default function Calendario() {
             {openPub.description && <p className="mt-3 whitespace-pre-wrap rounded-xl bg-[var(--surface)] p-3">{openPub.description}</p>}
             {openPub.post_url && <p className="mt-2"><a href={openPub.post_url} target="_blank" rel="noreferrer" className="font-semibold text-[var(--accent-ink)] underline">Ver el vídeo en TikTok</a></p>}
             {openPub.error_message && <p role="alert" className="mt-2 text-xs">⚠ {openPub.error_message}</p>}
-            <div className="mt-4 flex gap-2">{openPub.provider !== "zernio" && ["failed", "requiere_auditoria"].includes(openPub.state) && <button onClick={() => retryPub(openPub)} className="btn btn-primary">Reintentar</button>}{canCancel(openPub) && <button onClick={() => cancelPub(openPub)} className="btn btn-ghost">Cancelar publicación</button>}<button onClick={() => setOpenPub(null)} className="btn btn-ghost">Cerrar</button></div>
+            <div className="mt-4 flex gap-2">{openPub.provider === "zernio" && ["queued", "failed"].includes(openPub.state) && openPub.error_message && <button onClick={() => retryZernio(openPub)} className="btn btn-primary">Reintentar el envío</button>}{openPub.provider !== "zernio" && ["failed", "requiere_auditoria"].includes(openPub.state) && <button onClick={() => retryPub(openPub)} className="btn btn-primary">Reintentar</button>}{canCancel(openPub) && <button onClick={() => cancelPub(openPub)} className="btn btn-ghost">Cancelar publicación</button>}<button onClick={() => setOpenPub(null)} className="btn btn-ghost">Cerrar</button></div>
             {openPub.state === "scheduled" && <p className="mt-2 text-xs text-[var(--muted)]">Para cambiar la hora o el texto, cancélala y prográmala de nuevo.</p>}
           </div>
         </div>)}

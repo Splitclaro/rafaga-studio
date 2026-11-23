@@ -14,10 +14,12 @@ import { revoke } from "@rafaga/providers/oauth";
 import { aiConfig, groqChat } from "@rafaga/providers/groq";
 import { copyPrompt, parseCopy, templateCopy, type AccountProfile, type SongInfo } from "../tiktokplan.ts";
 import { bearer, rpc, json, mapDbError, idempotencyKey, sessionUser, type Fetch } from "../api.ts";
+import { r2FromEnv, r2Url } from "@rafaga/providers/r2";
+import { sendToZernio, cancelAtZernio, type SendJob, type StateUpdate } from "@rafaga/providers/zernio-send";
 import { zernioConfig, findTarget, accountHealth, checkTargets, creatorInfo, publicBlocker, ZernioError } from "@rafaga/providers/zernio";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-export interface IntegrationDeps { f?: Fetch; ai?: Fetch; provider?: Fetch; net?: PreflightDeps; wake?: (req: Request, jobId: string) => void; env?: Record<string, string | undefined> }
+export interface IntegrationDeps { f?: Fetch; ai?: Fetch; provider?: Fetch; net?: PreflightDeps; wake?: (req: Request, jobId: string) => void; env?: Record<string, string | undefined>; fileBytes?: (key: string) => Promise<Uint8Array> }
 const notFound = () => json({ error: { code: "not_found", message: "No encontrado." } }, 404);
 const bad = (code: string, message: string, extra: Record<string, unknown> = {}) => json({ error: { code, message }, ...extra }, 400);
 const missingIdem = () => bad("missing_idempotency_key", "Falta la cabecera Idempotency-Key.");
@@ -71,12 +73,20 @@ export async function handleIntegrations(req: Request, integration: string, rest
 
   // publish
   if (rest[1] === "cancel" && UUID.test(rest[0] ?? "")) {
-    const r = await rpc<{ job_id?: string }>(token, "cancel_publication", { p_publication: rest[0] }, f);
+    const r = await rpc<{ provider?: string; zernio_post_id?: string | null }>(token, "cancel_publication", { p_publication: rest[0] }, f);
     if (r.error) return dbFail(r.error);
-    if (r.data?.job_id) wake(req, r.data.job_id);   // la cancelación en Zernio la ejecuta el worker
+    if (r.data?.provider === "zernio" && r.data.zernio_post_id) {   // ya estaba en Zernio: se cancela allí (y se refleja el resultado real si ya se había publicado)
+      const cfg = zcfg(d);
+      if (cfg.ok) { const c = await cancelAtZernio({ f: d.provider ?? fetch, cfg, job: { zernio_post_id: r.data.zernio_post_id }, record: recorder(token, rest[0], f) }); return json({ ...r.data, cancelled_at_provider: c.cancelled, reason: c.reason ?? null }, 200); }
+    }
     return json(r.data, 200);
   }
-  if (rest.length === 0 && b.provider === "zernio") return publishZernio(req, b, token, idempotencyKey(req), d, wake);
+  if (rest[1] === "retry" && UUID.test(rest[0] ?? "")) {   // reintento de un envío a Zernio retenido o indeterminado (misma Idempotency-Key: no duplica)
+    const cfg = zcfg(d); if (!cfg.ok) return json({ error: { code: "not_configured", message: "Zernio no está configurado en el servidor." } }, 503);
+    const out = await zernioSend(token, rest[0], d, cfg); if (out instanceof Response) return out;
+    return json({ publication_id: rest[0], state: out.state, code: out.code ?? null, message: out.message ?? null }, 200);
+  }
+  if (rest.length === 0 && b.provider === "zernio") return publishZernio(b, token, idempotencyKey(req), d);
   if (rest.length) return notFound();
   const idem = idempotencyKey(req); if (!idem) return missingIdem();
   if (!UUID.test(str(b.export_id))) return bad("invalid_publication", "Elige una exportación válida.");
@@ -187,7 +197,23 @@ async function handleZernio(req: Request, rest: string[], d: IntegrationDeps): P
   } catch (e) { return zfail(e); }
   return notFound();
 }
-async function publishZernio(req: Request, b: Record<string, unknown>, token: string, idem: string | null, d: IntegrationDeps, wake: (req: Request, jobId: string) => void): Promise<Response> {
+const recorder = (token: string, id: string, f: Fetch) => async (u: StateUpdate) => { await rpc(token, "record_zernio_send", { p_publication: id, p_state: u.state, p_zernio_post: u.post ?? null, p_code: u.code ?? null, p_message: u.message ?? null, p_retry_at: u.retryAt ? u.retryAt.toISOString() : null, p_override: !!u.override }, f); };
+/** Envía la publicación a Zernio desde el servidor web (no desde el worker de Modal): lee el contexto y la clave del MP4 con el JWT del usuario y firma la lectura de R2. */
+async function zernioSend(token: string, id: string, d: IntegrationDeps, cfg: Extract<ReturnType<typeof zernioConfig>, { ok: true }>): Promise<Response | { state: string; code?: string; message?: string }> {
+  const f = d.f ?? fetch, pf = d.provider ?? fetch;
+  const c = await rpc<SendJob & { object_key: string | null }>(token, "zernio_send_context", { p_publication: id }, f);
+  if (c.error) return dbFail(c.error);
+  const job = c.data!, key = job.object_key;
+  if (!key) { await recorder(token, id, f)({ state: "failed", code: "render_not_ready", message: "La exportación ya no está disponible. Renuévala y vuelve a programar." }); return { state: "failed", code: "render_not_ready" }; }
+  const getBytes = async () => {
+    if (d.fileBytes) return d.fileBytes(key);
+    const r2 = r2FromEnv(d.env ?? process.env); if (!r2) throw new Error("R2 no está configurado en el servidor.");
+    const r = await (d.provider ?? fetch)(await r2Url(r2, "GET", key, 900)); if (!r.ok) throw new Error(`No se pudo leer el vídeo (${r.status}).`);
+    return new Uint8Array(await r.arrayBuffer());
+  };
+  return sendToZernio({ f: pf, cfg, job, getBytes, record: recorder(token, id, f) });
+}
+async function publishZernio(b: Record<string, unknown>, token: string, idem: string | null, d: IntegrationDeps): Promise<Response> {
   const f = d.f ?? fetch, pf = d.provider ?? fetch, str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
   if (!idem) return missingIdem();
   const cfg = zcfg(d);
@@ -208,10 +234,11 @@ async function publishZernio(req: Request, b: Record<string, unknown>, token: st
     at = new Date(ms).toISOString();
   }
   try { const blocker = publicBlocker(await creatorInfo(pf, cfg.key, acc)); if (blocker) return json({ error: { code: "account_cannot_post", message: blocker } }, 409); } catch (e) { return zfail(e); }
-  const r = await rpc<{ publication_id: string; state: string; job_id: string | null; replay: boolean }>(token, "request_zernio_publication", {
+  const r = await rpc<{ publication_id: string; state: string; replay: boolean }>(token, "request_zernio_publication", {
     p_render: str(b.export_id), p_title: str(b.title), p_description: str(b.description) || null, p_scheduled_at: at, p_publish_now: now, p_idem: idem,
     p_account: acc, p_username: t.username, p_options: options, p_consent: { preview_confirmed: true, express_consent: true, caption_reviewed: c.caption_reviewed === true, music_declared: c.music_declared === true }, p_ws: cfg.workspaceId }, f);
   if (r.error) return dbFail(r.error);
-  if (r.data?.job_id && !r.data.replay) wake(req, r.data.job_id);
-  return json(r.data, 202);
+  if (r.data!.replay) return json(r.data, 202);
+  const out = await zernioSend(token, r.data!.publication_id, d, cfg); if (out instanceof Response) return out;
+  return json({ publication_id: r.data!.publication_id, state: out.state, code: out.code ?? null, message: out.message ?? null, replay: false }, 202);
 }

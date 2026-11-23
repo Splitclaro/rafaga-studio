@@ -8,7 +8,6 @@ import { pipeline } from "node:stream/promises";
 import { openStream, type OpenResult } from "@rafaga/providers/net";
 import { needsRefresh, refreshTokens, type OAuthProvider } from "@rafaga/providers/oauth";
 import { StageError, type StageCtx, type StageImpl } from "./registry.ts";
-import { runZernio, type ZJob } from "./zernio.ts";
 
 export const MAX_IMPORT_BYTES = 4294967296;
 export const PART_BYTES = 512 * 1024 * 1024;
@@ -184,15 +183,11 @@ async function publishTikTok(ctx: StageCtx, job: PubJob, file: string, f: typeof
 }
 
 const publish: StageImpl = {
-  inputs: (_c, row) => ({ stage: "publish", publication: row.params.publication_id, v: 1, ...(row.params.action ? { action: row.params.action } : {}), ...(row.params.attempt ? { attempt: row.params.attempt } : {}) }),   // un reintento o una cancelación no reutilizan el resultado de otro intento
+  inputs: (_c, row) => ({ stage: "publish", publication: row.params.publication_id, v: 1 }),
   async run(ctx, row) {
     const id = String(row.params.publication_id), f = ctx.fetch ?? fetch;
     const job = await ctx.rpc<PubJob>("publication_job", { p_publication: id });
     if (!job) throw new StageError("not_found", "La publicación no existe");
-    if ((job as PubJob & { provider?: string }).provider === "zernio") {   // proveedor externo: lógica propia en zernio.ts
-      const zj = job as unknown as ZJob;
-      return runZernio(ctx, row, zj, async () => { const d = dir(ctx, id), file = join(d, "video.mp4"); await ctx.r2!.download(zj.object_key!, file); return file; }, f);
-    }
     if (job.state === "cancelled") return { output: { skipped: "cancelled" } };
     if (!job.object_key) throw new StageError("render_not_ready", "La exportación ya no está disponible. Renuévala y vuelve a publicar.");
     if (!ctx.r2) throw new StageError("not_configured", "R2 no está configurado en el worker");
