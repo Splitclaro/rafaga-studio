@@ -14,3 +14,8 @@
 - Cuando Modal vuelva a tener crédito: `modal deploy workers/modal/app.py`.
 - Medir antes de tocar calidad o concurrencia: coste por vídeo (`ai_usage`) y tiempo hasta el primer clip.
 - Si algún día quieres quitar Modal: probar el mismo worker (Node + ffmpeg) en Cloudflare Containers (desde 5 USD/mes), solo si una prueba con tus vídeos cumple en coste, calidad y tiempo. No se migra sin esa prueba.
+
+## Medidor con coste fijo y avisos (migración 119, E1/B-01)
+`compute_meter()` suma ahora al gasto de etapas la clave `compute_fixed_usd` (cifra de «Deployed apps» del panel de Modal) y devuelve `level`: `ok`, `warn` al 70 % y `blocked` al 90 %. Tras aplicar la 119, el propietario fija la cifra real una vez al mes:
+`update platform_settings set value = '0.99' where key = 'compute_fixed_usd';`
+`/app/uso` muestra el desglose y el aviso al 70 %.

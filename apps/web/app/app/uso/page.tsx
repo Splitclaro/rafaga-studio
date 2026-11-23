@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../../../lib/supabase";
 
-type Summary = { used_bytes: number; quota_bytes: number; units_balance: number; compute: { month_usd: number; budget_usd: number | null; pct: number | null; rate_card_set: boolean; blocked: boolean }; expiring: { key: string; kind: string; bytes: number; expires_at: string }[] };
+type Summary = { used_bytes: number; quota_bytes: number; units_balance: number; compute: { month_usd: number; stage_usd?: number; fixed_usd?: number; level?: "ok" | "warn" | "blocked"; budget_usd: number | null; pct: number | null; rate_card_set: boolean; blocked: boolean }; expiring: { key: string; kind: string; bytes: number; expires_at: string }[] };
 const gb = (n: number) => (n >= 1073741824 ? `${(n / 1073741824).toFixed(2)} GB` : `${(n / 1048576).toFixed(1)} MB`);
 const KIND: Record<string, string> = { export: "Exportación", zip: "Descarga por lotes", sidecar: "Subtítulos o texto" };
 const days = (iso: string) => Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000);
@@ -21,7 +21,7 @@ export default function Uso() {
 
   if (err) return <main className="mx-auto max-w-3xl p-6"><p role="alert" className="card p-4 text-sm">{err}</p></main>;
   if (!s) return <main className="mx-auto max-w-3xl p-6"><p className="text-sm text-[var(--muted)]" aria-live="polite">Cargando uso…</p></main>;
-  const pct = Math.min(100, (100 * s.used_bytes) / s.quota_bytes), cp = s.compute.pct, warn = s.compute.blocked || (cp != null && cp >= 90);
+  const pct = Math.min(100, (100 * s.used_bytes) / s.quota_bytes), cp = s.compute.pct, warn = s.compute.blocked || (cp != null && cp >= 90), soon = !warn && (s.compute.level === "warn" || (cp != null && cp >= 70));
   return (
     <main className="mx-auto max-w-3xl space-y-6 p-6">
       <h1 className="text-2xl font-bold">Uso y almacenamiento</h1>
@@ -43,6 +43,8 @@ export default function Uso() {
         <h2 id="h-cmp" className="font-semibold">Cómputo gratuito de este mes</h2>
         {!s.compute.rate_card_set ? <p className="mt-1 text-sm" role="status">El procesamiento aún no está configurado: falta la tarifa de cómputo. No se aceptan trabajos nuevos hasta entonces.</p> : <>
           <p className="tnum mt-1 text-sm">{s.compute.month_usd.toFixed(2)} USD de {s.compute.budget_usd ?? "—"} USD{cp != null ? ` (${cp} %)` : ""}</p>
+          {!!s.compute.fixed_usd && <p className="tnum text-xs text-[var(--muted)]">Incluye {s.compute.fixed_usd.toFixed(2)} USD de coste fijo de las funciones desplegadas y {(s.compute.stage_usd ?? 0).toFixed(2)} USD de procesamiento.</p>}
+          {soon && <p className="mt-2 text-sm" role="status">Llevas más del 70 % del presupuesto de cómputo de este mes. Al 90 % se rechazan los trabajos nuevos: prioriza lo importante.</p>}
           {warn && <p className="mt-2 text-sm" role="status">Se alcanzó el 90 % del presupuesto: los trabajos nuevos se rechazan hasta el mes siguiente. Lo que ya está en marcha termina.</p>}
         </>}
       </section>
