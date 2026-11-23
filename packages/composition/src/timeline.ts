@@ -2,6 +2,9 @@
 // P3 (dividir, quitar silencios, ajustar entre clips), P7 (línea de tiempo multicapa, Full HD).
 // Un solo modelo para la vista previa (`timelineAt`) y para el render (`timelineFfmpegArgs` + `timelineAss`): mismo orden, mismos cortes.
 
+import { retimeWords, mergeCuts, type Cut } from "./cuts.ts";
+import { groupWords, type Word } from "./subtitles.ts";
+
 export const TL_ASPECTS = { "9:16": { width: 1080, height: 1920 }, "16:9": { width: 1920, height: 1080 }, "4:5": { width: 1080, height: 1350 }, "1:1": { width: 1080, height: 1080 } } as const;
 export type TlAspect = keyof typeof TL_ASPECTS;
 export type MediaRef = { kind: "source" | "media_item" | "song"; id: string; name?: string; media?: "video" | "image" | "audio"; duration?: number };
@@ -158,4 +161,43 @@ export function timelineFfmpegArgs(d: TimelineDoc, aspect: TlAspect, io: Timelin
   chains.push(`[cat]subtitles=${esc(io.ass)}:fontsdir=${esc(io.fontsDir)},format=yuv420p[v]`);
   chains.push(mixes.length ? `${mixes.join("")}amix=inputs=${mixes.length}:normalize=0:duration=longest,apad=whole_dur=${D},atrim=duration=${D}[aout]` : `anullsrc=r=48000:cl=stereo,atrim=duration=${D}[aout]`);
   return [...a, "-filter_complex", chains.join(";"), "-map", "[v]", "-map", "[aout]", "-t", String(D), "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-r", String(fps), "-c:a", "aac", "-b:a", "160k", "-ar", "48000", "-movflags", "+faststart", io.out];
+}
+
+// ── Desde Autoclip ──
+export interface ClipSpec { sourceId: string; fragments: { start: number; end: number }[]; cuts?: Cut[]; words: Word[]; aspect: TlAspect; title?: string; subtitles?: boolean; volume?: number; fit?: "fill" | "fit" }
+
+/** Convierte un clip de Autoclip en un documento del editor avanzado conservando origen, intervalo, cortes, subtítulos y volumen:
+ * un plano de vídeo por tramo no cortado (el audio va en el propio plano) y un texto por grupo de subtítulos, retemporizado con los cortes.
+ * `words` son relativas al clip (como en CompositionV2.words), `cuts` también. */
+export function clipToTimeline(c: ClipSpec): TimelineDoc {
+  const doc = emptyTimeline(), frag = c.fragments.filter((f) => f.end > f.start);
+  const total = frag.reduce((t, f) => t + (f.end - f.start), 0), cuts = mergeCuts(c.cuts ?? [], total);
+  const kept: { a: number; b: number }[] = []; let pos = 0;
+  for (const k of [...cuts, { s: total, e: total }]) { if (k.s - pos > 0.02) kept.push({ a: pos, b: k.s }); pos = k.e; }
+  const items: VideoItem[] = []; let at = 0;
+  for (const seg of kept) {
+    let clipT = 0;
+    for (const f of frag) {
+      const fl = f.end - f.start, a = Math.max(seg.a, clipT), b = Math.min(seg.b, clipT + fl);
+      if (b - a > 0.02) { items.push({ id: `c${items.length + 1}`, src: { kind: "source", id: c.sourceId, media: "video", name: c.title }, at: r3(at), in: r3(f.start + (a - clipT)), out: r3(f.start + (b - clipT)), volume: c.volume ?? 1, fit: c.fit ?? "fill" }); at += b - a; }
+      clipT += fl;
+    }
+  }
+  const texts: TextItem[] = c.subtitles === false ? [] : groupWords(retimeWords(c.words, cuts), { maxLines: 2, maxCharsPerLine: 28, maxWordsPerGroup: 5 })
+    .map((g, i) => ({ id: `s${i + 1}`, at: r3(g.start), dur: r3(Math.max(0.2, g.end - g.start)), text: g.words.map((w) => w.text).join(" "), size: "M" as const, color: "#FFFFFF", y: 0.78 }));
+  return validateTimeline({ ...doc, tracks: doc.tracks.map((t) => (t.kind === "video" ? { ...t, items } : t.kind === "text" ? { ...t, items: texts } : t)) });
+}
+
+/** Une varios proyectos uno tras otro (p. ej. varios clips de Autoclip): cada pista se desplaza al final de lo anterior; los ids se prefijan para no chocar. */
+export function concatTimelines(docs: TimelineDoc[]): TimelineDoc {
+  let off = 0; const out = emptyTimeline();
+  docs.forEach((d, n) => {
+    const dur = timelineDuration(d);
+    for (const tr of d.tracks) {
+      const dest = out.tracks.find((t) => t.kind === tr.kind); if (!dest) continue;
+      (dest.items as (VideoItem | AudioItem | TextItem)[]).push(...(tr.items as (VideoItem | AudioItem | TextItem)[]).map((x) => ({ ...x, id: `k${n + 1}-${x.id}`, at: r3(x.at + off) })));
+    }
+    off += dur;
+  });
+  return validateTimeline(out);
 }

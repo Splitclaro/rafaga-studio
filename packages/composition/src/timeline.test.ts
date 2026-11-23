@@ -76,3 +76,34 @@ test("render real: orden de planos, corte, audio y texto superpuesto en el archi
   const vol = (from: number) => { const o = spawnSync("ffmpeg", ["-v", "info", "-ss", String(from), "-t", "0.5", "-i", out, "-vn", "-af", "volumedetect", "-f", "null", "-"], { encoding: "utf8" }); return Number(/mean_volume: (-?[\d.]+)/.exec(o.stderr)?.[1] ?? -99); };
   assert.ok(vol(0.2) > -40 && vol(1.2) > -40 && vol(2.2) > -40, "hay audio en los tres tramos (plano y música)");
 });
+
+// ── Autoclip → editor ──
+import { clipToTimeline } from "./timeline.ts";
+test("clip de Autoclip → proyecto: conserva origen, intervalo, cortes, subtítulos retemporizados y volumen (V3-TR-01..06)", () => {
+  const words = [{ text: "Hola", start: 0.2, end: 0.6 }, { text: "eh", start: 1.0, end: 1.3 }, { text: "mundo", start: 2.2, end: 2.8 }, { text: "adiós.", start: 3.2, end: 3.8 }];
+  const d = clipToTimeline({ sourceId: "srcA", fragments: [{ start: 100, end: 110 }], cuts: [{ s: 0.8, e: 2.0 }], words, aspect: "9:16", title: "Clip", volume: 0.8 });
+  const v = d.tracks.find((t) => t.kind === "video")!.items as { src: { kind: string; id: string }; at: number; in: number; out: number; volume: number }[];
+  assert.deepEqual(v.map((x) => [x.src.kind, x.src.id, x.at, x.in, x.out, x.volume]), [["source", "srcA", 0, 100, 100.8, 0.8], ["source", "srcA", 0.8, 102, 110, 0.8]]);
+  assert.equal(timelineDuration(d), 8.8);
+  const t = d.tracks.find((x) => x.kind === "text")!.items as { text: string; at: number; dur: number }[];
+  assert.ok(!t.some((x) => /eh/.test(x.text)), "la muletilla cortada no sale en los subtítulos");
+  assert.match(t.map((x) => x.text).join(" "), /Hola mundo adiós\./);
+  assert.equal(t.length, 1); assert.equal(t[0].at, 0.2); assert.ok(Math.abs(t[0].dur - 2.4) < 0.05, `el grupo acaba en 2,6 s (3,8 − 1,2 cortados): dur ${t[0].dur}`);
+  assert.equal(clipToTimeline({ sourceId: "s", fragments: [{ start: 0, end: 5 }], words, aspect: "9:16", subtitles: false }).tracks.find((x) => x.kind === "text")!.items.length, 0);
+});
+test("clip con dos fragmentos: planos en orden con sus tiempos de origen", () => {
+  const d = clipToTimeline({ sourceId: "s", fragments: [{ start: 10, end: 14 }, { start: 50, end: 53 }], words: [], aspect: "16:9" });
+  const v = d.tracks.find((t) => t.kind === "video")!.items as { at: number; in: number; out: number }[];
+  assert.deepEqual(v.map((x) => [x.at, x.in, x.out]), [[0, 10, 14], [4, 50, 53]]);
+});
+
+import { concatTimelines } from "./timeline.ts";
+test("unir varios clips: cada uno empieza donde acaba el anterior y conserva su origen y sus textos", () => {
+  const a = clipToTimeline({ sourceId: "A", fragments: [{ start: 0, end: 4 }], words: [{ text: "uno", start: 0.5, end: 1 }], aspect: "9:16" });
+  const b = clipToTimeline({ sourceId: "B", fragments: [{ start: 20, end: 23 }], words: [{ text: "dos", start: 0.5, end: 1 }], aspect: "9:16" });
+  const d = concatTimelines([a, b]);
+  const v = d.tracks.find((t) => t.kind === "video")!.items as { src: { id: string }; at: number; in: number }[];
+  assert.deepEqual(v.map((x) => [x.src.id, x.at, x.in]), [["A", 0, 0], ["B", 4, 20]]); assert.equal(timelineDuration(d), 7);
+  const t = d.tracks.find((x) => x.kind === "text")!.items as { text: string; at: number }[];
+  assert.deepEqual(t.map((x) => [x.text, x.at]), [["uno", 0.5], ["dos", 4.5]]);
+});

@@ -132,7 +132,7 @@ export function lyricOverlays(c: LyricComposition, L = lyricLayout(c)): Overlay[
     lines.forEach((ln, i) => { const w = measureText(ln, L.family, c.style.weight, em); out.push({ id, text: ln, em, box: { x: even(Math.max(0, left ? 0 : (W - w) / 2)), y: top + i * h, w: even(w + 1), h }, startF: s, endF: e }); });
   };
   if (c.hook) { const s = Math.max(0, F((c.hook.start ?? 0))), e = Math.min(total, F((c.hook.start ?? 0) + c.hook.dur)); if (e > s) put("hook", c.hook.text, even(L.em * 0.75), H * 0.12, s, e); }
-  if (c.message && c.mode !== "portada") { const s = Math.max(0, F(c.message.start - c.range.start)), e = Math.min(total, F(c.message.end - c.range.start)); if (e > s) put("message", c.message.text, L.em, c.style.position.y * H, s, e); }
+  if (c.message && c.mode !== "portada") { const s = Math.max(0, F(c.message.start - c.range.start)), e = Math.min(total, F(c.message.end - c.range.start)); if (e > s) put("message", c.message.text, c.mode === "texto" ? L.em : even(L.em * 0.8), c.mode === "texto" ? c.style.position.y * H : H * 0.74, s, e); }   // con letra en pantalla, la llamada a la acción va debajo de la letra (no encima)
   if (c.mode === "portada" && c.cover) {
     const side = even(W * 0.7), bottom = H * 0.4 + side / 2;
     put("title", c.cover.title, L.em, bottom + L.em * 1.4, 0, total); if (c.cover.artist) put("artist", c.cover.artist, even(L.em * 0.7), bottom + L.em * 2.9, 0, total);

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "../lib/supabase";
+import { openClipsInEditor } from "../lib/editorstore";
 import { requestClipExport } from "../lib/exportClient";
 import PreviewPlayer, { type PClip } from "./PreviewPlayer";
 import CreationPanel from "./CreationPanel";
@@ -24,6 +25,8 @@ const WARN: Record<string, (w: Gen["warnings"][number]) => string> = {
 
 export default function ResultsGrid({ projectId, sourceId }: { projectId: string; sourceId: string }) {
   const router = useRouter();
+  const [toEd, setToEd] = useState<string | null>(null);
+  async function toEditor(ids: string[]) { if (toEd || !ids.length) return; setToEd("Abriendo en el editor avanzado…"); try { router.push(`/app/avanzado/${await openClipsInEditor(ids)}`); } catch (e) { setToEd(null); alert((e as Error).message); } }
   const [rows, setRows] = useState<Row[]>([]), [gens, setGens] = useState<Gen[]>([]), [src, setSrc] = useState<{ duration_ms: number; width: number; height: number } | null>(null);
   const [q, setQ] = useState(""), [sort, setSort] = useState<"score" | "duration" | "position">("score"), [filter, setFilter] = useState<"all" | "review" | "approved" | "fav">("all");
   const [view, setView] = useState<"grid" | "list">("grid"), [sel, setSel] = useState<Set<string>>(new Set()), [thumbs, setThumbs] = useState<Record<string, string>>({});
@@ -112,6 +115,7 @@ export default function ResultsGrid({ projectId, sourceId }: { projectId: string
         <div className="card mt-3 flex flex-wrap items-center gap-2 p-3 text-sm" role="toolbar" aria-label="Acciones sobre la selección">
           <b>{sel.size} {sel.size === 1 ? "seleccionado" : "seleccionados"}</b>
           <button type="button" className="btn btn-ghost !py-1 !text-xs" onClick={() => router.push(`/app/c/${[...sel][0]}`)}>Editar el primero</button>
+          <button type="button" className="btn btn-primary !py-1 !text-xs" onClick={() => void toEditor(visible.filter((v) => sel.has(v.id)).map((v) => v.id))}>Abrir en el editor avanzado</button>
           <button type="button" className="btn btn-ghost !py-1 !text-xs" onClick={async () => { await supabase.from("clips").update({ editorial_state: "aprobado" }).in("id", [...sel]); setSel(new Set()); load(); }}>Aprobar</button>
           <button type="button" className="btn btn-ghost !py-1 !text-xs" onClick={async () => { await supabase.from("clips").update({ discarded: true }).in("id", [...sel]); setSel(new Set()); load(); }}>Descartar</button>
           <button type="button" className="btn btn-ghost !py-1 !text-xs" onClick={() => setSel(new Set())}>Quitar selección</button>
@@ -141,6 +145,7 @@ export default function ResultsGrid({ projectId, sourceId }: { projectId: string
                   <input type="checkbox" checked={sel.has(r.id)} onChange={() => toggle(r.id)} aria-label={`Seleccionar «${r.title}»`} />
                   {view === "list" && <span className="min-w-0 flex-1 truncate">{r.title}</span>}
                   <Link href={`/app/c/${r.id}`} className="font-semibold text-[var(--accent-ink)]">Editar</Link>
+                  <button type="button" className="font-semibold text-[var(--accent-ink)] underline" onClick={() => void toEditor([r.id])}>Al editor avanzado</button>
                   <button type="button" className="text-[var(--muted)] hover:text-[var(--ink)]" title="Duplicar el clip para probar otra versión" onClick={async () => { const { error } = await supabase.rpc("duplicate_clip", { p_clip: r.id }); if (error) alert("No se pudo duplicar."); else load(); }}>Duplicar</button>
                   <button type="button" className="underline" onClick={async () => { await supabase.from("clips").update({ favorite: !r.favorite }).eq("id", r.id); load(); }} aria-pressed={r.favorite}>{r.favorite ? "★" : "☆"}</button>
                   <button type="button" aria-pressed={r.feedback === "like"} aria-label="Me gusta" title="Me gusta: lo tendré en cuenta en la próxima generación" onClick={() => feedback(r.id, r.feedback === "like" ? null : "like")} className={r.feedback === "like" ? "font-semibold" : "opacity-60 hover:opacity-100"}>👍</button>

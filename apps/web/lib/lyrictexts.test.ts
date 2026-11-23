@@ -32,3 +32,13 @@ test("el título fijo sobrevive a validateLyricComposition (el gancho admite has
   const c = validateLyricComposition(withFixedTitle({ ...base(), hook: { text: "T", dur: 3 } }, true));
   assert.equal(c.hook!.dur, 30);
 });
+
+test("la llamada a la acción no se solapa con la letra: va debajo de la letra y en la escena y el ASS a la vez", async () => {
+  const { lyricSceneAt } = await import("@rafaga/composition");
+  const c = withCta(base(), "Escúchalo ya", 4);
+  const s = lyricSceneAt(c, 28.2), cta = s.overlays.find((o) => o.id === "message")!;
+  assert.ok(s.words.length > 0, "hay letra visible");
+  const lyricBottom = Math.max(...s.words.map((w) => w.box.y + w.box.h));
+  assert.ok(cta.box.y >= lyricBottom - 2, `CTA (y=${cta.box.y}) por debajo de la letra (fin=${lyricBottom})`);
+  assert.match(lyricAss(c), /Escúchalo ya/);
+});

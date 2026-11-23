@@ -7,7 +7,7 @@ export default defineConfig({
   timeout: 60_000,
   fullyParallel: true,
   reporter: [["list"]],
-  use: { baseURL: `http://127.0.0.1:${PORT}`, trace: "off" },
+  use: { baseURL: `http://127.0.0.1:${PORT}`, trace: "off", launchOptions: { args: ["--autoplay-policy=no-user-gesture-required"] } },
   projects: [
     { name: "escritorio", use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } } },
     { name: "movil-390", use: { ...devices["Desktop Chrome"], viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true } },

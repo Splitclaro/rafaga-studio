@@ -34,8 +34,9 @@ test("Autoclip lista los proyectos existentes y abre cada uno en su pantalla de 
   await expect(link).toBeVisible();
 });
 
-test("Editor avanzado lista los clips existentes y los abre en el editor", async ({ page }) => {
-  await mockBackend(page, { rest: { clips: [{ id: "22222222-2222-4222-8222-222222222222", title: "Momento clave", created_at: "2026-11-21T10:00:00Z", technical_state: "disponible", project_id: PROJ.id }] } });
+test("Editor avanzado lista los proyectos y abre cada uno en su editor; los formatos de proyecto nuevo son los de la fuente pública", async ({ page }) => {
+  await mockBackend(page, { rest: { editor_projects: [{ id: "88888888-8888-4888-8888-888888888888", name: "Mi montaje", aspect: "9:16", updated_at: "2026-11-21T10:00:00Z" }] } });
   await page.goto("/app/avanzado"); await page.waitForLoadState("networkidle");
-  await expect(page.getByRole("link", { name: /Momento clave/ })).toHaveAttribute("href", "/app/c/22222222-2222-4222-8222-222222222222");
+  await expect(page.getByRole("link", { name: /Mi montaje/ })).toHaveAttribute("href", "/app/avanzado/88888888-8888-4888-8888-888888888888");
+  for (const f of ["Vertical · 9:16", "Horizontal · 16:9", "Cuadrado · 1:1", "Vertical 4:5", "De largo a corto"]) await expect(page.getByText(f, { exact: false }).first()).toBeVisible();
 });
