@@ -107,3 +107,8 @@ test("parámetros inválidos → 400; fuente sin validar → 409 source_not_read
   assert.equal((await call(B, [], P(), "gen-other-000001")).status, 404);
   assert.equal((await call(A, [], P())).status, 400, "sin Idempotency-Key");
 });
+
+test("speech_cleanup: se conserva si es true y se omite en cualquier otro caso", () => {
+  const ok = validateParams({ speech_cleanup: true }, 600); assert.ok(ok.ok && ok.params.speech_cleanup === true);
+  const off = validateParams({ speech_cleanup: "yes" }, 600); assert.ok(off.ok && off.params.speech_cleanup === undefined);
+});

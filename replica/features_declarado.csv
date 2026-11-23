@@ -26,17 +26,17 @@ EDI-01 Ajustar inicio/final con precisión y ampliar con el original,Edición y 
 EDI-02 Editar por transcripción: borrar fragmentos y restaurar,Edición y Lyric Studio,must,yes,yes,Sin ejecutar.
 "EDI-03 Biblioteca de estilos de subtítulos (palabra activa, karaoke, etc.)",Edición y Lyric Studio,must,yes,yes,Catálogo visto; paridad vista previa=exportación (≤1 fotograma) solo verificada por pruebas automáticas.
 EDI-04 Vista previa = exportación (subtítulos y encuadre dentro de 1 fotograma),Edición y Lyric Studio,must,yes,yes,"Pruebas automáticas verdes, sin comparación sobre una exportación real nueva."
-EDI-05 Titular / título fijo sobre el vídeo,Edición y Lyric Studio,should,yes,partial,Titular en clips: sí (visto en el editor). Título fijo en Lyric Studio: falta.
-EDI-06 Llamada a la acción final (botón a Spotify/Apple/YouTube),Edición y Lyric Studio,should,yes,no,No existe en el motor de letra.
+EDI-05 Titular / título fijo sobre el vídeo,Edición y Lyric Studio,should,yes,partial,"Titular en clips: sí. Título fijo en Lyric Studio v2: implementado en local (2026-11-23, `lyrictexts.ts`, gancho todo el vídeo); sin exporta"
+EDI-06 Llamada a la acción final (botón a Spotify/Apple/YouTube),Edición y Lyric Studio,should,yes,partial,"Llamada a la acción final como texto en los últimos N s (local, 2026-11-23, `withCta`, prueba por fotograma). Falta botón animado con enlace"
 EDI-07 B-roll con IA e imágenes encima,Edición y Lyric Studio,should,yes,partial,Generación con IA: falta (coste). Con medios propios: sin verificar.
-"EDI-08 Limpieza de voz: quitar pausas y muletillas, mejorar audio",Edición y Lyric Studio,must,yes,no,Anunciado como próximamente en la UI.
+"EDI-08 Limpieza de voz: quitar pausas y muletillas, mejorar audio",Edición y Lyric Studio,must,yes,partial,Quitar pausas y muletillas: implementado en local (interruptor `speech_cleanup` → `detectCuts` en compose; prueba verde). Falta C6 real (−80
 "EDI-09 Efectos automáticos: zoom, transiciones, corrección de color, SFX, contacto visual",Edición y Lyric Studio,should,yes,no,No implementado.
 EDI-10 Editor con línea de tiempo y proyecto guardable,Edición y Lyric Studio,should,yes,partial,"Ráfaga edita un clip (cortes, transcripción, diseño, audio); sin línea de tiempo multipista."
 "EDI-11 Kit de marca: logo, fuentes, vocabulario, palabras censuradas",Edición y Lyric Studio,should,yes,yes,Brand kit con fuentes y vocabulario existe; sin ejecutar hoy.
 EDI-12 Lyric Studio: canción → letra sincronizada → estilo → vídeo,Edición y Lyric Studio,must,yes,yes,"Verificada en producción el 2026-11-16 (STATUS: 4 variantes con fondos distintos, 4/4 listas); no repetible hoy sin Modal."
 EDI-13 Varios fondos → una creación por fondo; fondos propios,Edición y Lyric Studio,must,yes,yes,Verificada el 2026-11-16; pendiente de repetir.
 "EDI-14 Efectos de cámara y filtros (VHS, noche, gran angular, cine)",Edición y Lyric Studio,should,yes,yes,Prueba automática con ffmpeg real (lyric_image_bg.test) para 4 filtros: MP4 H.264 yuv420p 720×1280. Recorrido de usuario no repetido.
-EDI-15 Entrada y salida suaves del volumen,Edición y Lyric Studio,should,yes,partial,Implementado el 2026-11-16 con prueba ffmpeg; sin recorrido de usuario.
+EDI-15 Entrada y salida suaves del volumen,Edición y Lyric Studio,should,yes,partial,"Fundidos de audio expuestos en Lyric Studio v2 (local, 2026-11-23); sin recorrido de usuario ni `ffprobe` en producción."
 EDI-16 Zonas seguras TikTok/Reels/Shorts en la vista previa,Edición y Lyric Studio,should,yes,yes,Sin ejecutar.
 EDI-17 Vídeo desde un enlace: tu canción + planos de un vídeo de YouTube al ritmo,Edición y Lyric Studio,could,yes,no,Función no presente; depende de descargar YouTube (ver ENT-03).
 "EDI-18 Velocidad de reproducción 0,5×/0,25× en la vista previa",Edición y Lyric Studio,could,yes,yes,No comprobado si existe en la vista previa de letra.

@@ -48,7 +48,7 @@ export default function CreationPanel({ projectId, durationMs, onCreated, filmst
   const lyricV2 = (process.env.NEXT_PUBLIC_LYRIC_VERSION ?? "").trim().toLowerCase() === "v2";
   const [cap2, setCap2] = useState<CaptionStyleV2>(DEFAULT_CAPTION), [beh, setBeh] = useState<BehaviourPresetId>("frase_palabra_activa");
   const style2 = useMemo(() => ({ ...style, font: cap2.font, color: cap2.color, active_color: cap2.activeColor, size: cap2.size, position: (cap2.position.y < 0.35 ? "top" : cap2.position.y < 0.65 ? "middle" : "bottom") as CaptionStyle["position"], subtitle_style: captionToSubtitleStyle(cap2) }), [style, cap2]);
-  const [hook, setHook] = useState(true), [hookN, setHookN] = useState(20), [hookStyle, setHookStyle] = useState<"editorial" | "statement" | "classic">("editorial");
+  const [clean, setClean] = useState(false), [hook, setHook] = useState(true), [hookN, setHookN] = useState(20), [hookStyle, setHookStyle] = useState<"editorial" | "statement" | "classic">("editorial");
   const [lang, setLang] = useState<"auto" | "es" | "en">("auto"), [durSet, setDurSet] = useState<Bucket[]>([]), [subLang, setSubLang] = useState(""), [open, setOpen] = useState<null | "picks" | "len" | "prompt" | "premium" | "recipes">(null), [recTab, setRecTab] = useState<"built" | "mine">("built"), [showSettings, setShowSettings] = useState(true), [clipping, setClipping] = useState(true);
   const [aspect, setAspect] = useState<(typeof ASPECTS)[number]>("9:16"), [template, setTemplate] = useState<string>("hablante_seguimiento");
   const [brandKit, setBrandKit] = useState(""), [kits, setKits] = useState<{ id: string; name: string }[]>([]);
@@ -58,7 +58,7 @@ export default function CreationPanel({ projectId, durationMs, onCreated, filmst
 
   const params = useMemo(() => ({ ...(subLang ? { subtitle_language: subLang } : {}),
     recipe: recipe === "clips" && !clipping ? "captions" : recipe, mode, duration: durSet[0] ?? duration, ...(durSet.length ? { duration_set: durSet } : {}), count: count ? Number(count) : null, range_start_ms: parse(from), range_end_ms: to ? parse(to) : (durationMs ?? 0), language: lang, brief: [ctype ? `Tipo de contenido: ${ctype}.` : "", brief.trim(), exclude.trim() ? `Evitar: ${exclude.trim()}` : ""].filter(Boolean).join("\n") || undefined,
-    exclude: exclude.trim() || undefined, aspect, template: recipe === "clips" || recipe === "reframe" ? template : undefined, subtitles: subs, caption_style: subs ? (lyricV2 ? style2 : style) : undefined, hook: hook ? { enabled: true, template: hookStyle, top_n: hookN } : undefined, brand_kit_id: brandKit || undefined,
+    exclude: exclude.trim() || undefined, aspect, template: recipe === "clips" || recipe === "reframe" ? template : undefined, subtitles: subs, ...(clean ? { speech_cleanup: true } : {}), caption_style: subs ? (lyricV2 ? style2 : style) : undefined, hook: hook ? { enabled: true, template: hookStyle, top_n: hookN } : undefined, brand_kit_id: brandKit || undefined,
   }), [lang, recipe, clipping, mode, duration, durSet, subLang, hookStyle, count, from, to, ctype, brief, exclude, aspect, template, subs, style, style2, lyricV2, hook, hookN, brandKit]);
 
   const token = async () => (await supabase.auth.getSession()).data.session?.access_token ?? "";
@@ -100,7 +100,7 @@ export default function CreationPanel({ projectId, durationMs, onCreated, filmst
     const r = recipes.find((x) => x.id === id)?.params; if (!r) return;
     if (r.recipe) setRecipe(r.recipe); if (r.mode) setMode(r.mode); if (r.duration) setDuration(r.duration); setCount(r.count ? String(r.count) : "");
     if (r.aspect) setAspect(r.aspect); if (r.template) setTemplate(r.template); if (typeof r.subtitles === "boolean") setSubs(r.subtitles); if (r.caption_style) setStyle({ ...CAPTION_DEFAULT, ...r.caption_style });
-    if (r.hook) { setHook(r.hook.enabled); setHookN(r.hook.top_n); } if (r.brand_kit_id) setBrandKit(r.brand_kit_id);
+    setClean(r.speech_cleanup === true); if (r.hook) { setHook(r.hook.enabled); setHookN(r.hook.top_n); } if (r.brand_kit_id) setBrandKit(r.brand_kit_id);
   };
 
   const field = "w-full rounded-lg border hairline bg-transparent px-3 py-2 text-sm";
@@ -195,7 +195,9 @@ export default function CreationPanel({ projectId, durationMs, onCreated, filmst
           </Row>
           <Row glyph="◍" title="Gráficos en movimiento: emojis con IA" soon />
           <Row glyph="▤" title="B-roll automático con IA" soon />
-          <Row glyph="♫" title="Sonido nítido: limpieza de voz, pausas y muletillas, mejora de audio" soon />
+          <Row glyph="♫" title="Sonido nítido: quitar pausas y muletillas" on={clean} set={setClean}>
+            <p className="text-xs text-[var(--muted)]">Corta silencios largos y sonidos como «eh» o «mm» dentro de cada clip. Puedes revisar los cortes en el editor. La mejora de audio llegará próximamente.</p>
+          </Row>
           <Row glyph="◎" title="Buen aspecto: zoom, transiciones y corrección de color automáticos" soon />
           <Row glyph="⇄" title="Traducir" on>
             <div className="flex flex-wrap items-center gap-3 text-sm"><span className="text-[var(--muted)]">Doblaje de voz: <span className="rounded-full bg-[var(--surface)] px-2 py-0.5 text-[11px]">Próximamente</span></span>

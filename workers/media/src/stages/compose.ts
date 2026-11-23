@@ -4,14 +4,14 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { aiConfig, groqChat } from "@rafaga/providers";
-import { viralTemplate, textBoxes, validateSafeZones, VIRAL_TEMPLATE_IDS, type ViralTemplateId, type AspectId, type Platform } from "@rafaga/composition";
+import { viralTemplate, detectCuts, textBoxes, validateSafeZones, VIRAL_TEMPLATE_IDS, type ViralTemplateId, type AspectId, type Platform } from "@rafaga/composition";
 import type { TWord } from "@rafaga/selection";
 import { StageError, type StageCtx, type StageImpl } from "./registry.ts";
 import { mezzaninePath } from "./analysis.ts";
 import { GroqLimiter, limitsFromEnv } from "../groqlimits.ts";
 
 interface GClip { clip_id: string; title: string; start_ms: number; end_ms: number; overall: number; reason: string | null; user_edited: boolean; has_version: boolean }
-interface Gctx { generation_id: string; workspace_id: string; analysis_id: string; params: Record<string, unknown> & { aspect?: AspectId; template?: string; subtitles?: boolean; hook?: { enabled?: boolean; top_n?: number }; safe_zone_platforms?: Platform[]; min_s?: number; max_s?: number }; words: TWord[]; speakers: { needs_review?: boolean }[] }
+interface Gctx { generation_id: string; workspace_id: string; analysis_id: string; params: Record<string, unknown> & { aspect?: AspectId; template?: string; subtitles?: boolean; speech_cleanup?: boolean; hook?: { enabled?: boolean; top_n?: number }; safe_zone_platforms?: Platform[]; min_s?: number; max_s?: number }; words: TWord[]; speakers: { needs_review?: boolean }[] }
 export interface ComposeDeps { faces?: (file: string, start: number, dur: number) => { w: number; h: number; samples: unknown[] }; headline?: (prompt: { title: string; text: string }) => Promise<string[]>; limiter?: GroqLimiter }
 const SPEAKER_TEMPLATES = new Set(["pantalla_dividida", "hablante_seguimiento", "cambio_hablante", "presentacion_ponente"]);
 const LEGACY_TEMPLATE: Record<string, ViralTemplateId> = { split_dos_hablantes: "pantalla_dividida", hablante_activo: "cambio_hablante", titular_caja: "titular_en_caja", titular_desenfoque: "titular_sobre_desenfoque", completo_ajustado: "video_completo" };
@@ -45,7 +45,7 @@ const compose: StageImpl = {
     const clips = (await ctx.rpc<GClip[]>("generation_clips", { p_generation: gen })) ?? [], deps = (ctx.deps ?? {}) as ComposeDeps;
     const P = gc.params, aspect = (P.aspect ?? "9:16") as AspectId, template = templateOf(P.template), hookN = P.hook?.enabled === false ? 0 : P.hook?.enabled && Number(P.hook.top_n) > 0 ? Number(P.hook.top_n) : clips.length;   // por defecto todos los clips llevan titular (se puede quitar después)
     const top = new Set([...clips].sort((a, b) => b.overall - a.overall).slice(0, hookN).map((c) => c.clip_id));
-    let composed = 0, hooks = 0, skipped = 0; const reviewNeeded = SPEAKER_TEMPLATES.has(template) && gc.speakers.some((s) => s.needs_review);
+    let composed = 0, hooks = 0, skipped = 0, cleaned = 0, removed = 0; const reviewNeeded = SPEAKER_TEMPLATES.has(template) && gc.speakers.some((s) => s.needs_review);
     // Reencuadre con seguimiento (como Opus): en diseños que rellenan el fotograma se detectan caras en cada tramo y se sigue al sujeto.
     const fills = (template === "hablante_seguimiento" || template === "cambio_hablante") && aspect === "9:16";
     let faceFile: string | null = null;
@@ -60,6 +60,11 @@ const compose: StageImpl = {
         const h = await headlineFor(ctx, deps, c, text); headline = { lines: h.lines }; if (h.llm) hooks++;
       }
       const spec = viralTemplate(template, aspect, { duration: +(endS - startS).toFixed(3), fragments: [{ start: startS, end: endS }], headline, platforms: P.safe_zone_platforms, subtitles: P.subtitles !== false });
+      if (P.speech_cleanup === true) {     // «Quitar pausas y muletillas»: cortes relativos al clip; vista previa y exportación usan la misma lista (composition/cuts.ts)
+        const rel = gc.words.filter((w) => w.start >= startS && w.end <= endS + 0.05).map((w) => ({ ...w, start: w.start - startS, end: w.end - startS }));
+        const plan = detectCuts(rel, endS - startS);
+        if (plan.cuts.length) { (spec as { cuts?: unknown }).cuts = plan.cuts; cleaned++; removed += plan.removedSec; }
+      }
       if (faceFile) {
         try {
           const { scanFaces, reframePath } = await import("../reframe.ts");
@@ -71,7 +76,7 @@ const compose: StageImpl = {
       await ctx.rpc("compose_clip", { p_clip: c.clip_id, p_aspect: aspect, p_layout: spec.layout, p_template: template, p_spec: { ...spec, caption_style: P.caption_style ?? null }, p_needs_review: reviewNeeded });
       composed++;
     }
-    return { output: { composed, hooks, skipped, tracked, template, aspect }, ...(hookN ? { units_actual: Math.round(0.1 * hooks * 100) / 100 } : {}) };
+    return { output: { composed, hooks, skipped, tracked, template, aspect, ...(P.speech_cleanup === true ? { cleaned, removed_s: Math.round(removed * 100) / 100 } : {}) }, ...(hookN ? { units_actual: Math.round(0.1 * hooks * 100) / 100 } : {}) };
   },
 };
 

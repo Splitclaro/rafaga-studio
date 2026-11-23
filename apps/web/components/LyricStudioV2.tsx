@@ -11,6 +11,7 @@ import Icon from "./Icon";
 import { TRENDING_STYLES } from "../lib/trendingstyles";
 import CollectionsPicker, { useCollections } from "./Collections";
 import LyricPreview from "./LyricPreview";
+import { withCta, withFixedTitle, withFades, CTA_MAX_SECONDS } from "../lib/lyrictexts";
 import LyricLibrary from "./LyricLibrary";
 import LyricSettings from "./LyricSettings";
 import LyricResults from "./LyricResults";
@@ -42,7 +43,7 @@ export default function LyricStudioV2() {
   const { cols, reload: reloadCols } = useCollections(), [selCol, setSelCol] = useState<string | null>(null);
   const [lyricsDraft, setLyricsDraft] = useState<Record<string, string>>({});
   const [locks, setLocks] = useState({ song_range: true, lyrics_sync: true, style: false, background: true, format: true }), [batch, setBatch] = useState<{ export_ids: string[]; generation_id: string; batch_id?: string } | null>(null);
-  const [comp, setComp] = useState<LyricComposition | null>(null);
+  const [comp, setComp] = useState<LyricComposition | null>(null), [cta, setCta] = useState({ text: "", secs: 4 }), [holdTitle, setHoldTitle] = useState(false);
   // Cola de varias canciones (como Escalium: cada audio es su propio vídeo): subida en serie, sincronización automática de cada una y generación del lote para todas.
   type Q = { name: string; state: "waiting" | "uploading" | "done" | "error"; note?: string };
   type Bt = { export_ids: string[]; generation_id: string; batch_id?: string };
@@ -142,6 +143,8 @@ export default function LyricStudioV2() {
     const r = await fetch("/api/lyrics/projects", { method: "POST", headers: H, body: JSON.stringify({ song_id: s.id, mode: m }) }); const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j?.error?.message ?? "No se pudo crear la pieza."); projects.current[s.id] = j.project_id as string; return j.project_id as string;
   }
+  /** Textos extra (E7): CTA final y título fijo según el tramo de cada canción; mismo motor que la vista previa. */
+  const decorate = (c: LyricComposition) => validateLyricComposition(withFixedTitle(cta.text.trim() ? withCta(c, cta.text, cta.secs) : { ...c, message: c.mode === "texto" ? c.message : null }, holdTitle));
   /** Genera el lote (N variantes con fondos distintos) para TODAS las canciones sincronizadas, con el estilo, formato y fondos actuales. */
   async function generateAllSongs() {
     if (!comp) return setMsg("Abre una canción para elegir el estilo antes de generar el lote.");
@@ -156,7 +159,7 @@ export default function LyricStudioV2() {
         const ws = ((await alignment(s)).words ?? []) as SyncWord[]; if (!ws.length) throw new Error("sin sincronización");
         const pid = await ensureProject(s, H, comp.mode);
         const rot = bgItems.length ? bgItems.map((_, k) => bgItems[(k + i * nVar) % bgItems.length]) : bgItems;   // cada canción empieza en un fondo distinto
-        const base = validateLyricComposition({ ...comp, res, aspect: outFmt, range: rangeOf(ws), words: ws.map((w) => ({ text: w.text, start: w.start, end: w.end, line: w.line })) });
+        const base = decorate(validateLyricComposition({ ...comp, res, aspect: outFmt, range: rangeOf(ws), words: ws.map((w) => ({ text: w.text, start: w.start, end: w.end, line: w.line })) }));
         const variants = planLyricVariants(base, nVar, rot.length ? { ...locks, background: false } : locks, { styles: Array.from({ length: nVar }, (_, k) => surpriseCaption(base.seed * 1000 + k)), ...(rot.length ? { collections: rot.map((b) => [b]) } : {}) });
         const r = await fetch(`/api/lyrics/projects/${pid}/variants`, { method: "POST", headers: { ...H, "Idempotency-Key": `var-${crypto.randomUUID()}` }, body: JSON.stringify({ variants, zip: true }) });
         const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j?.error?.message ?? "no se pudo generar");
@@ -190,7 +193,7 @@ export default function LyricStudioV2() {
     if (!pid && (activeSong ?? editing?.song)) { const r = await fetch("/api/lyrics/projects", { method: "POST", headers: H, body: JSON.stringify({ song_id: (activeSong ?? editing!.song).id, mode: comp.mode }) }); const j = await r.json().catch(() => ({})); if (!r.ok) return setMsg(j?.error?.message ?? "No se pudo crear la pieza."); pid = j.project_id; setProjectId(pid); if (pid) projects.current[(activeSong ?? editing!.song).id] = pid; }
     // Fondos: la colección elegida reparte un fondo distinto a cada variante (imágenes o vídeos; los vídeos se repiten en bucle).
     const bgItems = (cols?.find((c) => c.id === selCol)?.items ?? []).map((it) => ({ ref: `sb:originals/${it.storage_path}`, kind: (it.kind === "photo" ? "image" : "video") as "image" | "video" }));
-    const base = { ...comp, res, aspect: outFmt }, variants = planLyricVariants(base, nVar, bgItems.length ? { ...locks, background: false } : locks, { styles: Array.from({ length: nVar }, (_, i) => surpriseCaption(base.seed * 1000 + i)), ...(bgItems.length ? { collections: bgItems.map((b) => [b]) } : {}) });
+    const base = decorate({ ...comp, res, aspect: outFmt }), variants = planLyricVariants(base, nVar, bgItems.length ? { ...locks, background: false } : locks, { styles: Array.from({ length: nVar }, (_, i) => surpriseCaption(base.seed * 1000 + i)), ...(bgItems.length ? { collections: bgItems.map((b) => [b]) } : {}) });
     const r = await fetch(`/api/lyrics/projects/${pid}/variants`, { method: "POST", headers: { ...H, "Idempotency-Key": `var-${crypto.randomUUID()}` }, body: JSON.stringify({ variants, zip: true }) });
     const j = await r.json().catch(() => ({})); if (!r.ok) return setMsg(j?.error?.message ?? "No se pudieron generar las variantes.");
     setBatch({ export_ids: j.export_ids, generation_id: j.generation_id, batch_id: j.batch_id }); { const sid = (activeSong ?? editing?.song)?.id; if (sid) setBatches((b) => ({ ...b, [sid]: { export_ids: j.export_ids, generation_id: j.generation_id, batch_id: j.batch_id } })); } setMsg(`Generando ${variants.length} variantes. No consume unidades.`);
@@ -277,6 +280,13 @@ export default function LyricStudioV2() {
         {comp.mode === "portada" && <div className="grid gap-2 sm:grid-cols-2"><input className="rounded-lg border hairline px-2 py-1.5" placeholder="Título" maxLength={120} value={comp.cover?.title ?? ""} onChange={(e) => setComp({ ...comp, cover: { ...comp.cover, title: e.target.value } })} aria-label="Título" />
           <input className="rounded-lg border hairline px-2 py-1.5" placeholder="Artista" maxLength={120} value={comp.cover?.artist ?? ""} onChange={(e) => setComp({ ...comp, cover: { title: comp.cover?.title ?? "", ...comp.cover, artist: e.target.value } })} aria-label="Artista" /></div>}
         <input className="w-full rounded-lg border hairline px-2 py-1.5" placeholder="Gancho (opcional, franja superior)" maxLength={120} value={comp.hook?.text ?? ""} onChange={(e) => setComp({ ...comp, hook: e.target.value ? { text: e.target.value, dur: comp.hook?.dur ?? 3, start: comp.hook?.start } : null })} aria-label="Gancho" />
+        {comp.mode !== "texto" && <div className="grid gap-2 sm:grid-cols-3">
+          <label className="flex items-center gap-2 text-xs sm:col-span-3"><input type="checkbox" checked={holdTitle} disabled={!comp.hook} onChange={(e) => { setHoldTitle(e.target.checked); setComp(withFixedTitle(comp, e.target.checked)); }} />Mantener el gancho como título fijo durante todo el vídeo</label>
+          <input className="rounded-lg border hairline px-2 py-1.5 sm:col-span-2" placeholder="Llamada a la acción final (opcional)" maxLength={200} value={cta.text} onChange={(e) => { setCta({ ...cta, text: e.target.value }); setComp(withCta(comp, e.target.value, cta.secs)); }} aria-label="Llamada a la acción final" />
+          <label className="text-xs">Últimos (s)<input type="number" min={1} max={CTA_MAX_SECONDS} className="ml-1 w-16 rounded border hairline px-1" value={cta.secs} onChange={(e) => { const v = Math.min(CTA_MAX_SECONDS, Math.max(1, Number(e.target.value) || 4)); setCta({ ...cta, secs: v }); if (cta.text.trim()) setComp(withCta(comp, cta.text, v)); }} /></label>
+          <label className="text-xs">Entrada suave del audio (s)<input type="number" min={0} max={5} step={0.5} className="ml-1 w-16 rounded border hairline px-1" value={comp.settings.fadeIn} onChange={(e) => setComp(withFades(comp, Number(e.target.value), comp.settings.fadeOut))} /></label>
+          <label className="text-xs">Salida suave del audio (s)<input type="number" min={0} max={5} step={0.5} className="ml-1 w-16 rounded border hairline px-1" value={comp.settings.fadeOut} onChange={(e) => setComp(withFades(comp, comp.settings.fadeIn, Number(e.target.value)))} /></label>
+        </div>}
       </section>}
       {comp && <section className="card space-y-3 p-4 text-sm" aria-label="Estilo del texto">
         <h2 className="font-display text-base font-bold">Estilo del texto</h2>

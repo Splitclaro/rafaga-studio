@@ -25,7 +25,7 @@ const HEX = /^#[0-9a-fA-F]{6}$/;
 export interface GenerationParams {
   recipe: Recipe; mode: Mode; count: number | null; duration: Bucket; range_start_ms: number; range_end_ms: number;
   language: "auto" | "es" | "en"; subtitle_language?: string; brief?: string; exclude?: string; aspect: (typeof ASPECTS)[number]; template?: string;
-  subtitles: boolean; caption_style?: CaptionStyle; hook?: { enabled: boolean; top_n: number; template?: string }; brand_kit_id?: string;
+  subtitles: boolean; speech_cleanup?: boolean; caption_style?: CaptionStyle; hook?: { enabled: boolean; top_n: number; template?: string }; brand_kit_id?: string;
   component_versions?: Record<string, string>; min_s?: number; max_s?: number; duration_set?: Bucket[];
 }
 
@@ -62,7 +62,7 @@ export function validateParams(p: unknown, sourceDurationS: number): { ok: true;
   const ranges = set.length ? set.map((b) => DURATION_BUCKETS[b] as readonly [number, number]) : [DURATION_BUCKETS[duration] as readonly [number, number]];
   const min_s = Math.min(...ranges.map((r) => r[0])), max_s = Math.max(...ranges.map((r) => r[1]));
   return { ok: true, params: { recipe, mode, count, duration, range_start_ms: Math.round(start), range_end_ms: Math.round(end), language: language as GenerationParams["language"], ...(typeof x.subtitle_language === "string" ? { subtitle_language: x.subtitle_language.slice(0, 8) } : {}),
-    ...(brief ? { brief } : {}), ...(exclude ? { exclude } : {}), aspect: aspect as GenerationParams["aspect"], ...(template ? { template } : {}), subtitles: x.subtitles !== false, ...(caption_style ? { caption_style } : {}), ...(hook ? { hook } : {}),
+    ...(brief ? { brief } : {}), ...(exclude ? { exclude } : {}), aspect: aspect as GenerationParams["aspect"], ...(template ? { template } : {}), subtitles: x.subtitles !== false, ...(x.speech_cleanup === true ? { speech_cleanup: true } : {}), ...(caption_style ? { caption_style } : {}), ...(hook ? { hook } : {}),
     ...(typeof x.brand_kit_id === "string" && /^[0-9a-f-]{36}$/.test(x.brand_kit_id) ? { brand_kit_id: x.brand_kit_id } : {}), min_s, max_s, ...(set.length ? { duration_set: set } : {}) } };
 }
 

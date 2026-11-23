@@ -133,3 +133,18 @@ test("checks: añade el aviso safe_zone a un clip cuyo texto invade la zona inse
   assert.equal(w.status, "done"); assert.equal((r.output as { clips: number }).clips, 2);
   void w;
 });
+
+test("compose con speech_cleanup: corta muletillas y pausas largas en cada clip (cortes relativos al clip); sin el interruptor no hay cortes", async () => {
+  const W2 = [{ text: "Hola", start: 0.2, end: 0.6 }, { text: "eh", start: 0.7, end: 1.0 }, { text: "mundo", start: 1.05, end: 1.4 }, { text: "esto", start: 2.8, end: 3.1 }, { text: "funciona.", start: 3.2, end: 3.9 }];
+  const cuts = async (clean: boolean) => {
+    const d = await gen({ hook: { enabled: false, top_n: 0 }, ...(clean ? { speech_cleanup: true } : {}) });
+    await db.exec(`update transcripts set words = '${JSON.stringify(W2)}'::jsonb where id = (select transcript_id from generations where id='${d.g}')`);
+    await db.exec(`update clip_candidates set start_ms = 100, end_ms = 4000 where generation_id='${d.g}'`);
+    const r = await CMP.compose.run(pgliteCtx(db, { env: {} }), row("compose", d.g));
+    const v = (await db.query<{ composition: { cuts?: { s: number; e: number }[] } }>(`select composition from clip_versions where clip_id = '${d.clips[0]}'`)).rows[0];
+    return { out: r.output as { cleaned?: number; removed_s?: number }, cuts: v.composition.cuts ?? [] };
+  };
+  const off = await cuts(false); assert.equal(off.cuts.length, 0); assert.equal(off.out.cleaned, undefined);
+  const on = await cuts(true); assert.ok(on.out.cleaned! >= 1 && on.out.removed_s! > 0.3, JSON.stringify(on.out));
+  assert.ok(on.cuts.some((c) => c.s >= 0.5 && c.e <= 1.0), "corta «eh» (relativo al clip)"); assert.ok(on.cuts.some((c) => c.s > 1.2 && c.e < 2.8), "corta el silencio entre «mundo» y «esto»");
+});
