@@ -19,4 +19,7 @@
 `compute_meter()` suma ahora al gasto de etapas la clave `compute_fixed_usd` (cifra de «Deployed apps» del panel de Modal) y devuelve `level`: `ok`, `warn` al 70 % y `blocked` al 90 %. Tras aplicar la 119, el propietario fija la cifra real una vez al mes:
 `update platform_settings set value = '0.99' where key = 'compute_fixed_usd';`
 `/app/uso` muestra el desglose y el aviso al 70 %.
-Aplicada en producción el 2026-11-23 (la 118 sigue sin aplicar).
+Aplicada en producción el 2026-11-23 (la 118 también, el mismo día; falta crear los secretos de Vault para `modal_wake`).
+
+## Estado en producción (2026-11-23)
+Migración 118 aplicada en `rafaga-studio-beta`: `modal_wake()` y `cron_sweep()` existen y `pg_cron` ejecuta `rafaga-sweep` cada minuto (junto a `rafaga-scheduler`). `cron_sweep()` devolvió `wake: not_needed`. **Pendiente del propietario:** los dos secretos de Vault (`modal_dispatch_url`, `modal_wake_secret`); sin ellos `modal_wake()` devuelve `not_configured` y `/api/wake` sigue despertando a Modal. `modal deploy` sigue bloqueado hasta el 1 de diciembre.
