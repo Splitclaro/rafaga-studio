@@ -7,8 +7,11 @@ import { zonedToUtc, utcToLocalInput, localZone, ZONES } from "../../../lib/tz";
 import { PUBLISH_TARGETS } from "../../../lib/platforms";
 import TikTokScheduleDialog, { type TtAccount, type TtVideo } from "../../../components/TikTokScheduleDialog";
 
-type Pub = { id: string; render_id?: string; music_origin?: string | null; privacy?: string; state: string; scheduled_at: string | null; created_at: string; title: string; description: string | null; connection_id: string | null; error_message: string | null };
+type Pub = { id: string; render_id?: string; music_origin?: string | null; privacy?: string; state: string; scheduled_at: string | null; created_at: string; title: string; description: string | null; connection_id: string | null; error_message: string | null; provider?: string; post_url?: string | null; consent?: { username?: string } | null };
 const PUB_STATE: Record<string, string> = { scheduled: "Programada", queued: "En cola", uploading: "Subiendo", processing: "Procesando", published: "Publicada", private_pending_review: "Borrador en tu bandeja de TikTok", requiere_auditoria: "Requiere auditoría", failed: "Falló", cancelled: "Cancelada" };
+const pubWho = (p: Pub, name: (id: string | null) => string) => (p.provider === "zernio" ? p.consent?.username || "Zernio" : name(p.connection_id));
+const pubLabel = (p: Pub) => (p.provider === "zernio" && p.state === "published" && !p.post_url ? "Publicada · enlace pendiente" : PUB_STATE[p.state] ?? p.state);
+const canCancel = (p: Pub) => ["scheduled", "queued", "failed", "requiere_auditoria"].includes(p.state) || (p.provider === "zernio" && p.state === "processing");
 
 type Post = { id: string; title: string; caption: string | null; hashtags: string | null; targets: string[]; clip_id: string | null; lyric_video_id: string | null; scheduled_at: string; timezone: string; status: string };
 type Asset = { id: string; label: string; kind: "clip" | "lyric" };
@@ -43,7 +46,7 @@ export default function Calendario() {
     // Publicaciones reales de TikTok (programadas, en curso y hechas), cuentas conectadas y vídeos exportados listos para programar desde aquí.
     const { data: s } = await supabase.auth.getSession();
     const [{ data: pb }, { data: vr }, acc] = await Promise.all([
-      supabase.from("publications").select("id,render_id,music_origin,privacy,state,scheduled_at,created_at,title,description,connection_id,error_message").eq("platform", "tiktok").order("created_at", { ascending: false }).limit(300),
+      supabase.from("publications").select("id,render_id,music_origin,privacy,state,scheduled_at,created_at,title,description,connection_id,error_message,provider,post_url,consent").eq("platform", "tiktok").order("created_at", { ascending: false }).limit(300),
       supabase.from("renders").select("id,created_at,clip_id,clips!inner(title)").eq("kind", "mp4").eq("status", "ready").not("storage_path", "is", null).order("created_at", { ascending: false }).limit(100),
       fetch("/api/tiktok", { headers: { Authorization: `Bearer ${s.session?.access_token ?? ""}` } }).then((r) => (r.ok ? r.json() : { accounts: [] })).catch(() => ({ accounts: [] })),
     ]);
@@ -109,8 +112,8 @@ export default function Calendario() {
       <span className="mono">{utcToLocalInput(p.scheduled_at, viewTz).slice(11, 16)}</span> {p.title}</button>);
 
   const PubChip = ({ p }: { p: Pub }) => (
-    <button onClick={() => setOpenPub(p)} className={`block w-full truncate rounded-md border border-[var(--accent)] px-1.5 py-0.5 text-left text-[11px] ${p.state === "failed" ? "bg-[#FFF1F1]" : p.state === "published" ? "bg-[var(--hover)]" : "bg-[var(--accent-soft)]"}`} title={`TikTok · ${accName(p.connection_id)} · ${PUB_STATE[p.state] ?? p.state} · ${p.title}`}>
-      <span className="mono">{utcToLocalInput(pubAt(p), viewTz).slice(11, 16)}</span> ♪ {accName(p.connection_id)} · {p.title}</button>);
+    <button onClick={() => setOpenPub(p)} className={`block w-full truncate rounded-md border border-[var(--accent)] px-1.5 py-0.5 text-left text-[11px] ${p.state === "failed" ? "bg-[#FFF1F1]" : p.state === "published" ? "bg-[var(--hover)]" : "bg-[var(--accent-soft)]"}`} title={`TikTok · ${pubWho(p, accName)} · ${PUB_STATE[p.state] ?? p.state} · ${p.title}`}>
+      <span className="mono">{utcToLocalInput(pubAt(p), viewTz).slice(11, 16)}</span> ♪ {pubWho(p, accName)} · {p.title}</button>);
 
   const monthStart = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
   const gridStart = startOfWeek(monthStart);
@@ -143,9 +146,9 @@ export default function Calendario() {
         <ul aria-label="Publicaciones de TikTok" className="mb-4 divide-y hairline rounded-2xl border hairline bg-white">{pubs.filter((p) => (view === "done" ? p.state === "published" : p.state !== "cancelled")).sort((a, b) => pubAt(a).localeCompare(pubAt(b))).map((p) => (
           <li key={p.id} className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm">
             <span className="mono w-40 shrink-0">{new Date(pubAt(p)).toLocaleString("es", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
-            <span className="min-w-0 flex-1"><span className="font-medium">{p.title}</span><span className="block truncate text-xs text-[var(--muted)]">TikTok · {accName(p.connection_id)}{p.error_message ? ` · ${p.error_message}` : ""}</span></span>
-            <span className="chip !py-0.5">{PUB_STATE[p.state] ?? p.state}</span>
-            <span className="flex gap-2 text-xs"><button className="underline" onClick={() => setOpenPub(p)}>Ver</button>{["scheduled", "queued", "failed", "requiere_auditoria"].includes(p.state) && <button className="underline" onClick={() => cancelPub(p)}>Cancelar</button>}</span></li>))}</ul>)}
+            <span className="min-w-0 flex-1"><span className="font-medium">{p.title}</span><span className="block truncate text-xs text-[var(--muted)]">TikTok · {pubWho(p, accName)}{p.error_message ? ` · ${p.error_message}` : ""}</span></span>
+            <span className="chip !py-0.5">{pubLabel(p)}</span>
+            <span className="flex gap-2 text-xs"><button className="underline" onClick={() => setOpenPub(p)}>Ver</button>{canCancel(p) && <button className="underline" onClick={() => cancelPub(p)}>Cancelar</button>}</span></li>))}</ul>)}
       {posts === null ? <div className="skeleton h-96" /> : (view === "list" || view === "draft" || view === "done") ? (
         upcoming.length ? (
           <ul className="divide-y hairline rounded-2xl border hairline bg-white">{upcoming.map((p) => (
@@ -173,11 +176,12 @@ export default function Calendario() {
         <div role="dialog" aria-modal="true" aria-label="Publicación de TikTok" className="fixed inset-0 z-40 grid place-items-center overflow-auto bg-black/30 p-4 backdrop-blur-[2px]" onMouseDown={(e) => e.target === e.currentTarget && setOpenPub(null)}>
           <div className="card-raised w-full max-w-lg p-5 text-sm">
             <div className="flex items-center justify-between"><h2 className="text-lg">{openPub.title}</h2><button onClick={() => setOpenPub(null)} aria-label="Cerrar" className="btn btn-ghost !p-1.5"><Icon n="x" className="h-4 w-4" /></button></div>
-            <p className="mt-2">TikTok · {accName(openPub.connection_id)} · <span className="chip !py-0.5">{PUB_STATE[openPub.state] ?? openPub.state}</span></p>
+            <p className="mt-2">TikTok · {pubWho(openPub, accName)} · <span className="chip !py-0.5">{pubLabel(openPub)}</span></p>
             <p className="mono mt-1 text-xs text-[var(--muted)]">{new Date(pubAt(openPub)).toLocaleString("es", { dateStyle: "full", timeStyle: "short" })}</p>
             {openPub.description && <p className="mt-3 whitespace-pre-wrap rounded-xl bg-[var(--surface)] p-3">{openPub.description}</p>}
+            {openPub.post_url && <p className="mt-2"><a href={openPub.post_url} target="_blank" rel="noreferrer" className="font-semibold text-[var(--accent-ink)] underline">Ver el vídeo en TikTok</a></p>}
             {openPub.error_message && <p role="alert" className="mt-2 text-xs">⚠ {openPub.error_message}</p>}
-            <div className="mt-4 flex gap-2">{["failed", "requiere_auditoria"].includes(openPub.state) && <button onClick={() => retryPub(openPub)} className="btn btn-primary">Reintentar</button>}{["scheduled", "queued", "failed", "requiere_auditoria"].includes(openPub.state) && <button onClick={() => cancelPub(openPub)} className="btn btn-ghost">Cancelar publicación</button>}<button onClick={() => setOpenPub(null)} className="btn btn-ghost">Cerrar</button></div>
+            <div className="mt-4 flex gap-2">{openPub.provider !== "zernio" && ["failed", "requiere_auditoria"].includes(openPub.state) && <button onClick={() => retryPub(openPub)} className="btn btn-primary">Reintentar</button>}{canCancel(openPub) && <button onClick={() => cancelPub(openPub)} className="btn btn-ghost">Cancelar publicación</button>}<button onClick={() => setOpenPub(null)} className="btn btn-ghost">Cerrar</button></div>
             {openPub.state === "scheduled" && <p className="mt-2 text-xs text-[var(--muted)]">Para cambiar la hora o el texto, cancélala y prográmala de nuevo.</p>}
           </div>
         </div>)}

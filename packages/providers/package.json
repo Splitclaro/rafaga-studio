@@ -9,7 +9,8 @@
     "./oauth": "./src/oauth.ts",
     "./groq": "./src/groq.ts",
     "./r2": "./src/r2.ts",
-    "./net": "./src/net.ts"
+    "./net": "./src/net.ts",
+    "./zernio": "./src/zernio.ts"
   },
   "dependencies": {
     "@rafaga/selection": "workspace:*"

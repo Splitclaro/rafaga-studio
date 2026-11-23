@@ -14,9 +14,10 @@ import { revoke } from "@rafaga/providers/oauth";
 import { aiConfig, groqChat } from "@rafaga/providers/groq";
 import { copyPrompt, parseCopy, templateCopy, type AccountProfile, type SongInfo } from "../tiktokplan.ts";
 import { bearer, rpc, json, mapDbError, idempotencyKey, sessionUser, type Fetch } from "../api.ts";
+import { zernioConfig, findTarget, accountHealth, checkTargets, creatorInfo, publicBlocker, ZernioError } from "@rafaga/providers/zernio";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-export interface IntegrationDeps { f?: Fetch; ai?: Fetch; provider?: Fetch; net?: PreflightDeps; wake?: (req: Request, jobId: string) => void }
+export interface IntegrationDeps { f?: Fetch; ai?: Fetch; provider?: Fetch; net?: PreflightDeps; wake?: (req: Request, jobId: string) => void; env?: Record<string, string | undefined> }
 const notFound = () => json({ error: { code: "not_found", message: "No encontrado." } }, 404);
 const bad = (code: string, message: string, extra: Record<string, unknown> = {}) => json({ error: { code, message }, ...extra }, 400);
 const missingIdem = () => bad("missing_idempotency_key", "Falta la cabecera Idempotency-Key.");
@@ -32,6 +33,7 @@ const DB_TEXT: Record<string, [number, string]> = {
   invalid_privacy: [400, "Esa privacidad no existe en la plataforma elegida."], invalid_publication: [400, "Revisa el título y la plataforma."],
   invalid_import: [400, "Revisa el origen de la importación."], not_cancellable: [409, "Esta publicación ya no se puede cancelar."],
   account_required: [409, "Elige la cuenta de TikTok donde publicar."], account_paused: [409, "Esa cuenta está en pausa."], music_origin_required: [400, "Indica el origen de la música antes de publicar."],
+  consent_required: [400, "Revisa la vista previa y confirma el consentimiento antes de publicar."], schedule_in_past: [400, "Elige una fecha y hora futuras."],
   daily_cap: [409, "Esa cuenta ya tiene el máximo de publicaciones de ese día."], duplicate_publication: [409, "Ese vídeo ya está programado o publicado en esa cuenta."], invalid_profile: [400, "El perfil de la cuenta no es válido."],
 };
 function dbFail(e: { code: string; message: string; details?: string | null }) {
@@ -42,6 +44,7 @@ function dbFail(e: { code: string; message: string; details?: string | null }) {
 export async function handleIntegrations(req: Request, integration: string, rest: string[], d: IntegrationDeps = {}): Promise<Response> {
   const f = d.f ?? fetch, wake = d.wake ?? defaultWake;
   if (integration === "tiktok") return handleTikTok(req, rest, d);
+  if (integration === "zernio") return handleZernio(req, rest, d);
   if (integration !== "import" && integration !== "publish") return notFound();
   if (req.method !== "POST") return json({ error: { code: "method_not_allowed", message: "Método no permitido." } }, 405);
   if (!(await sessionUser(req, f))) return json({ error: { code: "no_session", message: "Inicia sesión." } }, 401);
@@ -68,9 +71,12 @@ export async function handleIntegrations(req: Request, integration: string, rest
 
   // publish
   if (rest[1] === "cancel" && UUID.test(rest[0] ?? "")) {
-    const r = await rpc(token, "cancel_publication", { p_publication: rest[0] }, f);
-    return r.error ? dbFail(r.error) : json(r.data, 200);
+    const r = await rpc<{ job_id?: string }>(token, "cancel_publication", { p_publication: rest[0] }, f);
+    if (r.error) return dbFail(r.error);
+    if (r.data?.job_id) wake(req, r.data.job_id);   // la cancelación en Zernio la ejecuta el worker
+    return json(r.data, 200);
   }
+  if (rest.length === 0 && b.provider === "zernio") return publishZernio(req, b, token, idempotencyKey(req), d, wake);
   if (rest.length) return notFound();
   const idem = idempotencyKey(req); if (!idem) return missingIdem();
   if (!UUID.test(str(b.export_id))) return bad("invalid_publication", "Elige una exportación válida.");
@@ -145,4 +151,67 @@ export function cleanProfile(p: Record<string, unknown>): AccountProfile {
   if (typeof p.privacy === "string" && ["SELF_ONLY", "MUTUAL_FOLLOW_FRIENDS", "FOLLOWER_OF_CREATOR", "PUBLIC_TO_EVERYONE"].includes(p.privacy)) o.privacy = p.privacy as AccountProfile["privacy"];
   if (typeof p.paused === "boolean") o.paused = p.paused;
   return o;
+}
+
+
+// ───────── Zernio (publicación pública en TikTok) ─────────
+const zcfg = (d: IntegrationDeps) => zernioConfig(d.env ?? process.env);
+const zfail = (e: unknown) => {
+  if (e instanceof ZernioError) {
+    if (e.kind === "payment") return json({ error: { code: "zernio_payment", message: "Zernio exige un plan de pago para esta operación (el plan gratuito admite 2 cuentas conectadas). No se añadió ninguna tarjeta." } }, 402);
+    if (e.kind === "rate") return json({ error: { code: "zernio_rate_limited", message: `Zernio limitó las peticiones; reintenta en ${e.retryAfterS ?? 60} s.` } }, 429);
+    if (e.kind === "auth") return json({ error: { code: "zernio_auth", message: "Zernio rechazó la clave o la cuenta. Revisa ZERNIO_API_KEY y reconecta la cuenta en Zernio." } }, 502);
+    return json({ error: { code: "zernio_error", message: "No se pudo consultar a Zernio ahora mismo." } }, 502);
+  }
+  return json({ error: { code: "zernio_error", message: "No se pudo consultar a Zernio." } }, 502);
+};
+async function handleZernio(req: Request, rest: string[], d: IntegrationDeps): Promise<Response> {
+  const f = d.f ?? fetch, pf = d.provider ?? fetch;
+  if (req.method !== "GET") return json({ error: { code: "method_not_allowed", message: "Método no permitido." } }, 405);
+  if (!(await sessionUser(req, f))) return json({ error: { code: "no_session", message: "Inicia sesión." } }, 401);
+  const cfg = zcfg(d);
+  if (!cfg.ok) return json({ configured: false, targets: [], note: "Zernio no está configurado en el servidor." });
+  try {
+    if (!rest.length) {
+      const c = checkTargets(cfg, await accountHealth(pf, cfg.key));
+      return json({ configured: true, targets: c.targets, extra_connections: c.extra,
+        warning: c.extra > 0 ? "Hay más cuentas conectadas en el equipo de Zernio que las dos autorizadas: el plan gratuito cuenta todas." : null });
+    }
+    if (rest[0] === "creator-info") {
+      const acc = new URL(req.url).searchParams.get("account") ?? "", t = findTarget(cfg, acc);
+      if (!t) return json({ error: { code: "account_not_authorized", message: "Esa cuenta no está autorizada." } }, 403);
+      const ci = await creatorInfo(pf, cfg.key, acc);
+      return json({ username: t.username, nickname: ci.creator?.nickname ?? null, blocker: publicBlocker(ci), maxVideoDurationSec: ci.postingLimits?.maxVideoDurationSec ?? null,
+        interaction: ci.postingLimits?.interactionSettings ?? {}, commercial: ci.commercialContentTypes ?? [] });
+    }
+  } catch (e) { return zfail(e); }
+  return notFound();
+}
+async function publishZernio(req: Request, b: Record<string, unknown>, token: string, idem: string | null, d: IntegrationDeps, wake: (req: Request, jobId: string) => void): Promise<Response> {
+  const f = d.f ?? fetch, pf = d.provider ?? fetch, str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+  if (!idem) return missingIdem();
+  const cfg = zcfg(d);
+  if (!cfg.ok) return json({ error: { code: "not_configured", message: "Zernio no está configurado en el servidor." } }, 503);
+  const acc = str(b.zernio_account_id), t = findTarget(cfg, acc);
+  if (!t) return json({ error: { code: "account_not_authorized", message: "Esa cuenta no está entre los dos destinos autorizados." } }, 403);
+  if (!UUID.test(str(b.export_id))) return bad("invalid_publication", "Elige una exportación válida.");
+  const c = (b.consent && typeof b.consent === "object" ? b.consent : {}) as Record<string, unknown>;
+  if (c.preview_confirmed !== true || c.express_consent !== true) return bad("consent_required", "Revisa la vista previa y confirma el consentimiento antes de publicar.");
+  const o = (b.options && typeof b.options === "object" ? b.options : {}) as Record<string, unknown>;
+  const options = { comment: o.comment === true, duet: o.duet === true, stitch: o.stitch === true, commercial: o.commercial === true, own_brand: o.own_brand === true, paid_partner: o.paid_partner === true };
+  if (options.commercial && !options.own_brand && !options.paid_partner) return bad("invalid_publication", "Indica si el contenido promociona tu marca o a un tercero.");
+  const now = b.publish_now === true; let at: string | null = null;
+  if (!now) {
+    const ms = Date.parse(str(b.scheduled_at));
+    if (!Number.isFinite(ms)) return bad("invalid_publication", "La fecha programada no es válida.");
+    if (ms < Date.now() + 60_000) return bad("schedule_in_past", "Elige una fecha y hora futuras.");
+    at = new Date(ms).toISOString();
+  }
+  try { const blocker = publicBlocker(await creatorInfo(pf, cfg.key, acc)); if (blocker) return json({ error: { code: "account_cannot_post", message: blocker } }, 409); } catch (e) { return zfail(e); }
+  const r = await rpc<{ publication_id: string; state: string; job_id: string | null; replay: boolean }>(token, "request_zernio_publication", {
+    p_render: str(b.export_id), p_title: str(b.title), p_description: str(b.description) || null, p_scheduled_at: at, p_publish_now: now, p_idem: idem,
+    p_account: acc, p_username: t.username, p_options: options, p_consent: { preview_confirmed: true, express_consent: true, caption_reviewed: c.caption_reviewed === true, music_declared: c.music_declared === true }, p_ws: cfg.workspaceId }, f);
+  if (r.error) return dbFail(r.error);
+  if (r.data?.job_id && !r.data.replay) wake(req, r.data.job_id);
+  return json(r.data, 202);
 }
