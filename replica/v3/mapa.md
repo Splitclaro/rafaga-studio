@@ -1,5 +1,27 @@
 # Ráfaga v3 · mapa de capacidades y rutas
 
+> **Revisión 2026-11-23 (solo fuentes públicas).** La fuente de verdad es `replica/v3/features.csv` (40 filas, cada una con su fuente pública P1–P8 de
+> `recon-publico.md`). La tabla de abajo, derivada de la matriz v2 con OpusClip, queda **como histórico**: sus filas «Fuera de referencia» y las que
+> no tienen fuente pública se retiran de la interfaz.
+
+## Revisión de la navegación (qué se queda expuesto)
+| Entrada actual | Respaldo público | Decisión |
+|---|---|---|
+| Inicio, Editor de vídeos, Editor avanzado, Autoclip | P1, P3, P6 | Se quedan |
+| Calendario de publicaciones, Cuentas de TikTok | P1 (publicar o programar en TikTok) | Se quedan en el menú de cuenta |
+| Biblioteca y fondos | P1, P6 (medios propios, fondos) | Se queda |
+| Estilos de letra | P1 (plantillas de texto), P6 (estilos) | Se queda |
+| Uso y almacenamiento | P8 (plan y cuota) | Se queda |
+| Demos y tutoriales | P1 (tutorial integrado) | Se queda |
+| Exportados | — | Se queda solo como acceso a los archivos existentes durante la transición |
+| Conexiones (Drive/Dropbox) | — | Se retira del menú |
+| Kit de marca | — | Se retira |
+| Analítica (métricas internas) | — | Se retira |
+| Automatizaciones | — | Se retira |
+| Compartidos conmigo | — | Se retira |
+| «Invitar» y equipo | — | Se retira de la barra superior |
+
+
 Referencia única: **Escalium** (inventario `replica/inventario/escalium.md`, `replica/escalium/*.md`). Las filas que solo venían de OpusClip quedan marcadas «Fuera de referencia»: no tienen entrada nueva; si su código existe y otra herramienta lo usa, se conserva sin menú.
 
 ## Capacidades → destino

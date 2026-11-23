@@ -12,7 +12,7 @@ test("Inicio muestra las tres herramientas y la navegación principal solo esas 
   await expect(tools).toHaveText(["Editor de vídeos", "Editor de vídeo avanzado", "Autoclip"]);
   const nav = page.getByRole("navigation", { name: "Principal" });
   for (const l of ["Editor de vídeos", "Editor avanzado", "Autoclip"]) await expect(nav.getByRole("link", { name: l, exact: true })).toBeVisible();
-  for (const gone of ["Style Studio", "Calendario", "TikTok", "Director IA"]) await expect(nav.getByRole("link", { name: gone, exact: true })).toHaveCount(0);
+  for (const gone of ["Style Studio", "Calendario", "TikTok", "Director IA", "Kit de marca", "Analítica", "Automatizaciones", "Compartidos conmigo", "Conexiones", "Invitar"]) { await expect(nav.getByRole("link", { name: gone, exact: true })).toHaveCount(0); await expect(page.getByRole("link", { name: gone, exact: true })).toHaveCount(0); }
   expect(bad).toEqual([]);
 });
 

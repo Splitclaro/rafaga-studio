@@ -1,0 +1,39 @@
+id,herramienta,capacidad,prioridad,fuente_publica,ruta_rafaga,estado_rafaga,prueba
+ED-01,Editor de vídeos,Subir canción ≤50 MB (MP3 WAV FLAC AAC OGG M4A),must,P6,/app/editor,parcial (subida existe; límite 60 MB y 10 min),V3-ED-01
+ED-02,Editor de vídeos,Elegir tramo de la canción (canción completa solo en pago),must,P6 P8,/app/editor paso Audio,no (pasos no separados),V3-ED-10
+ED-03,Editor de vídeos,Letra automática y cambiar cualquier palabra,must,P6,/app/editor paso Letras,parcial,V3-ED-20
+ED-04,Editor de vídeos,Sincronía automática palabra a palabra con ajuste fino,must,P6,/app/editor paso Letras,parcial (LyricSyncEditor),V3-ED-24
+ED-05,Editor de vídeos,Fondo de biblioteca o propio,must,P6,/app/editor paso Estilo,parcial,V3-ED-30
+ED-06,Editor de vídeos,Animación color posición fuente tamaño y capa de la letra,must,P6,/app/editor paso Estilo,parcial,V3-ED-32
+ED-07,Editor de vídeos,Catálogo de estilos de letra,must,P6,/app/editor paso Estilo,sí (estilos propios),V3-ED-33
+ED-08,Editor de vídeos,Renderizar y guardar,must,P6,/app/editor paso Render,parcial (render en worker; Modal sin crédito),V3-ED-52
+ED-09,Editor de vídeos,Exportación 1080p gratis y 4K de pago,should,P8,/app/editor paso Render,parcial (720/1080),V3-ED-50
+ED-10,Editor de vídeos,Vídeos creados (dónde quedan los guardados),must,P6 (diseño Ráfaga),/app/editor/videos,no,V3-ED-04
+AV-01,Editor avanzado,Nuevo proyecto y formatos 9:16 16:9 4:5 1:1,must,P1 P2,/app/avanzado,no,V3-AV-01
+AV-02,Editor avanzado,Línea de tiempo con capas de vídeo texto y sonido,must,P3 P7,/app/avanzado/[id],no,V3-AV-10
+AV-03,Editor avanzado,Dividir quitar silencios y ajustar entre clips,must,P3,/app/avanzado/[id],no,V3-AV-10
+AV-04,Editor avanzado,Medios propios (vídeo foto audio) y biblioteca por carpetas,must,P1,/app/avanzado/[id],parcial (colecciones),V3-AV-10
+AV-05,Editor avanzado,Subtítulos con Transcribir palabra a palabra,must,P1,/app/avanzado/[id],no,V3-AV-13
+AV-06,Editor avanzado,Plantillas de texto reutilizables,should,P1,/app/avanzado/[id],parcial (estilos),V3-AV-12
+AV-07,Editor avanzado,Fotogramas clave de zoom posición rotación opacidad y oscurecer con curva,should,P1,/app/avanzado/[id],no,V3-AV-12
+AV-08,Editor avanzado,Efectos (fundido flotar brillo sombra zoom quitar fondo texto detrás),could,P1,/app/avanzado/[id],no,V3-AV-12
+AV-09,Editor avanzado,Formas,could,P1,/app/avanzado/[id],no,V3-AV-12
+AV-10,Editor avanzado,Color (ruedas curvas HSL LUT),could,P3,/app/avanzado/[id],no,V3-AV-12
+AV-11,Editor avanzado,Sonido y sonoridad por plataforma,should,P3,/app/avanzado/[id],no,V3-AV-12
+AV-12,Editor avanzado,Vista previa con la interfaz de cada red,should,P1,/app/avanzado/[id],parcial (zonas seguras),V3-AV-11
+AV-13,Editor avanzado,Guardar reabrir y exportar (1080×1920 1920×1080 1080×1350 1080×1080 4K),must,P1,/app/avanzado/[id],no,V3-AV-15
+AV-14,Editor avanzado,Publicar o programar en TikTok al exportar,should,P1,/app/avanzado/[id],parcial (cola TikTok existe),V3-ED-54
+AV-15,Editor avanzado,Vídeo desde un enlace (canción + 1–5 enlaces al ritmo),could,P2,/app/avanzado/nuevo,skip (descarga de terceros: decisión de producto),V3-AV-04
+AC-01,Autoclip,Subir MP4 MOV MKV WebM (y audio) hasta 3 h,must,P3,/app/autoclip/nuevo,parcial (límite 60 min),V3-AC-01
+AC-02,Autoclip,Duración 10–30 15–60 30–90 60–180 s o propia,must,P3,/app/autoclip/nuevo,parcial (rangos distintos),V3-AC-02
+AC-03,Autoclip,Número de clips Auto,must,P3,/app/autoclip/nuevo,sí,V3-AC-03
+AC-04,Autoclip,Idioma o detección,must,P3,/app/autoclip/nuevo,sí,V3-AC-04
+AC-05,Autoclip,Analizar también la imagen,should,P3,/app/autoclip/nuevo,no,V3-AC-05
+AC-06,Autoclip,Lista ordenada con motivos frase inicial y puntuación relativa,must,P3 P4,/app/autoclip/[id],parcial,V3-AC-20
+AC-07,Autoclip,Mover inicio y fin (por frase o tiempo exacto),must,P4,/app/autoclip/[id],parcial (en el editor),V3-AC-21
+AC-08,Autoclip,Encuadre Rellenar Ajustar Original con vista previa,must,P3,/app/autoclip/[id],parcial,V3-AC-23
+AC-09,Autoclip,Subtítulos y descargar MP4 9:16,must,P3,/app/autoclip/[id],parcial,V3-AC-27
+AC-10,Autoclip,Abrir los clips en el editor avanzado,must,P3 P5,/app/autoclip/[id] → /app/avanzado/[id],no,V3-AC-28
+AC-11,Autoclip,Historial de vídeos analizados,should,P4,/app/autoclip,sí,V3-AC-30
+GEN-01,General,Tutorial integrado,could,P1,/app/demos,parcial,V3-GEN-01
+GEN-02,General,Plan y cuota visibles (5 vídeos de letra al mes en gratis),should,P8,/app/uso,parcial,V3-GEN-02

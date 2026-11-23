@@ -16,14 +16,9 @@ const NAV: (NavItem & { glyph: string })[] = [
 const OTHER: NavItem[] = [
   { href: "/app/calendario", label: "Calendario de publicaciones", icon: "calendar", ready: true, group: "Cuenta" },
   { href: "/app/tiktok", label: "Cuentas de TikTok", icon: "film", ready: true, group: "Cuenta" },
-  { href: "/app/conexiones", label: "Conexiones", icon: "link", ready: true, group: "Cuenta" },
   { href: "/app/exports", label: "Exportados", icon: "download", ready: true, group: "Cuenta" },
   { href: "/app/biblioteca", label: "Biblioteca y fondos", icon: "grid", ready: true, group: "Cuenta" },
   { href: "/app/style-studio", label: "Estilos de letra", icon: "type", ready: true, group: "Cuenta" },
-  { href: "/app/brand-kits", label: "Kit de marca", icon: "brand", ready: true, group: "Cuenta" },
-  { href: "/app/analitica", label: "Analítica", icon: "chart", ready: true, group: "Cuenta" },
-  { href: "/app/automatizaciones", label: "Automatizaciones", icon: "wand", ready: true, group: "Cuenta" },
-  { href: "/app/entregas", label: "Compartidos conmigo", icon: "share", ready: true, group: "Cuenta" },
   { href: "/app/uso", label: "Uso y almacenamiento", icon: "clock", ready: true, group: "Cuenta" },
   { href: "/app/demos", label: "Demos y tutoriales", icon: "play", ready: true, group: "Ayuda" },
 ];
@@ -118,7 +113,6 @@ export default function AppShell({ children }: { children: ReactNode }) {
                   <span className="min-w-0 flex-1 truncate">{x.name}</span><span className="text-[11px] text-[var(--muted)]">{ROLE[x.role]}</span>{x.active && <Icon n="check" className="h-3.5 w-3.5" />}</button></li>))}</ul>
               <button role="menuitem" onClick={newSpace} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left hover:bg-[var(--hover)]"><Icon n="plus" className="h-4 w-4" />Nuevo espacio</button>
               <div className="my-1 border-t hairline" />
-              <Link role="menuitem" href="/app/equipo" onClick={() => setMenu(false)} className="block rounded-lg px-3 py-2 hover:bg-[var(--hover)]">Equipo y permisos</Link>
               <Link role="menuitem" href="/app/ajustes" onClick={() => setMenu(false)} className="block rounded-lg px-3 py-2 hover:bg-[var(--hover)]">Uso y ajustes</Link>
               <div className="my-1 border-t hairline" />
               {OTHER.map((o) => <Link key={o.href} role="menuitem" href={o.href} onClick={() => setMenu(false)} className="block rounded-lg px-3 py-2 hover:bg-[var(--hover)]">{o.label}</Link>)}
@@ -152,8 +146,6 @@ export default function AppShell({ children }: { children: ReactNode }) {
           <span className="ml-auto flex items-center gap-2.5">
             {running > 0 && <Link href="/app/proyectos" className="chip"><span className="pulse" aria-hidden /> <span className="tnum">{running}</span> en curso</Link>}
             {usage && <Link href="/app/ajustes" className="hidden min-h-11 items-center gap-2 rounded-xl border hairline bg-[var(--card)] px-3.5 text-sm font-medium md:inline-flex"><span aria-hidden className="text-[var(--accent)]">✦</span><span className="tnum">{Math.max(0, Math.round(usage.limit - usage.used))} min restantes<span className="sr-only"> del plan</span></span></Link>}
-            <Link href="/app/equipo" className="btn btn-ghost !min-h-11 hidden md:inline-flex"><Icon n="plus" className="h-4 w-4" />Invitar</Link>
-            <Link href="/app/conexiones" aria-label="Conexiones" className="card hidden h-11 w-11 place-items-center hover:bg-[var(--hover)] md:grid"><Icon n="link" className="h-[18px] w-[18px]" /></Link>
             <Link href="/app/demos" aria-label="Ayuda" className="card hidden h-11 w-11 place-items-center hover:bg-[var(--hover)] md:grid">?</Link>
             <div className="relative">
               <button onClick={openBell} aria-label={`Notificaciones${unread ? `, ${unread} nuevas` : ""}`} aria-expanded={bell} className="card relative grid h-11 w-11 place-items-center hover:bg-[var(--hover)]">
