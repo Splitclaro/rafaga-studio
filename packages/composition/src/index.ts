@@ -13,3 +13,4 @@ export * from "./layouts.ts";
 export * from "./safezones.ts";
 export * from "./fontcatalog.ts";
 export * from "./lyricscene.ts";
+export * from "./timeline.ts";
