@@ -20,3 +20,6 @@ evidence/
 # Vídeo de ejemplo propio de las demos
 !apps/web/public/demo/*.mp4
 *.tsbuildinfo
+
+# Capturas internas de la auditoría de paridad (contienen datos de cuentas)
+replica/evidencia/

@@ -1,6 +1,6 @@
 # Rendimiento (modo rápido)
 
-Generado por `node scripts/perf-run.ts --quick` el 2026-11-14. **Línea base local, no una promesa de tiempos.**
+Generado por `node scripts/perf-run.ts --quick` el 2026-11-23. **Línea base local, no una promesa de tiempos.**
 
 - Material: 2 proyectos a la vez, vídeo de 5 min a 640×360 (H.264), audio `pcm_s24le` y timecode.
 - Recorrido: subida (copia) → validate → mezzanine → proxy → análisis → selección → composición → previews → comprobaciones → exportación MP4 de cada clip → ZIP.
@@ -10,13 +10,13 @@ Generado por `node scripts/perf-run.ts --quick` el 2026-11-14. **Línea base loc
 
 | Fase (ms) | p50 | p95 | muestras |
 |---|---|---|---|
-| `upload_ms` | 166 | 251 | 2 |
-| `queue_ms` | 8 | 264 | 2 |
-| `analysis_ms` | 53622 | 55074 | 2 |
-| `first_clip_ms` | 22065 | 22081 | 2 |
-| `all_clips_ms` | 22395 | 22453 | 2 |
-| `render_ms` | 7609 | 11140 | 2 |
-| `zip_ms` | 32 | 1798 | 2 |
+| `upload_ms` | 121 | 124 | 2 |
+| `queue_ms` | 7 | 132 | 2 |
+| `analysis_ms` | 90656 | 105306 | 2 |
+| `first_clip_ms` | 73922 | 73943 | 2 |
+| `all_clips_ms` | 74248 | 74305 | 2 |
+| `render_ms` | 6107 | 9112 | 2 |
+| `zip_ms` | 29 | 1537 | 2 |
 
 Con 2 muestras por fase, p95 coincide con el máximo. Fases: `upload_ms` copia del archivo; `queue_ms` espera de la primera etapa; `analysis_ms` ingesta + análisis; `first_clip_ms` desde pedir la generación hasta el primer clip; `all_clips_ms` hasta terminar las comprobaciones; `render_ms` desde pedir la exportación hasta el último MP4; `zip_ms` empaquetado del lote.
 

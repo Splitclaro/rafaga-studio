@@ -379,3 +379,9 @@ Probar Lyric Studio con una canción real (canto + instrumental). Siguiente: Sty
 - **Zernio rediseñado:** el envío ya no pasa por el worker de Modal; lo hace el servidor web al programar (`zernio_send.ts` en `@rafaga/providers`), con `zernio_send_context` / `record_zernio_send` como RPC de usuario, reintento (`/api/publish/:id/retry`) y cancelación propagada. El webhook es una **Edge Function de Supabase** (`supabase/functions/zernio-webhook`). Se retiró el código de Zernio del worker y de `app.py`. Pasos en `docs/ZERNIO.md`.
 - **Migración 118:** presupuesto de cómputo a 1 USD, barrido por `pg_cron` (`cron_sweep`) y `modal_wake()` solo con trabajo listo. En `app.py`: espera tras vaciar la cola 60→15 s y `sweeper` de 3 min a 6 h.
 - Probado en local: 565 pruebas (0 fallos), typecheck y build. **No aplicado en producción ni desplegado** (migraciones 117 y 118, Edge Function, secretos, push, `modal deploy`).
+
+## 2026-11-23 (noche) · Auditoría de paridad con OpusClip y Escalium
+- Entregada en `replica/` (empieza por `README.md`): inventarios de ambos referentes, matriz de 61 filas, informe de fallos y plan por entregas. Commit auditado `7dd21b3`.
+- **Puntuación:** acreditada 15,8/100 (0 de 25 imprescindibles verificados); declarada 66,5/100 (16 de 25) si lo pendiente funcionara. Veredicto: no entregable. Causa principal de la falta de evidencia: Modal sin cuota hasta el 1 de diciembre (S1).
+- Fallos reproducidos: B-09 (S1, Modal sin cuota), B-01 (S2, medidor 4,4 % frente a 100 % real), B-02/B-03/B-04/B-05 (S3) y B-07 (S4). Regla de paridad añadida a `CLAUDE.md`.
+- Pendiente de autorización del propietario: subir el corpus a los referentes (gasta créditos y cuota), conectar cuentas de prueba, crear una receta de prueba, y decidir las dependencias de la suite e2e.

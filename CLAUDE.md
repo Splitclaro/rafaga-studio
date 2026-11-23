@@ -119,7 +119,7 @@ Modal `dispatch` → `node workers/media/src/stage.ts --drain` → `claim_stage`
 ## Coste 0 € y worker
 - Solo capas gratuitas: Modal Starter, Groq free, Supabase Free, R2 Free (10 GB), Vercel Hobby.
 - **GitHub Actions no procesa medios de usuario** (términos de GitHub): solo CI y el worker heredado hasta D1.
-- El medidor de Modal (`compute_meter`) rechaza trabajos nuevos al 90 % de 30 USD; sin tarifa, falla cerrado.
+- El medidor de Modal (`compute_meter`) rechaza trabajos nuevos al 90 % del presupuesto (1 USD: crédito del plan Starter de Modal, no 30); sin tarifa, falla cerrado.
 
 ## Diseño visual
 Fuera de alcance: se conserva el sistema existente (interfaz clara `#FAFAFC`, tinta `#0B0F1A`, acento `#2A55F5`;
@@ -148,3 +148,6 @@ paso que las requiere en `blueprint.md` §10. Los secretos los pega el propietar
 6. Nunca 0 clips en silencio: toda diferencia con lo pedido va explicada en `generations.warnings`.
 7. Nunca marcar una tarea como hecha con su `verify` en rojo, ni editar un `verify`.
 8. Nunca `git reset --hard`: la vuelta atrás es `git revert --no-edit rafaga-v2-step-<NN-1>..HEAD`.
+
+## Tareas de paridad con OpusClip y Escalium
+Si la tarea consiste en comparar, auditar o igualar funciones con OpusClip o Escalium: (1) carga las skills de Replica (`replica-recon`, `replica-test`, `replica-diff`; `replica-architect` y `replica-entrepreneur` para proponer cambios y leer a los usuarios); (2) trabaja siempre con **los dos** referentes y con `replica/matriz-paridad.csv` como inventario (se regenera con `python3 replica/_genera_matriz.py`); (3) recorre los referentes como usuario normal y de solo lectura: **pide permiso para cada subida, gasto de créditos, conexión de cuenta o cambio de datos**; (4) cuenta como «verificada» solo un recorrido real completo con su criterio de aceptación: una pantalla visible o una prueba simulada no basta; (5) cierra con `pnpm test`, typecheck, build y `python3 ~/.claude/skills/replica-diff/parity.py replica/features.csv`, y actualiza la matriz y el informe con el commit probado. Ver `replica/README.md`.

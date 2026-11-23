@@ -1,0 +1,62 @@
+feature,area,priority,original,clone,notes
+ENT-01 Subir un vídeo largo desde el equipo con progreso real,Entrada y proyectos,must,yes,yes,Sin recorrido real hoy: Modal sin cuota. Hay pruebas unitarias de subida (uploads.test) pero no cuentan como recorrido real.
+"ENT-02 Subida por lotes: varios archivos a la vez, cada uno su proyecto",Entrada y proyectos,should,yes,partial,Existe para canciones (UI); para vídeos largos no se encontró subida múltiple.
+ENT-03 Importar por enlace de YouTube,Entrada y proyectos,could,yes,no,"Decisión de producto: no se descarga YouTube (política y verificación anti-bots, ver docs/recon). Ráfaga solo admite enlaces directos a arch"
+ENT-04 Importar desde Google Drive / Dropbox,Entrada y proyectos,should,yes,partial,Código de importación existe pero la UI dice «próximamente» y la conexión no se ha probado de punta a punta (B-03).
+"ENT-05 Más fuentes de entrada (Twitch, Rumble, 10+ fuentes en Pro)",Entrada y proyectos,could,yes,no,No hay Twitch ni otras fuentes; decisión de alcance pendiente.
+"ENT-06 Historial de proyectos con ordenar, filtrar y buscar",Entrada y proyectos,must,yes,yes,"UI con filtros Todos/En curso/Archivados, orden y carpetas vista; sin buscador propio en la lista y sin recorrido ejecutado."
+ENT-07 Colecciones/carpetas y favoritos,Entrada y proyectos,should,yes,yes,UI vista; no ejecutado.
+ENT-08 Reanudar subida y recuperarse de una interrupción,Entrada y proyectos,must,yes,yes,No probado en entorno real (Modal sin cuota; la prueba depende de la subida real).
+"ENT-09 Medidor de almacenamiento, caducidad y papelera",Entrada y proyectos,should,yes,yes,Cumple. Ver B-01 por la inconsistencia con el gasto real de cómputo.
+CLP-01 Pedir los momentos en lenguaje natural («Moments to include») y ver cómo se interpretó,Clipping e IA,must,yes,yes,UI vista; sin ejecución real hoy. Pruebas unitarias de brief.ts existen.
+CLP-02 Elegir el modelo/modo de IA (Auto / ClipAnything / ClipBasic),Clipping e IA,should,yes,partial,"Ráfaga separa modos editoriales; no expone selección de modelo (decisión razonable, no es requisito de resultado)."
+"CLP-03 Indicar el tipo de contenido (podcast, deportes, educativo…) para guiar la selección",Clipping e IA,should,yes,partial,Ráfaga lo infiere del texto; no hay chips explícitos.
+"CLP-04 Duración del clip por rangos (<30 s, 30–59, 60–89, 90 s–3 min, 3–5 min)",Clipping e IA,must,yes,no,"Sin selector de rango. Observado: clip de 1:17 de un vídeo de 1,5 min (B-06)."
+CLP-05 Número de clips pedido y explicación si hay menos,Clipping e IA,must,yes,yes,Regla del repositorio «nunca 0 clips en silencio»; sin recorrido real hoy.
+"CLP-06 Puntuación por clip con desglose (Hook, Flow, Value, Trend) y motivo",Clipping e IA,must,yes,partial,"Ráfaga muestra un número y una frase, sin desglose por criterio. Sin encargo «no se mide la afinidad»."
+"CLP-07 Ordenar, filtrar y buscar clips por palabra",Clipping e IA,must,yes,yes,UI presente; proyecto de prueba con 1 clip; sin ejecutar.
+CLP-08 Transcripción corregible con tiempos,Clipping e IA,must,yes,no,La transcripción empieza por la palabra «Música» (etiqueta de sonido del ASR) y se pinta como subtítulo en la vista previa (B-05).
+CLP-09 Traducir subtítulos y doblar con voz,Clipping e IA,should,yes,partial,Doblaje de voz: falta (coste de pago). Traducción: sin verificar hoy.
+CLP-10 Reencuadre inteligente a vertical con seguimiento del hablante,Clipping e IA,must,yes,yes,Hay pruebas con detector simulado; sin vídeo real con varias voces en producción.
+CLP-11 Regenerar buscando otros momentos conservando lo anterior,Clipping e IA,should,yes,yes,Sin ejecutar.
+CLP-12 Favorito y «no me gusta» que mejoran la siguiente generación,Clipping e IA,should,yes,yes,UI presente; sin ejecutar.
+CLP-13 Recetas para streams de gaming y vídeos hablados («Auto-edit talking videos»),Clipping e IA,could,yes,partial,Existen recetas básicas; no hay «gaming» ni «talking videos».
+CLP-14 Recetas propias guardadas («Create new Recipe»),Clipping e IA,could,yes,no,Sin plantillas de ajustes guardables.
+EDI-01 Ajustar inicio/final con precisión y ampliar con el original,Edición y Lyric Studio,must,yes,yes,Sin ejecutar; comparación con Opus bloqueada por plan.
+EDI-02 Editar por transcripción: borrar fragmentos y restaurar,Edición y Lyric Studio,must,yes,yes,Sin ejecutar.
+"EDI-03 Biblioteca de estilos de subtítulos (palabra activa, karaoke, etc.)",Edición y Lyric Studio,must,yes,yes,Catálogo visto; paridad vista previa=exportación (≤1 fotograma) solo verificada por pruebas automáticas.
+EDI-04 Vista previa = exportación (subtítulos y encuadre dentro de 1 fotograma),Edición y Lyric Studio,must,yes,yes,"Pruebas automáticas verdes, sin comparación sobre una exportación real nueva."
+EDI-05 Titular / título fijo sobre el vídeo,Edición y Lyric Studio,should,yes,partial,Titular en clips: sí (visto en el editor). Título fijo en Lyric Studio: falta.
+EDI-06 Llamada a la acción final (botón a Spotify/Apple/YouTube),Edición y Lyric Studio,should,yes,no,No existe en el motor de letra.
+EDI-07 B-roll con IA e imágenes encima,Edición y Lyric Studio,should,yes,partial,Generación con IA: falta (coste). Con medios propios: sin verificar.
+"EDI-08 Limpieza de voz: quitar pausas y muletillas, mejorar audio",Edición y Lyric Studio,must,yes,no,Anunciado como próximamente en la UI.
+"EDI-09 Efectos automáticos: zoom, transiciones, corrección de color, SFX, contacto visual",Edición y Lyric Studio,should,yes,no,No implementado.
+EDI-10 Editor con línea de tiempo y proyecto guardable,Edición y Lyric Studio,should,yes,partial,"Ráfaga edita un clip (cortes, transcripción, diseño, audio); sin línea de tiempo multipista."
+"EDI-11 Kit de marca: logo, fuentes, vocabulario, palabras censuradas",Edición y Lyric Studio,should,yes,yes,Brand kit con fuentes y vocabulario existe; sin ejecutar hoy.
+EDI-12 Lyric Studio: canción → letra sincronizada → estilo → vídeo,Edición y Lyric Studio,must,yes,yes,"Verificada en producción el 2026-11-16 (STATUS: 4 variantes con fondos distintos, 4/4 listas); no repetible hoy sin Modal."
+EDI-13 Varios fondos → una creación por fondo; fondos propios,Edición y Lyric Studio,must,yes,yes,Verificada el 2026-11-16; pendiente de repetir.
+"EDI-14 Efectos de cámara y filtros (VHS, noche, gran angular, cine)",Edición y Lyric Studio,should,yes,yes,Prueba automática con ffmpeg real (lyric_image_bg.test) para 4 filtros: MP4 H.264 yuv420p 720×1280. Recorrido de usuario no repetido.
+EDI-15 Entrada y salida suaves del volumen,Edición y Lyric Studio,should,yes,partial,Implementado el 2026-11-16 con prueba ffmpeg; sin recorrido de usuario.
+EDI-16 Zonas seguras TikTok/Reels/Shorts en la vista previa,Edición y Lyric Studio,should,yes,yes,Sin ejecutar.
+EDI-17 Vídeo desde un enlace: tu canción + planos de un vídeo de YouTube al ritmo,Edición y Lyric Studio,could,yes,no,Función no presente; depende de descargar YouTube (ver ENT-03).
+"EDI-18 Velocidad de reproducción 0,5×/0,25× en la vista previa",Edición y Lyric Studio,could,yes,yes,No comprobado si existe en la vista previa de letra.
+EXP-01 MP4 H.264/AAC vertical con subtítulos incrustados,Exportación y publicación,must,yes,partial,"Resolución/duración/audio comprobados en el reproductor, no con ffprobe: «Descargar» abre el MP4 en una pestaña en lugar de guardarlo (B-04)"
+"EXP-02 Varias relaciones de aspecto (9:16, 1:1, 16:9, 4:5)",Exportación y publicación,should,yes,yes,12 combinaciones layout×ratio probadas con ffmpeg real en pruebas; sin recorrido de usuario hoy.
+EXP-03 Descarga en ZIP con SRT/VTT/TXT,Exportación y publicación,should,yes,yes,Prueba automática de ZIP válido existe; sin recorrido real hoy.
+EXP-04 Exportar a editores profesionales (XML para Premiere/DaVinci),Exportación y publicación,could,yes,yes,Implementado; importación en un editor real no probada.
+EXP-05 Calidad HD/4K,Exportación y publicación,should,yes,partial,Ráfaga: 720p y 1080p (Lyric). Sin 4K ni upscaling.
+EXP-06 Calendario de publicaciones con zona horaria,Exportación y publicación,must,yes,yes,UI vista; recorrido real de publicación pendiente.
+EXP-07 Conectar varias cuentas sociales,Exportación y publicación,must,yes,partial,2 de 5 cuentas conectadas en producción (verificado el 2026-11-16). La página Conexiones contradice esto (B-02).
+EXP-08 Publicar en abierto en TikTok sin pasar por el móvil,Exportación y publicación,must,yes,no,"Hoy solo borradores en la bandeja de TikTok (verificado 2026-11-16). Zernio: código listo, no desplegado."
+EXP-09 Publicar en YouTube Shorts / Instagram Reels,Exportación y publicación,should,yes,partial,"YouTube: botón presente, sin verificar; Instagram: falta."
+"EXP-10 Estado, enlace público, reintento y cancelación de cada publicación",Exportación y publicación,must,yes,yes,"Probado con simulación (zernio.test, tiktokaccounts.test); sin cuentas reales."
+"EXP-11 Analítica de lo publicado (vistas, likes, comentarios)",Exportación y publicación,could,yes,no,"Ráfaga muestra operación (colas, fallos, tiempos) y no métricas sociales; igual que Opus hoy, por debajo de Escalium."
+EXP-12 Landing pages / smart links para canciones,Exportación y publicación,could,yes,no,Fuera de alcance de Ráfaga por ahora (decisión).
+OPE-01 Pocos pasos desde abrir hasta tener clips,Experiencia y operación,must,yes,yes,Misma estructura; sin cronometrar.
+OPE-02 Disponibilidad del procesamiento (el trabajo se completa),Experiencia y operación,must,yes,no,"S1: sin cuota, Modal no procesa nada hasta el 1 de diciembre (B-09). Medidas en docs/MODAL_COSTE.md."
+"OPE-03 Editor en móvil y teclado, accesibilidad",Experiencia y operación,should,yes,yes,No se ejecutó una pasada móvil ni axe. Observado: enlaces duplicados por fila en Proyectos (B-07).
+OPE-04 Autoguardado con estado visible y versiones,Experiencia y operación,should,yes,yes,Autoguardado existe en el código; sin ejecutar.
+OPE-05 Permisos entre espacios y usuarios,Experiencia y operación,must,yes,partial,"Pruebas verdes, pero con base de datos simulada: sin recorrido real con un segundo usuario."
+OPE-06 Consumo y cuotas visibles,Experiencia y operación,should,yes,no,"El medidor marca 4,4 % cuando Modal marca el 100 % (B-01)."
+"OPE-07 API y conexión con agentes (API Access, MCP)",Experiencia y operación,could,yes,no,Idea evaluada: MCP local de Ráfaga (sin construir).
+OPE-08 Proyectos de demostración sin subir nada,Experiencia y operación,could,yes,yes,Vistas en la portada; sin abrir.
