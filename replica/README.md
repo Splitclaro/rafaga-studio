@@ -8,7 +8,8 @@ Auditoría del 2026-11-23 sobre el commit `7dd21b3`. Léelo en este orden:
 4. `inventario/opus.md` y `inventario/escalium.md` — inventario por pantalla y ajuste de cada referente.
 5. `features.csv` (estricto: lo pendiente cuenta como no hecho) y `features_declarado.csv` (lo pendiente cuenta como hecho) — entradas de `python3 ~/.claude/skills/replica-diff/parity.py`.
 6. `_genera_matriz.py` — fuente única de los tres CSV: edítalo y vuelve a ejecutarlo (`python3 replica/_genera_matriz.py`).
-7. Estudios anteriores: `opus/`, `escalium/`, `lyrictune/`, `../docs/recon/`.
+7. `escalium/lyrics-edit-audit.md` — prueba de la edición de letras de Escalium (25 filas con criterio de aceptación para Ráfaga).
+8. Estudios anteriores: `opus/`, `escalium/`, `lyrictune/`, `../docs/recon/`.
 
 `evidencia/` guarda capturas internas (contienen el correo de la cuenta) y no se versiona.
 
