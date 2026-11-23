@@ -80,7 +80,16 @@ Severidad (replica-test): **S1** pérdida de datos, seguridad, núcleo bloqueado
 | `perf-run --quick` local: primer clip | 73,9 s | 73,9 s | 2 | idem |
 | `perf-run --quick` local: render | 6,1 s | 9,1 s | 2 | idem |
 
-Con menos de 20 muestras los percentiles no son representativos. No hay medida de variación ni de comparación con los referentes.
+Con menos de 20 muestras los percentiles no son representativos. Sin medida de variación en Ráfaga.
+
+### Referentes con el mismo archivo propio (`podcast-prueba.mp4`, 100 s) · 2026-11-23, una muestra cada uno
+| Herramienta | Tiempo hasta clips | Clips | Cobertura de la fuente | Notas |
+|---|---|---|---|---|
+| OpusClip (Free, 1 crédito) | **10 min 26 s – 11 min 31 s** (96 % a los 10 min 26 s; «ready» observado a los 11 min 31 s) | 2 (0:44 y 0:55) | ~98 % | Títulos en inglés con audio en español; errores de transcripción en el texto |
+| Escalium Autoclip (modo rápido) | análisis **0:08**; resultados a ~20 s del clic | 3 (0:26, 0:44, 0:24) | ~94 % | Puntuaciones 100/71/58 con motivos; errores en alguna cita |
+| Ráfaga | **no medido hoy** (Modal sin cuota); histórico de producción p50 25,8 s, p95 2,8 min (n=12) | — | — | Debe repetirse sobre el mismo archivo (CLP-15) |
+
+Lectura prudente: con una sola muestra y un archivo corto de dos temas, ambos referentes devuelven casi toda la fuente (como Ráfaga con su proyecto de 1,5 min); no permite concluir sobre calidad de selección. Sí muestra que la diferencia de tiempo entre un análisis en el equipo (segundos) y uno en cola gratuita (minutos) es de dos órdenes de magnitud.
 
 ## Pruebas automáticas (HEAD `7dd21b3`)
 `pnpm test`: 565 pruebas, 563 pasan, 0 fallan, 2 omitidas · `pnpm --filter @rafaga/web typecheck`: sin errores · `pnpm --filter @rafaga/web build`: sin errores. Las pruebas usan bases de datos y red simuladas: **no acreditan** recorridos reales.

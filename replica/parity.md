@@ -1,13 +1,13 @@
-## Parity: 15.8 / 100
+## Parity: 15.2 / 100
 
-features 15.8  (61 counted, must-haves 0 of 25 done)
+features 15.2  (63 counted, must-haves 0 of 26 done)
 
-Not shippable yet: 25 must-have features are not done.
+Not shippable yet: 26 must-have features are not done.
 
 ## By area, weakest first
 - Experiencia y operación        8.8  (8 features)
+- Clipping e IA                 13.2  (16 features)
 - Edición y Lyric Studio        14.6  (18 features)
-- Clipping e IA                 15.2  (14 features)
 - Exportación y publicación     19.2  (12 features)
 - Entrada y proyectos           21.1  (9 features)
 
@@ -18,6 +18,7 @@ Not shippable yet: 25 must-have features are not done.
 - [must] Clipping e IA: CLP-07 Ordenar, filtrar y buscar clips por palabra, no  (UI presente; proyecto de prueba con 1 clip; sin ejecutar.)
 - [must] Clipping e IA: CLP-08 Transcripción corregible con tiempos, no  (La transcripción empieza por la palabra «Música» (etiqueta de sonido del ASR) y se pinta como subtítulo en la vista previa (B-05).)
 - [must] Clipping e IA: CLP-10 Reencuadre inteligente a vertical con seguimiento del hablante, no  (Hay pruebas con detector simulado; sin vídeo real con varias voces en producción.)
+- [must] Clipping e IA: CLP-15 Tiempo hasta el primer clip utilizable, no  (Sin medición hoy en Ráfaga (Modal sin cuota). Histórico de producción orientativo; no comparable aún.)
 - [must] Edición y Lyric Studio: EDI-01 Ajustar inicio/final con precisión y ampliar con el original, no  (Sin ejecutar; comparación con Opus bloqueada por plan.)
 - [must] Edición y Lyric Studio: EDI-02 Editar por transcripción: borrar fragmentos y restaurar, no  (Sin ejecutar.)
 - [must] Edición y Lyric Studio: EDI-03 Biblioteca de estilos de subtítulos (palabra activa, karaoke, etc.), no  (Catálogo visto; paridad vista previa=exportación (≤1 fotograma) solo verificada por pruebas automáticas.)
@@ -39,6 +40,7 @@ Not shippable yet: 25 must-have features are not done.
 - [must] Exportación y publicación: EXP-07 Conectar varias cuentas sociales, partial  (2 de 5 cuentas conectadas en producción (verificado el 2026-11-16). La página Conexiones contradice esto (B-02).)
 - [should] Clipping e IA: CLP-11 Regenerar buscando otros momentos conservando lo anterior, no  (Sin ejecutar.)
 - [should] Clipping e IA: CLP-12 Favorito y «no me gusta» que mejoran la siguiente generación, no  (UI presente; sin ejecutar.)
+- [should] Clipping e IA: CLP-16 Podcast / multicámara: elegir a quién seguir y montar el vertical alrededor, no  (Ráfaga tiene layouts de dos hablantes; sin verificar con vídeo real.)
 - [should] Edición y Lyric Studio: EDI-06 Llamada a la acción final (botón a Spotify/Apple/YouTube), no  (No existe en el motor de letra.)
 - [should] Edición y Lyric Studio: EDI-09 Efectos automáticos: zoom, transiciones, corrección de color, SFX, contacto visual, no  (No implementado.)
 - [should] Edición y Lyric Studio: EDI-11 Kit de marca: logo, fuentes, vocabulario, palabras censuradas, no  (Brand kit con fuentes y vocabulario existe; sin ejecutar hoy.)

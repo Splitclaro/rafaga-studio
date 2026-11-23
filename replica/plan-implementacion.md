@@ -1,6 +1,6 @@
 # Plan de implementación para la paridad con OpusClip y Escalium · 2026-11-23
 
-Este plan **no inicia ninguna reescritura, despliegue ni migración de producción**. Se basa en `replica/matriz-paridad.csv` (61 filas), `replica/informe-fallos.md` y los inventarios. Commit auditado: `7dd21b3`.
+Este plan **no inicia ninguna reescritura, despliegue ni migración de producción**. Se basa en `replica/matriz-paridad.csv` (63 filas), `replica/informe-fallos.md` y los inventarios. Commit auditado: `7dd21b3`.
 
 ## 0. Resultado de la auditoría en una tabla
 | Estado | Filas | Qué significa |
@@ -9,17 +9,17 @@ Este plan **no inicia ninguna reescritura, despliegue ni migración de producci�
 | Parcial | 16 | Existe pero falta una parte, o solo se verificó una parte |
 | Falla | 3 | Reproducido roto hoy (procesamiento parado, medidor, transcripción con etiqueta de sonido) |
 | Falta | 12 | No existe (o decisión de producto de no construirlo) |
-| Pendiente de verificar | 28 | La pantalla o el código existen; no se completó el recorrido real hoy |
+| Pendiente de verificar | 30 | La pantalla o el código existen; no se completó el recorrido real hoy |
 
 **Puntuación de paridad** (`replica-diff`, pesos must 3 / should 2 / could 1):
-- **Acreditada (solo lo verificado + mitades de lo parcial): 15,8 / 100; 0 de 25 imprescindibles verificados.**
-- **Declarada (si las 28 pendientes funcionaran): 66,5 / 100; 16 de 25 imprescindibles cumplidos.**
+- **Acreditada (solo lo verificado + mitades de lo parcial): 15,2 / 100; 0 de 26 imprescindibles verificados.**
+- **Declarada (si las 30 pendientes funcionaran): 67,7 / 100; 17 de 26 imprescindibles cumplidos.**
 
 La diferencia es la cantidad de trabajo **sin evidencia**, no necesariamente roto. La causa principal es B-09: el procesamiento está parado hasta el 1 de diciembre, así que hoy no se puede completar casi ningún recorrido. Veredicto: **no entregable** (replica-diff: faltan imprescindibles y hay un S1 abierto).
 
 ## 1. Cómo se leyeron los referentes
-- **OpusClip** (plan Free): recorrido de solo lectura de Inicio, Mis proyectos, resultados de un proyecto de demostración, ventana de clip, ajustes de receta (modelo, duración, tipo, encargo, subtítulos, hook, titular, B-roll, limpieza de voz, efectos, traducción), calendario, analítica, cuentas, kit de marca/biblioteca y planes. Bloqueado por plan: editor, kit de marca, 4K. Bloqueado por autorización: conectar cuentas, crear recetas, subir un archivo, gastar créditos.
-- **Escalium** (plan Gratis): editor (paso 1), vídeos creados, Autoclip, editor avanzado, Publicar, Landing Pages. Pasos 2–4 y render: bloqueados por autorización (gasta cuota). Analíticas y Cuenta: no abiertas de forma fiable.
+- **OpusClip** (plan Free): recorrido de solo lectura de Inicio, Mis proyectos, resultados de un proyecto de demostración, ventana de clip, ajustes de receta (modelo, duración, tipo, encargo, subtítulos, hook, titular, B-roll, limpieza de voz, efectos, traducción), calendario, analítica, cuentas, kit de marca/biblioteca y planes. Bloqueado por plan: editor, kit de marca, 4K. Ejecutado con autorización (2026-11-23): subida de un archivo propio de 100 s y procesamiento (1 crédito). Bloqueado por autorización: conectar cuentas, crear recetas, descargar o publicar.
+- **Escalium** (plan Gratis): editor (paso 1), vídeos creados, Autoclip, editor avanzado, Publicar, Landing Pages. Ejecutado con autorización: paso 1–3 con una canción propia y Autoclip con un vídeo propio. Render (paso 4): bloqueado por autorización específica (gasta uno de los 5 vídeos gratis de un solo uso). Analíticas y Cuenta: no abiertas de forma fiable.
 - **Condiciones de uso:** se actuó como usuario normal, a ritmo humano, sin automatización masiva, sin cargas, sin leer código ni llamadas internas, y solo se describe el comportamiento (no se copian textos, recursos ni estilos).
 - **Lo que piden y critican los usuarios** (`replica-entrepreneur`, **muestra pequeña**): para OpusClip, en [Trustpilot](https://www.trustpilot.com/review/opus.pro) y en un [resumen de un competidor](https://ssemble.com/blog/opus-clip-review-2026) aparecen quejas de fallos de procesamiento, clips mal elegidos, errores en subtítulos, mecánica de créditos y cancelaciones; se elogia el soporte y el ahorro de tiempo. En [Product Hunt](https://www.producthunt.com/posts/916352) se pide más control sobre subtítulos y plantillas. Se leyeron resúmenes de búsqueda, no 100 reseñas con cita literal: **todos los temas son «delgados»** y no se citan textualmente. Para Escalium **no se encontraron reseñas**. Conclusión usable: la fiabilidad, la exactitud de la selección, los subtítulos y la transparencia de créditos son los puntos donde un competidor puede diferenciarse; coincide con las brechas de Ráfaga.
 
@@ -98,7 +98,7 @@ Todas usan Next.js App Router + TypeScript y los componentes de `apps/web/compon
 - **Revertir:** carpeta `e2e/` y devDependencies independientes.
 
 ## 4. Criterio de cierre
-La paridad se da por alcanzada solo cuando: (1) los **25 imprescindibles** de la matriz están **verificados** por su recorrido normal; (2) **cero fallos S1/S2 abiertos**; (3) cada capacidad pendiente tiene identificada la evidencia que le falta; (4) `pnpm test`, typecheck y build están en verde; (5) se repitió una muestra para medir variación; (6) el informe se actualiza con el commit probado.
+La paridad se da por alcanzada solo cuando: (1) los **26 imprescindibles** de la matriz están **verificados** por su recorrido normal; (2) **cero fallos S1/S2 abiertos**; (3) cada capacidad pendiente tiene identificada la evidencia que le falta; (4) `pnpm test`, typecheck y build están en verde; (5) se repitió una muestra para medir variación; (6) el informe se actualiza con el commit probado.
 
 ## 5. Las cinco mejoras de mayor impacto (en orden) y cómo se demostrarán
 1. **Procesamiento fiable y coste visible (E0 + E1).** Hoy no se puede crear ningún clip nuevo (B-09) y el medidor no avisa (B-01). *Prueba:* tras 7 días el medidor difiere ≤10 % del panel de Modal, el aviso del 70 % se dispara en prueba, y se publican tiempo hasta el primer clip y del lote con n ≥ 20.

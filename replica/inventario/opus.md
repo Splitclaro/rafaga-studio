@@ -44,7 +44,14 @@ Cuenta del propietario, plan **Free** (56 créditos), recorrido manual de solo l
 | Translate | Voice dubbing (elegir idioma), Caption translation | Inglés | |
 | Premium features | «Applied to top 10 clips» | — | Las funciones premium se aplican a los 10 mejores clips. |
 
+## Ejecución con archivo propio (autorizada el 2026-11-23)
+Archivo: `.fixtures/podcast-prueba.mp4` (propio; 100 s, 640×360, H.264/AAC, español, dos temas). Receta «Clip long video» con ajustes por defecto, sin encargo.
+- **Subida en plan Free: permitida** (Upload), aunque el campo de enlace avisa «Free Plan supports video link of YouTube only». Pantalla previa: «Adjust range (Credit saver)», «Layout 9:16, 7 layouts», «Upload SRT», «Speech language: Auto». Resumen de coste: procesado 1 crédito, clipping y captions gratis; saldo 56 → 55.
+- **Tiempo:** creado a las 13:16:22 (UTC); a las 13:26:48 seguía al 96 %; «1/1 project ready» observado a las 13:27:53. Es decir, **entre 10 min 26 s y 11 min 31 s** hasta tener clips (una sola muestra, cola del plan Free).
+- **Resultado:** 2 clips (0:44 y 0:55; juntos 1:39 de 1:41, ~98 % de la fuente). Títulos generados **en inglés** aunque el audio es español. Transcripción con errores sobre este audio sintético (p. ej. «Me invitado», «madrigada», «días años después», «requerde», «vento»). Acciones por clip: Publish on Social, Export XML, Download HD, Upscale & download (créditos), Edit clip (Pro), AI tools, 9:16 (Pro), Duplicate. Encuesta «Help us improve your clips» (6 preguntas) que no se respondió.
+- **No se descargó ni se publicó nada.**
+
 ## Lo que queda sin ver (y qué haría falta)
 - Formulario de programación y cuentas sociales: autorizar una cuenta (permiso explícito) y tener un proyecto propio (subida o gasto de créditos).
 - Editor, Brand kit, Descargas 4K, Export XML real: plan de pago.
-- Procesamiento real (tiempos, calidad de selección, errores): subir un archivo y gastar créditos; necesita autorización para esa acción concreta y un archivo de prueba propio.
+- Más muestras de tiempo y calidad (solo hay 1 ejecución) y descargas reales; el editor sigue bloqueado por plan.

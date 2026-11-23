@@ -52,6 +52,8 @@ EXP-09 Publicar en YouTube Shorts / Instagram Reels,Exportación y publicación,
 "EXP-10 Estado, enlace público, reintento y cancelación de cada publicación",Exportación y publicación,must,yes,no,"Probado con simulación (zernio.test, tiktokaccounts.test); sin cuentas reales."
 "EXP-11 Analítica de lo publicado (vistas, likes, comentarios)",Exportación y publicación,could,yes,no,"Ráfaga muestra operación (colas, fallos, tiempos) y no métricas sociales; igual que Opus hoy, por debajo de Escalium."
 EXP-12 Landing pages / smart links para canciones,Exportación y publicación,could,yes,no,Fuera de alcance de Ráfaga por ahora (decisión).
+CLP-15 Tiempo hasta el primer clip utilizable,Clipping e IA,must,yes,no,Sin medición hoy en Ráfaga (Modal sin cuota). Histórico de producción orientativo; no comparable aún.
+CLP-16 Podcast / multicámara: elegir a quién seguir y montar el vertical alrededor,Clipping e IA,should,yes,no,Ráfaga tiene layouts de dos hablantes; sin verificar con vídeo real.
 OPE-01 Pocos pasos desde abrir hasta tener clips,Experiencia y operación,must,yes,no,Misma estructura; sin cronometrar.
 OPE-02 Disponibilidad del procesamiento (el trabajo se completa),Experiencia y operación,must,yes,no,"S1: sin cuota, Modal no procesa nada hasta el 1 de diciembre (B-09). Medidas en docs/MODAL_COSTE.md."
 "OPE-03 Editor en móvil y teclado, accesibilidad",Experiencia y operación,should,yes,no,No se ejecutó una pasada móvil ni axe. Observado: enlaces duplicados por fila en Proyectos (B-07).
