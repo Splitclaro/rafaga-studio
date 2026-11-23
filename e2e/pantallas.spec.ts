@@ -4,7 +4,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { mockBackend, watchErrors } from "./mock.ts";
 
 const PUBLIC = ["/login", "/privacidad", "/condiciones"];
-const PRIVATE = ["/app", "/app/proyectos", "/app/conexiones", "/app/uso", "/app/calendario", "/app/exports", "/app/lyric-studio", "/app/biblioteca", "/app/tiktok", "/app/nuevo"];
+const PRIVATE = ["/app", "/app/editor", "/app/avanzado", "/app/autoclip", "/app/autoclip/nuevo", "/app/proyectos", "/app/conexiones", "/app/uso", "/app/calendario", "/app/exports", "/app/lyric-studio", "/app/biblioteca", "/app/tiktok", "/app/nuevo"];
 
 async function scan(page: import("@playwright/test").Page) {
   const r = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).disableRules(["color-contrast"]).analyze();

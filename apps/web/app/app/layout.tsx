@@ -7,24 +7,25 @@ import Icon from "../../components/Icon";
 import CommandPalette, { type NavItem } from "../../components/CommandPalette";
 
 const NAV: (NavItem & { glyph: string })[] = [
-  { href: "/app", label: "Inicio", icon: "home", glyph: "⌂", ready: true, group: "Crear" },
-  { href: "/app/proyectos", label: "Proyectos", icon: "folder", glyph: "▤", ready: true, group: "Crear" },
-  { href: "/app/brand-kits", label: "Brand kit", icon: "brand", glyph: "◈", ready: true, group: "Crear" },
-  { href: "/app/lyric-studio", label: "Estudio de vídeo", icon: "music", glyph: "♪", ready: true, group: "Lyric Studio" },
-  { href: "/app/style-studio", label: "Style Studio", icon: "type", glyph: "Aa", ready: true, group: "Lyric Studio" },
-  { href: "/app/biblioteca", label: "Biblioteca", icon: "grid", glyph: "▥", ready: true, group: "Lyric Studio" },
-  { href: "/app/calendario", label: "Calendario", icon: "calendar", glyph: "▦", ready: true, group: "Publicar" },
-  { href: "/app/tiktok", label: "TikTok", icon: "film", glyph: "♫", ready: true, group: "Publicar" },
-  { href: "/app/analitica", label: "Analítica", icon: "chart", glyph: "▥", ready: true, group: "Publicar" },
-  { href: "/app/conexiones", label: "Conexiones", icon: "link", glyph: "⚭", ready: true, group: "Publicar" },
-  { href: "/app/exports", label: "Exportados", icon: "download", glyph: "⇪", ready: true, group: "Publicar" },
-  { href: "/app/automatizaciones", label: "Automatizaciones", icon: "wand", glyph: "⟳", ready: true, group: "Publicar" },
-  { href: "/app/entregas", label: "Compartidos conmigo", icon: "share", glyph: "⇩", ready: true, group: "Cuenta" },
-  { href: "/app/uso", label: "Uso", icon: "clock", glyph: "◔", ready: true, group: "Cuenta" },
+  { href: "/app", label: "Inicio", icon: "home", glyph: "⌂", ready: true, group: "Herramientas" },
+  { href: "/app/editor", label: "Editor de vídeos", icon: "music", glyph: "♪", ready: true, group: "Herramientas" },
+  { href: "/app/avanzado", label: "Editor avanzado", icon: "layers", glyph: "▤", ready: true, group: "Herramientas" },
+  { href: "/app/autoclip", label: "Autoclip", icon: "scissors", glyph: "✂", ready: true, group: "Herramientas" },
 ];
+/** Menú secundario (cuenta): publicación, recursos y ajustes. Cada capacidad tiene destino aunque no esté en el menú principal. */
 const OTHER: NavItem[] = [
-  { href: "/app/demos", label: "Demos", icon: "play", ready: true, group: "Ayuda" },
-  { href: "/app/director", label: "Director IA", icon: "wand", ready: true, group: "Ayuda" },
+  { href: "/app/calendario", label: "Calendario de publicaciones", icon: "calendar", ready: true, group: "Cuenta" },
+  { href: "/app/tiktok", label: "Cuentas de TikTok", icon: "film", ready: true, group: "Cuenta" },
+  { href: "/app/conexiones", label: "Conexiones", icon: "link", ready: true, group: "Cuenta" },
+  { href: "/app/exports", label: "Exportados", icon: "download", ready: true, group: "Cuenta" },
+  { href: "/app/biblioteca", label: "Biblioteca y fondos", icon: "grid", ready: true, group: "Cuenta" },
+  { href: "/app/style-studio", label: "Estilos de letra", icon: "type", ready: true, group: "Cuenta" },
+  { href: "/app/brand-kits", label: "Kit de marca", icon: "brand", ready: true, group: "Cuenta" },
+  { href: "/app/analitica", label: "Analítica", icon: "chart", ready: true, group: "Cuenta" },
+  { href: "/app/automatizaciones", label: "Automatizaciones", icon: "wand", ready: true, group: "Cuenta" },
+  { href: "/app/entregas", label: "Compartidos conmigo", icon: "share", ready: true, group: "Cuenta" },
+  { href: "/app/uso", label: "Uso y almacenamiento", icon: "clock", ready: true, group: "Cuenta" },
+  { href: "/app/demos", label: "Demos y tutoriales", icon: "play", ready: true, group: "Ayuda" },
 ];
 type Ws = { id: string; name: string; role: string; personal: boolean; active: boolean; members: number };
 const ROLE: Record<string, string> = { owner: "Propietario", admin: "Admin", editor: "Editor", reviewer: "Revisor", viewer: "Lector", member: "Editor" };
@@ -119,6 +120,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
               <div className="my-1 border-t hairline" />
               <Link role="menuitem" href="/app/equipo" onClick={() => setMenu(false)} className="block rounded-lg px-3 py-2 hover:bg-[var(--hover)]">Equipo y permisos</Link>
               <Link role="menuitem" href="/app/ajustes" onClick={() => setMenu(false)} className="block rounded-lg px-3 py-2 hover:bg-[var(--hover)]">Uso y ajustes</Link>
+              <div className="my-1 border-t hairline" />
+              {OTHER.map((o) => <Link key={o.href} role="menuitem" href={o.href} onClick={() => setMenu(false)} className="block rounded-lg px-3 py-2 hover:bg-[var(--hover)]">{o.label}</Link>)}
               <button role="menuitem" className="block w-full rounded-lg px-3 py-2 text-left hover:bg-[var(--hover)]" onClick={async () => { await supabase.auth.signOut(); router.replace("/login"); }}>Cerrar sesión</button>
             </div>)}
         </div>
@@ -131,10 +134,13 @@ export default function AppShell({ children }: { children: ReactNode }) {
               </Link>
             </Fragment>))}
         </div>
+        <details className="md:hidden">
+          <summary className="cursor-pointer rounded-[14px] px-2.5 py-2 text-sm font-medium">Cuenta y publicación</summary>
+          <ul className="mt-1 grid grid-cols-2 gap-1 text-sm">{OTHER.map((o) => <li key={o.href}><Link href={o.href} className="block min-h-11 rounded-lg px-2.5 py-2 hover:bg-[var(--hover)]">{o.label}</Link></li>)}</ul>
+        </details>
         <div className="hidden flex-col gap-0.5 md:mt-auto md:flex">
           {usage && <Link href="/app/ajustes" className="mb-2 rounded-xl border hairline bg-[var(--card)] px-3 py-2 hover:bg-[var(--hover)]" aria-label={`Consumo esta semana: ${usage.used} de ${usage.limit} minutos`}><span className="tnum flex justify-between text-xs"><span className="text-[var(--muted)]">Esta semana</span><b>{Math.round(usage.used)} / {usage.limit} min</b></span><span className="mt-1 block h-1 overflow-hidden rounded-full bg-[var(--border)]"><span className="block h-full rounded-full bg-[var(--accent)]" style={{ width: `${Math.min(100, (usage.used / usage.limit) * 100)}%` }} /></span></Link>}
           <Link href="/app/demos" className={`${itm} text-[var(--ink)] hover:bg-[var(--hover)]`}><span aria-hidden className="w-[18px] text-center">▣</span>Demos y tutoriales</Link>
-          <Link href="/app/director" className="mt-2 flex items-center justify-between gap-2 rounded-[14px] border hairline bg-[var(--card)] px-3.5 py-3"><span className="flex items-center gap-2"><span aria-hidden className="text-[var(--accent)]">✦</span><span className="font-display text-base font-bold text-[var(--ink)]">director IA</span><span className="rounded-md bg-[#F0F1F7] px-1.5 text-[10px] font-semibold text-[var(--muted)]">Beta</span></span><span aria-hidden>→</span></Link>
         </div>
       </nav>
 

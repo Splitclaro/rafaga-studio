@@ -57,7 +57,7 @@ export function Chip({ status }: { status: string | null }) {
 
 export function ProjectCard({ p }: { p: Row }) {
   return (
-    <Link href={`/app/p/${p.id}`} className="card lift group block overflow-hidden !rounded-[22px]">
+    <Link href={`/app/autoclip/${p.id}`} className="card lift group block overflow-hidden !rounded-[22px]">
       <div className="relative aspect-video overflow-hidden" style={{ background: "var(--grad-soft)" }}>
         {p.thumb ? <img src={p.thumb} alt="" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" /> : <div className="grid h-full w-full place-items-center text-xs font-medium text-[var(--muted)]" style={{ background: "var(--grad-soft)" }}>Sin portada todavía</div>}
         <div className="absolute left-2 top-2"><Chip status={p.status} /></div>
