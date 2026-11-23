@@ -18,7 +18,7 @@ export default function Conexiones() {
   const [accounts, setAccounts] = useState<AccountLike[] | null>(null);
   const [pubs, setPubs] = useState<PublicationLike[] | null>(null);
   const [storage, setStorage] = useState<number | null>(null);
-  const onLoaded = useCallback((c: { provider: string; status: string }[]) => setStorage(storageConnected(c)), []);
+  const onLoaded = useCallback((c: { provider: string; status: string; scopes?: string[] }[]) => setStorage(storageConnected(c)), []);
   useEffect(() => {
     (async () => {
       const { data } = await supabase.auth.getSession();

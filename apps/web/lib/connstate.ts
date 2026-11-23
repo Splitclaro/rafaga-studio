@@ -17,7 +17,7 @@ export function tiktokState(accounts: AccountLike[] | null, pubs: PublicationLik
   return { connected, total: list.length, needsAttention, delivered, label };
 }
 
-/** Cuentas de almacenamiento (Drive/Dropbox) realmente conectadas. */
-export function storageConnected(conns: { provider: string; status: string }[] | null): number {
-  return (conns ?? []).filter((c) => (c.provider === "google" || c.provider === "dropbox") && c.status === "connected").length;
+/** Cuentas de almacenamiento (Drive/Dropbox) realmente conectadas. Google solo cuenta si su permiso incluye Drive (una conexión de YouTube no es un Drive). */
+export function storageConnected(conns: { provider: string; status: string; scopes?: string[] }[] | null): number {
+  return (conns ?? []).filter((c) => c.status === "connected" && (c.provider === "dropbox" || (c.provider === "google" && (c.scopes ?? []).some((s) => s.includes("drive"))))).length;
 }

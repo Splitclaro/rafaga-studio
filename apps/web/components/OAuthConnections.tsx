@@ -19,7 +19,7 @@ async function authed(url: string, body: unknown) {
 }
 
 /** Conexiones reales (OAuth 2.0 + PKCE). Los tokens se guardan en el servidor; aquí solo se ve el estado y se lanzan acciones permitidas. */
-export default function OAuthConnections({ onLoaded }: { onLoaded?: (c: { provider: string; status: string }[]) => void } = {}) {
+export default function OAuthConnections({ onLoaded }: { onLoaded?: (c: { provider: string; status: string; scopes?: string[] }[]) => void } = {}) {
   const [conns, setConns] = useState<Conn[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<Record<string, string>>({});
