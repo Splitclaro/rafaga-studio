@@ -89,6 +89,14 @@ Con menos de 20 muestras los percentiles no son representativos. Sin medida de v
 | Escalium Autoclip (modo rápido) | análisis **0:08**; resultados a ~20 s del clic | 3 (0:26, 0:44, 0:24) | ~94 % | Puntuaciones 100/71/58 con motivos; errores en alguna cita |
 | Ráfaga | **no medido hoy** (Modal sin cuota); histórico de producción p50 25,8 s, p95 2,8 min (n=12) | — | — | Debe repetirse sobre el mismo archivo (CLP-15) |
 
+### Referentes con «cap 1.mp4» (Serie Export, Flow Nene EP) · 2026-11-23, una muestra cada uno
+Archivo del propietario: 199 MB, 1920×1080, 24 fps, 2:16, dos pistas de audio mono; vídeo animado con rap. Se usó una **copia de prueba de 8 MB (360p, 24 fps, audio de las dos pistas mezclado)** `.fixtures/cap1-proxy360.mp4`, porque la herramienta de subida del navegador no admite más de 10 MB. El original no se tocó.
+| Herramienta | Tiempo hasta clips | Clips | Notas |
+|---|---|---|---|
+| OpusClip (Free, 2 créditos: 55→53) | **10 min 0 s – 11 min 8 s** (creado 14:08:09; «ready» observado 14:19:17) | 6 (0:22, 0:17, 1:23, 0:23, 0:18, 0:51) | Títulos y rótulo superpuesto **en español**; suman 3:34 sobre una fuente de 2:16: **los clips se solapan** (p. ej. uno de 1:23). Cuadro «Remove watermark» (plan de pago) |
+| Escalium Autoclip (modo rápido) | análisis **0:21**; resultados a ~30 s del clic | 3 (0:29, 0:32, 0:30; total 1:32 = 68 %) | Puntuaciones 100/72/62 con etiquetas («Gancho fuerte: el secreto», «Pico de energía», «Termina en remate»); citas con errores típicos de letra rapeada («popa», «Activa») |
+| Ráfaga | no medido (Modal sin cuota) | — | Pendiente de repetir con este archivo (CLP-15) |
+
 Lectura prudente: con una sola muestra y un archivo corto de dos temas, ambos referentes devuelven casi toda la fuente (como Ráfaga con su proyecto de 1,5 min); no permite concluir sobre calidad de selección. Sí muestra que la diferencia de tiempo entre un análisis en el equipo (segundos) y uno en cola gratuita (minutos) es de dos órdenes de magnitud.
 
 ## Pruebas automáticas (HEAD `7dd21b3`)

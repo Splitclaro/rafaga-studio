@@ -36,6 +36,9 @@ Estilos de letra (~40: Palabra resaltada por defecto, Palabra neón, Karaoke…)
 - **Resultado:** 3 clips (#1 0:04–0:30 puntuación 100; #2 0:55–1:39 puntuación 71 «Pico de energía»; #3 0:34–0:58 puntuación 58); duración total 1:34 de 1:40 (~94 % de la fuente); cada clip con cita, etiquetas («Palabras fuertes», «Lista / pasos»), inicio/final editables con ± y «Por qué este clip»; gráfico «Interés a lo largo del vídeo»; encuadre Original / Rellenar / Ajustar; interruptores Subtítulos y «Quitar pausas y ehh»; «Seleccionar todos» y «Abrir en el editor». Las citas contienen errores de transcripción en este audio (p. ej. «Que ando entiens el problema»). Plan gratis: los clips descargados llevan marca de agua.
 - **No se descargó ni se publicó nada.**
 
+## Segunda ejecución: «cap 1.mp4» (autorizada el 2026-11-23)
+Autoclip con la copia de prueba de 8 MB. Análisis **0:21** (resultados a ~30 s del clic). **3 clips:** #1 0:17–0:47 (puntuación 100; «Gancho fuerte: el secreto», «Pico de energía», «Palabras fuertes: secreto», «Termina en remate»), #2 1:19–1:52 (72), #3 0:49–1:19 (62); total 1:32 de 2:15 (68 %). Autoclip conserva una lista de vídeos analizados («podcast-prueba.mp4 · 23 nov · 1:40 · 3 clips»). No se descargó ni publicó nada.
+
 ## Lo que queda sin ver
 - Paso 4 y calidad de salida: renderizar gasta uno de los 5 vídeos gratis de un solo uso; pendiente de una autorización específica.
 - Publicar en TikTok: conectar la cuenta (autorización de terceros).

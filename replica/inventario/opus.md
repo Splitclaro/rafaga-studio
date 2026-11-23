@@ -51,6 +51,9 @@ Archivo: `.fixtures/podcast-prueba.mp4` (propio; 100 s, 640×360, H.264/AAC, esp
 - **Resultado:** 2 clips (0:44 y 0:55; juntos 1:39 de 1:41, ~98 % de la fuente). Títulos generados **en inglés** aunque el audio es español. Transcripción con errores sobre este audio sintético (p. ej. «Me invitado», «madrigada», «días años después», «requerde», «vento»). Acciones por clip: Publish on Social, Export XML, Download HD, Upscale & download (créditos), Edit clip (Pro), AI tools, 9:16 (Pro), Duplicate. Encuesta «Help us improve your clips» (6 preguntas) que no se respondió.
 - **No se descargó ni se publicó nada.**
 
+## Segunda ejecución: «cap 1.mp4» (autorizada el 2026-11-23)
+Copia de prueba de 8 MB (360p) del archivo del propietario. Coste: **2 créditos** (55→53). Creado 14:08:09, «ready» observado 14:19:17 (**10 min 0 s – 11 min 8 s**). **6 clips** de 0:22, 0:17, 1:23, 0:23, 0:18 y 0:51 (suman 3:34 sobre 2:16: se solapan). Títulos y rótulos superpuestos en español. Los clips muestran calendario, descarga y tijeras (editar: Pro). «Remove watermark» disponible solo con plan. No se descargó ni publicó nada.
+
 ## Lo que queda sin ver (y qué haría falta)
 - Formulario de programación y cuentas sociales: autorizar una cuenta (permiso explícito) y tener un proyecto propio (subida o gasto de créditos).
 - Editor, Brand kit, Descargas 4K, Export XML real: plan de pago.
