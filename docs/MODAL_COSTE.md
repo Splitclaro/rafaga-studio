@@ -19,3 +19,4 @@
 `compute_meter()` suma ahora al gasto de etapas la clave `compute_fixed_usd` (cifra de «Deployed apps» del panel de Modal) y devuelve `level`: `ok`, `warn` al 70 % y `blocked` al 90 %. Tras aplicar la 119, el propietario fija la cifra real una vez al mes:
 `update platform_settings set value = '0.99' where key = 'compute_fixed_usd';`
 `/app/uso` muestra el desglose y el aviso al 70 %.
+Aplicada en producción el 2026-11-23 (la 118 sigue sin aplicar).
