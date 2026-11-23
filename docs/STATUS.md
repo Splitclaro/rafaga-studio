@@ -389,3 +389,4 @@ Probar Lyric Studio con una canción real (canto + instrumental). Siguiente: Sty
 ## 2026-11-23 (noche, 2) · Edición de letras en Escalium (replica-recon)
 - `replica/escalium/lyrics-edit-audit.md`: 25 filas sobre recorte, corrección de texto, línea de tiempo por palabra, estilo/agrupación/posición y guardado, con criterio de aceptación para Ráfaga. Sin render ni consumo de cuota (quedan 5 de 5 vídeos gratis de un solo uso).
 - Hallazgos clave para comparar en Ráfaga: re-recortar re-transcribe y descarta ediciones sin aviso; Ctrl+Z puede revertir una corrección de texto anterior; la línea de tiempo comprime a la palabra vecina en vez de solapar; la velocidad 0,5×/0,25× solo existe en el paso 1.
+- Render autorizado el 2026-11-23: 14,08 s en 8 s dentro del navegador; `ffprobe`: H.264 High 720×1280 30 fps, AAC 48 kHz, 5,99 MB. Cuota Escalium: 4 de 5 vídeos gratis. Detalle en LE-24 y LE-26 a LE-29.
