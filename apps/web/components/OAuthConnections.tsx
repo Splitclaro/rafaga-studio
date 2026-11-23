@@ -19,12 +19,12 @@ async function authed(url: string, body: unknown) {
 }
 
 /** Conexiones reales (OAuth 2.0 + PKCE). Los tokens se guardan en el servidor; aquí solo se ve el estado y se lanzan acciones permitidas. */
-export default function OAuthConnections() {
+export default function OAuthConnections({ onLoaded }: { onLoaded?: (c: { provider: string; status: string }[]) => void } = {}) {
   const [conns, setConns] = useState<Conn[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<Record<string, string>>({});
   const [items, setItems] = useState<Record<string, { id?: string; title?: string; name?: string; path?: string; size?: number; publishedAt?: string }[]>>({});
-  const load = useCallback(async () => { const { data, error } = await supabase.rpc("oauth_status"); setConns(error ? [] : ((data as Conn[]) ?? [])); }, []);
+  const load = useCallback(async () => { const { data, error } = await supabase.rpc("oauth_status"); const l = error ? [] : ((data as Conn[]) ?? []); setConns(l); onLoaded?.(l); }, [onLoaded]);
   useEffect(() => { load(); }, [load]);
   const say = (k: string, t: string) => setMsg((m) => ({ ...m, [k]: t }));
 

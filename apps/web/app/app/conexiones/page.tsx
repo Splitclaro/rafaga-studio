@@ -1,6 +1,9 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import Icon from "../../../components/Icon";
+import { supabase } from "../../../lib/supabase";
+import { tiktokState, storageConnected, type AccountLike, type PublicationLike } from "../../../lib/connstate";
 import { PLATFORMS, CAPS, METHOD, type Cap, type Platform } from "../../../lib/platforms";
 import OAuthConnections from "../../../components/OAuthConnections";
 
@@ -12,15 +15,30 @@ export default function Conexiones() {
   const [open, setOpen] = useState<string | null>(null);
   const list = useMemo(() => PLATFORMS.filter((p) => (cap === "all" || p.caps.includes(cap)) && (!q.trim() || p.name.toLowerCase().includes(q.trim().toLowerCase()))), [q, cap]);
   const verified = PLATFORMS.filter((p) => p.verified).length;
+  const [accounts, setAccounts] = useState<AccountLike[] | null>(null);
+  const [pubs, setPubs] = useState<PublicationLike[] | null>(null);
+  const [storage, setStorage] = useState<number | null>(null);
+  const onLoaded = useCallback((c: { provider: string; status: string }[]) => setStorage(storageConnected(c)), []);
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.auth.getSession();
+      const r = await fetch("/api/tiktok", { headers: { Authorization: `Bearer ${data.session?.access_token ?? ""}` } }).catch(() => null);
+      const j = r && r.ok ? ((await r.json().catch(() => ({}))) as { accounts?: AccountLike[] }) : {};
+      setAccounts(j.accounts ?? []);
+      const { data: ps } = await supabase.from("publications").select("state").eq("platform", "tiktok").limit(500);
+      setPubs((ps ?? []) as PublicationLike[]);
+    })();
+  }, []);
+  const tk = tiktokState(accounts, pubs);
 
   return (
     <main className="mx-auto max-w-6xl px-4 pb-20 pt-8 md:px-8">
-      <header className="mb-6"><h1 className="text-3xl">Conexiones</h1><p className="mt-1 max-w-3xl text-[var(--muted)]">Aquí verás a qué redes y servicios puedes conectar tu cuenta y qué podrás hacer con cada uno. Hoy publicas descargando tus clips; la publicación directa llegará cuando cada conector esté implementado y aprobado por su plataforma.</p></header>
+      <header className="mb-6"><h1 className="text-3xl">Conexiones</h1><p className="mt-1 max-w-3xl text-[var(--muted)]">Aquí verás a qué redes y servicios puedes conectar tu cuenta y qué podrás hacer con cada uno. Puedes publicar en TikTok desde Ráfaga con las cuentas que conectes; para el resto de destinos, descarga tus clips. Un destino solo se marca como disponible cuando su conector está implementado.</p></header>
 
-      <OAuthConnections />
+      <OAuthConnections onLoaded={onLoaded} />
 
       <section aria-label="Resumen" className="mb-6 grid gap-3 sm:grid-cols-4">
-        {([["2", "Cuentas de almacenamiento", "Drive y Dropbox (importación próximamente)"], [String(PLATFORMS.length), "Plataformas catalogadas", "Requisitos orientativos"], ["0", "Publicación directa", "Pendiente de aprobación de cada red"], [`${verified}/${PLATFORMS.length}`, "Requisitos verificados", "Contra su documentación oficial"]] as const).map(([v, k, d]) => (
+        {([[storage === null ? "…" : String(storage), "Cuentas de almacenamiento", "Drive y Dropbox conectadas (la importación llegará próximamente)"], [String(PLATFORMS.length), "Plataformas catalogadas", "Requisitos orientativos"], [accounts === null ? "…" : String(tk.connected), "Cuentas de TikTok conectadas", pubs === null ? "Comprobando…" : `${tk.delivered} vídeo${tk.delivered === 1 ? "" : "s"} entregado${tk.delivered === 1 ? "" : "s"} a TikTok (publicados o en tu bandeja)`], [`${verified}/${PLATFORMS.length}`, "Requisitos verificados", "Contra su documentación oficial"]] as const).map(([v, k, d]) => (
           <div key={k} className="card p-4"><div className="font-display text-3xl font-bold text-[var(--ink)]">{v}</div><div className="mt-1 text-sm font-medium">{k}</div><div className="text-xs text-[var(--muted)]">{d}</div></div>))}
       </section>
 
@@ -39,13 +57,15 @@ export default function Conexiones() {
             <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {items.map((p) => (
                 <li key={p.id} className="card p-4">
-                  <div className="flex items-start justify-between gap-2"><h3 className="text-base">{p.name}</h3><span className="chip !py-0.5 text-xs">No configurado</span></div>
+                  <div className="flex items-start justify-between gap-2"><h3 className="text-base">{p.name}</h3><span className="chip !py-0.5 text-xs">{p.id === "tiktok" ? (accounts === null ? "…" : tk.label) : "No configurado"}</span></div>
                   <div className="mt-1 text-xs text-[var(--muted)]">{METHOD[p.method]}{p.verified ? "" : " · por verificar"}</div>
                   <div className="mt-3 flex flex-wrap gap-1">{p.caps.length ? p.caps.map((c) => <span key={c} className="rounded-md border hairline px-1.5 py-0.5 text-[11px]">{CAPS[c]}</span>) : <span className="text-xs text-[var(--muted)]">Sin capacidades conocidas</span>}</div>
                   <button onClick={() => setOpen(open === p.id ? null : p.id)} aria-expanded={open === p.id} className="mt-3 flex items-center gap-1 text-sm underline underline-offset-4"><Icon n={open === p.id ? "chevD" : "chevR"} className="h-3.5 w-3.5" />Qué hace falta</button>
                   {open === p.id && (<div className="mt-2 space-y-2 text-sm"><p>{p.needs}</p>{p.docs && <a href={p.docs} target="_blank" rel="noreferrer" className="text-xs underline">Documentación oficial</a>}
-                    <p className="rounded-lg bg-[var(--surface)] p-2 text-xs text-[var(--muted)]">Estado en Ráfaga: conector no implementado. {p.shortVideo ? "Mientras tanto, descarga el clip en el formato adecuado desde el editor (Social)." : ""}</p></div>)}
-                  <button disabled className="btn btn-ghost mt-3 w-full !py-1.5 !text-xs" title="Aún no hay conector para este destino">Conectar (próximamente)</button>
+                    <p className="rounded-lg bg-[var(--surface)] p-2 text-xs text-[var(--muted)]">{p.id === "tiktok" ? "Estado en Ráfaga: conector implementado. Sin la auditoría de TikTok, las publicaciones llegan como borrador privado a tu bandeja." : `Estado en Ráfaga: conector no implementado. ${p.shortVideo ? "Mientras tanto, descarga el clip en el formato adecuado desde el editor (Social)." : ""}`}</p></div>)}
+                  {p.id === "tiktok"
+                    ? <Link href="/app/tiktok" className="btn btn-primary mt-3 w-full !py-1.5 !text-xs">{tk.total ? "Gestionar cuentas y calendario" : "Conectar una cuenta"}</Link>
+                    : <button disabled className="btn btn-ghost mt-3 w-full !py-1.5 !text-xs" title="Aún no hay conector para este destino">Conectar (próximamente)</button>}
                 </li>))}
             </ul>
           </section>);

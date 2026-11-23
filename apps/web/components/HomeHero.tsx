@@ -42,7 +42,7 @@ export default function HomeHero() {
         <p role="status" aria-live="polite" className="min-h-5 px-5 pt-1 text-sm text-[var(--muted)]">{msg}</p>
         <div className="flex flex-wrap items-center gap-2 p-3">
           <Link href={nuevo} className="tag tag-blue"><span className="tag-ico"><Icon n="upload" className="h-4 w-4" /></span>Subir vídeo</Link>
-          <Link href="/app/conexiones" className="tag tag-mint"><span className="tag-ico"><Icon n="folder" className="h-4 w-4" /></span>Google Drive</Link>
+          <Link href="/app/conexiones" className="tag tag-mint"><span className="tag-ico"><Icon n="folder" className="h-4 w-4" /></span>Conectar Drive</Link>
           <Link href="/app/demos" className="tag tag-sky"><span className="tag-ico"><Icon n="play" className="h-4 w-4" /></span>Probar una muestra</Link>
           <Link href="/app/lyric-studio" className="tag tag-violet"><span className="tag-ico"><Icon n="music" className="h-4 w-4" /></span>Vídeo con letra</Link>
         </div>
