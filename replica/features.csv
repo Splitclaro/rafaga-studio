@@ -11,9 +11,9 @@ ENT-08 Reanudar subida y recuperarse de una interrupción,Entrada y proyectos,mu
 CLP-01 Pedir los momentos en lenguaje natural («Moments to include») y ver cómo se interpretó,Clipping e IA,must,yes,no,UI vista; sin ejecución real hoy. Pruebas unitarias de brief.ts existen.
 CLP-02 Elegir el modelo/modo de IA (Auto / ClipAnything / ClipBasic),Clipping e IA,should,yes,partial,"Ráfaga separa modos editoriales; no expone selección de modelo (decisión razonable, no es requisito de resultado)."
 "CLP-03 Indicar el tipo de contenido (podcast, deportes, educativo…) para guiar la selección",Clipping e IA,should,yes,partial,Ráfaga lo infiere del texto; no hay chips explícitos.
-"CLP-04 Duración del clip por rangos (<30 s, 30–59, 60–89, 90 s–3 min, 3–5 min)",Clipping e IA,must,yes,no,"Sin selector de rango. Observado: clip de 1:17 de un vídeo de 1,5 min (B-06)."
+"CLP-04 Duración del clip por rangos (<30 s, 30–59, 60–89, 90 s–3 min, 3–5 min)",Clipping e IA,must,yes,partial,"Revisión de código (2026-11-23): el panel de creación v2 (`CreationPanel.tsx`) ya tiene selección múltiple de rangos (auto, <30, 30–60, 60–9"
 CLP-05 Número de clips pedido y explicación si hay menos,Clipping e IA,must,yes,no,Regla del repositorio «nunca 0 clips en silencio»; sin recorrido real hoy.
-"CLP-06 Puntuación por clip con desglose (Hook, Flow, Value, Trend) y motivo",Clipping e IA,must,yes,partial,"Ráfaga muestra un número y una frase, sin desglose por criterio. Sin encargo «no se mide la afinidad»."
+"CLP-06 Puntuación por clip con desglose (Hook, Flow, Value, Trend) y motivo",Clipping e IA,must,yes,partial,Revisión de código (2026-11-23): los candidatos guardan gancho/desarrollo/valor/afinidad/calidad con su razón (`scores.reasons`) y `ClipRow`
 "CLP-07 Ordenar, filtrar y buscar clips por palabra",Clipping e IA,must,yes,no,UI presente; proyecto de prueba con 1 clip; sin ejecutar.
 CLP-08 Transcripción corregible con tiempos,Clipping e IA,must,yes,no,La transcripción empieza por la palabra «Música» (etiqueta de sonido del ASR) y se pinta como subtítulo en la vista previa (B-05). **Arreglo
 CLP-09 Traducir subtítulos y doblar con voz,Clipping e IA,should,yes,partial,Doblaje de voz: falta (coste de pago). Traducción: sin verificar hoy.
