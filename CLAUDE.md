@@ -4,14 +4,19 @@
      con las reglas de construcción del bundle blueprints/rafaga-clipping-v2/. El Bootstrap lo copia solo si la raíz
      aún no lleva esta marca. Las reglas de aislamiento y continuidad de la raíz siguen mandando. -->
 
-**Encargo vigente:** `master/AMPLIACION_V2.md` (prevalece) + `master/CLAUDE.md` (encargo original). Léelos antes de tocar código.
+**Encargo vigente (2026-11-23, propietario): reconstrucción v3 con Escalium como única referencia de producto.** Ráfaga tiene tres herramientas:
+**Editor de vídeos** (Audio → Letras → Estilo → Render + Vídeos creados), **Editor de vídeo avanzado** (proyectos, línea de tiempo, guardar, exportar) y
+**Autoclip** (subir → analizar → revisar clips → exportar o enviar al editor avanzado). Especificación y mapa: `replica/v3/`. Cada pantalla, botón,
+opción, formato o función visible debe enlazar a un paso observado en Escalium o a su documentación oficial; lo que venga de OpusClip o de la Ráfaga
+anterior sin respaldo en Escalium se retira de la interfaz y del plan. Se trabaja en `main` (rama que despliega `rafaga-studio.vercel.app`); punto de
+reversión: etiqueta `rafaga-v2-final`. `master/AMPLIACION_V2.md`, `master/CLAUDE.md` y el bundle v2 quedan como contexto técnico (motores, worker,
+reglas de seguridad), no como plan de producto.
 
 ## Prioridades
-1. Subtítulos y su flujo (preview = export, ≤1 frame).
-2. Brief → «Detectar momentos virales» / «Volver a detectar» / «Ajustar enfoque» (estimación de IA, no garantía).
-3. Velocidad real del recorrido (worker caliente, primer clip antes del lote).
-4. Lyric Studio + Style Studio + N variantes.
-5. Paridad OpusClip, conexiones (Restream), calendario. Interfaz monocroma.
+1. Los tres recorridos de Escalium completos de principio a fin (vídeo y audio aprobados con el archivo real).
+2. Vista previa = exportación (≤1 fotograma), un solo motor.
+3. Conservar el acceso a los proyectos, letras, medios y exportaciones existentes durante el cambio.
+4. Velocidad real del recorrido (worker caliente, primer clip antes del lote).
 
 ## Aislamiento
 Recursos de ESTA plataforma: repo `Splitclaro/rafaga-studio`, Supabase `rafaga-studio-beta` (attrnwbcgascvppncucl), Vercel `rafaga-studio`, worker GitHub Actions `worker.yml`. Nunca tocar el proyecto `splitclaro`. Sin secretos en repo/chat, sin force push, sin gastos sin autorización. Registro en `docs/provisioning-manifest.json`.
@@ -149,5 +154,5 @@ paso que las requiere en `blueprint.md` §10. Los secretos los pega el propietar
 7. Nunca marcar una tarea como hecha con su `verify` en rojo, ni editar un `verify`.
 8. Nunca `git reset --hard`: la vuelta atrás es `git revert --no-edit rafaga-v2-step-<NN-1>..HEAD`.
 
-## Tareas de paridad con OpusClip y Escalium
-Si la tarea consiste en comparar, auditar o igualar funciones con OpusClip o Escalium: (1) carga las skills de Replica (`replica-recon`, `replica-test`, `replica-diff`; `replica-architect` y `replica-entrepreneur` para proponer cambios y leer a los usuarios); (2) trabaja siempre con **los dos** referentes y con `replica/matriz-paridad.csv` como inventario (se regenera con `python3 replica/_genera_matriz.py`); (3) recorre los referentes como usuario normal y de solo lectura: **pide permiso para cada subida, gasto de créditos, conexión de cuenta o cambio de datos**; (4) cuenta como «verificada» solo un recorrido real completo con su criterio de aceptación: una pantalla visible o una prueba simulada no basta; (5) cierra con `pnpm test`, typecheck, build y `python3 ~/.claude/skills/replica-diff/parity.py replica/features.csv`, y actualiza la matriz y el informe con el commit probado. Ver `replica/README.md`.
+## Tareas de paridad con Escalium (única referencia)
+Si la tarea consiste en comparar, auditar o igualar funciones con Escalium: (1) carga las skills de Replica (`replica-recon`, `replica-design`, `replica-build`, `replica-backend`, `replica-test`, `replica-diff`); (2) trabaja **solo con Escalium** y con `replica/v3/` (inventario, mapa y especificación) como inventario; OpusClip y `replica/matriz-paridad.csv` (v2, dos referentes) son históricos y no dirigen la reconstrucción; (3) recorre los referentes como usuario normal y de solo lectura: **pide permiso para cada subida, gasto de créditos, conexión de cuenta o cambio de datos**; (4) cuenta como «verificada» solo un recorrido real completo con su criterio de aceptación: una pantalla visible o una prueba simulada no basta; (5) cierra con `pnpm test`, typecheck, build y `python3 ~/.claude/skills/replica-diff/parity.py replica/features.csv`, y actualiza la matriz y el informe con el commit probado. Ver `replica/README.md`.
