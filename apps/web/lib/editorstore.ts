@@ -28,7 +28,11 @@ export async function deleteProject(id: string) { return !(await supabase.rpc("d
 /** URL de lectura de un medio: fuentes de vídeo (R2), medios de colecciones (R2 o almacenamiento) y canciones (R2). */
 export async function resolveMedia(ref: MediaRef): Promise<string> {
   const H = { Authorization: `Bearer ${await token()}` };
-  if (ref.kind === "source") return r2Signed("get", ref.id);
+  if (ref.kind === "source") {   // el original se borra tras preparar el vídeo: el editor trabaja con la copia ligera (proxy 720p), con la misma línea de tiempo
+    const r = await fetch(`/api/uploads/sources/${ref.id}/proxy`, { headers: H }), j = await r.json().catch(() => ({}));
+    if (r.ok && j.url) return j.url as string;
+    return r2Signed("get", ref.id);
+  }
   if (ref.kind === "song") { const r = await fetch(`/api/lyrics/songs/${ref.id}/audio`, { headers: H }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error("audio"); return j.url as string; }
   const r = await fetch(`/api/lyrics/items/${ref.id}/url`, { headers: H }), j = await r.json().catch(() => ({}));
   if (r.ok && j.url) return j.url as string;
