@@ -11,6 +11,22 @@ import { GroqLimiter, limitsFromEnv } from "../groqlimits.ts";
 import { correctWords, snapToVocabulary } from "../transcriptfix.ts";
 
 export const CHUNK_S = 600, OVERLAP_S = 2;
+
+/** Etiquetas de sonido que el ASR pinta como si fueran habla: «[Música]», «(aplausos)», «♪», o la palabra suelta «Música» aislada
+ *  (≥1,5 s de silencio a ambos lados). Un «música» dentro de una frase se conserva. Devuelve las palabras habladas y las etiquetas retiradas. */
+const TAG = /^(?:música|musica|music|aplausos|applause|risas|laughter|ruido|noise|silencio|silence|sonido|sound)$/i;
+export function dropSoundLabels(words: TWord[], gap = 1.5): { words: TWord[]; dropped: TWord[] } {
+  const kept: TWord[] = [], dropped: TWord[] = [];
+  words.forEach((w, i) => {
+    const t = w.text.trim();
+    const wrapped = /^[\[(*♪♫]+.*[\])*♪♫]+$/.test(t) || /^[♪♫]+$/.test(t);
+    const bare = t.replace(/[.,;:!?¡¿"'`]/g, "");
+    const prev = words[i - 1], next = words[i + 1];
+    const alone = TAG.test(bare) && (!prev || w.start - prev.end >= gap) && (!next || next.start - w.end >= gap);
+    (wrapped || alone ? dropped : kept).push(w);
+  });
+  return { words: kept, dropped };
+}
 export interface Chunk { index: number; start: number; end: number }
 
 /** Trozos de ≤600 s que se solapan 2 s y cubren [from, to] sin huecos. */
@@ -106,7 +122,8 @@ const transcribe: StageImpl = {
       }
     };
     await Promise.all(Array.from({ length: Math.min(3, chunks.length) }, worker));
-    let words = mergeChunks(parts), fixInfo: { changed: number; failed: number } | null = null;
+    const merged = dropSoundLabels(mergeChunks(parts));   // las etiquetas de sonido no son subtítulos (B-05)
+    let words = merged.words, fixInfo: { changed: number; failed: number } | null = null;
     if (words.length && (deps.fixChat || cfg.key) && (ctx.env ?? process.env).TRANSCRIPT_FIX !== "off") {   // pasada de corrección: solo texto, nunca tiempos
       const chat = deps.fixChat ?? (async (sys: string, usr: string) => { await limiter.wait("llm", Math.ceil(usr.length / 3) + 700); return (await groqChat(cfg, { system: sys, user: usr, json: true, maxTokens: 4000, fetchImpl: ctx.fetch })).text; });
       try { const r = await correctWords(words, chat, { language, glossary: Array.isArray(row.params.glossary) ? (row.params.glossary as string[]) : undefined }); words = r.words; fixInfo = { changed: r.changed, failed: r.failed }; } catch { /* se conserva la transcripción original */ }
@@ -115,7 +132,7 @@ const transcribe: StageImpl = {
     if (!words.length && total > 5) throw new StageError("transcription_failed", "La transcripción no devolvió palabras");
     if (!row.params.analysis_id) throw new StageError("bad_params", "Falta analysis_id para guardar la transcripción");
     const transcriptId = await ctx.rpc<string>("save_transcript", { p_analysis: row.params.analysis_id, p_words: words, p_language: language, p_model: asrModel(ctx) });
-    return { output: { words: words.length, language, chunks: chunks.length, wait_ms: waitMs, asr_calls: parts.length, ...(fixInfo ? { fix_changed: fixInfo.changed, fix_failed: fixInfo.failed } : {}), transcript_id: transcriptId } };
+    return { output: { words: words.length, language, chunks: chunks.length, wait_ms: waitMs, asr_calls: parts.length, ...(merged.dropped.length ? { sound_labels_dropped: merged.dropped.length } : {}), ...(fixInfo ? { fix_changed: fixInfo.changed, fix_failed: fixInfo.failed } : {}), transcript_id: transcriptId } };
   },
 };
 

@@ -15,7 +15,7 @@ CLP-02 Elegir el modelo/modo de IA (Auto / ClipAnything / ClipBasic),Clipping e 
 CLP-05 Número de clips pedido y explicación si hay menos,Clipping e IA,must,yes,yes,Regla del repositorio «nunca 0 clips en silencio»; sin recorrido real hoy.
 "CLP-06 Puntuación por clip con desglose (Hook, Flow, Value, Trend) y motivo",Clipping e IA,must,yes,partial,"Ráfaga muestra un número y una frase, sin desglose por criterio. Sin encargo «no se mide la afinidad»."
 "CLP-07 Ordenar, filtrar y buscar clips por palabra",Clipping e IA,must,yes,yes,UI presente; proyecto de prueba con 1 clip; sin ejecutar.
-CLP-08 Transcripción corregible con tiempos,Clipping e IA,must,yes,no,La transcripción empieza por la palabra «Música» (etiqueta de sonido del ASR) y se pinta como subtítulo en la vista previa (B-05).
+CLP-08 Transcripción corregible con tiempos,Clipping e IA,must,yes,no,La transcripción empieza por la palabra «Música» (etiqueta de sonido del ASR) y se pinta como subtítulo en la vista previa (B-05). **Arreglo
 CLP-09 Traducir subtítulos y doblar con voz,Clipping e IA,should,yes,partial,Doblaje de voz: falta (coste de pago). Traducción: sin verificar hoy.
 CLP-10 Reencuadre inteligente a vertical con seguimiento del hablante,Clipping e IA,must,yes,yes,Hay pruebas con detector simulado; sin vídeo real con varias voces en producción.
 CLP-11 Regenerar buscando otros momentos conservando lo anterior,Clipping e IA,should,yes,yes,Sin ejecutar.

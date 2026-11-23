@@ -39,8 +39,16 @@ export async function presignV4(o: { method: string; host: string; path: string;
 }
 
 /** URL firmada para leer (GET, admite rangos) o subir (PUT) un objeto del bucket. */
-export function r2Url(cfg: R2Config, method: "GET" | "PUT" | "HEAD" | "DELETE", key: string, expires = 3600, date?: Date) {
-  return presignV4({ method, host: `${cfg.accountId}.r2.cloudflarestorage.com`, path: `/${cfg.bucket}/${key}`, accessKeyId: cfg.accessKeyId, secretAccessKey: cfg.secretAccessKey, region: "auto", expires, date });
+export function r2Url(cfg: R2Config, method: "GET" | "PUT" | "HEAD" | "DELETE", key: string, expires = 3600, date?: Date, query?: Record<string, string>) {
+  return presignV4({ method, host: `${cfg.accountId}.r2.cloudflarestorage.com`, path: `/${cfg.bucket}/${key}`, accessKeyId: cfg.accessKeyId, secretAccessKey: cfg.secretAccessKey, region: "auto", expires, date, query });
+}
+
+/** Cabecera `Content-Disposition: attachment` para que el navegador guarde el archivo en vez de abrirlo. El nombre se limpia (sin comillas, barras ni saltos de línea) y lleva siempre extensión. */
+export function attachmentQuery(name: string, ext = "mp4"): Record<string, string> {
+  const base = name.replace(/\.[a-z0-9]{2,4}$/i, "").replace(/[\\/:*?"<>|;\u0000-\u001f]/g, "").replace(/\s+/g, " ").trim().slice(0, 120) || "clip";
+  const file = `${base}.${ext}`;
+  const ascii = file.normalize("NFKD").replace(/[^\x20-\x7e]/g, "").replace(/"/g, "") || `clip.${ext}`;
+  return { "response-content-disposition": `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(file)}` };
 }
 
 /** Clave del original de una fuente: misma forma que en Supabase Storage. */

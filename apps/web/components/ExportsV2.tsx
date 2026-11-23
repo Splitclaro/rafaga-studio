@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import Icon from "./Icon";
 import { supabase } from "../lib/supabase";
+import { fileName } from "../lib/download";
 
 type R = { id: string; clip_id: string; clip_version: number; ratio: string; kind: string; burn_subtitles: boolean; status: string; width: number | null; height: number | null; duration_ms: number | null; bytes: number | null; expires_at: string | null; storage_path: string | null; error_code: string | null; created_at: string; clips: { title: string; project_id: string } | null };
 const STATE: Record<string, string> = { queued: "En cola", running: "Exportando", ready: "Disponible", failed: "Falló", cancelled: "Cancelada" };
@@ -25,8 +26,9 @@ export default function ExportsV2() {
   };
   async function download(r: R) {
     setBusy(r.id); setMsg(null);
-    const res = await call(`/${r.id}/url`, "GET"), j = await res.json().catch(() => ({}));
-    if (res.ok && j.url) window.open(j.url, "_blank", "noopener");
+    const name = `${r.clips?.title ?? "clip"}_${r.ratio.replace(":", "x")}${r.height ? `_${r.height}p` : ""}`;
+    const res = await call(`/${r.id}/url?download=1&name=${encodeURIComponent(name)}`, "GET"), j = await res.json().catch(() => ({}));
+    if (res.ok && j.url) { const a = document.createElement("a"); a.href = j.url; a.download = fileName(name); document.body.appendChild(a); a.click(); a.remove(); }   // Content-Disposition: attachment → se guarda, no se abre una pestaña
     else setMsg(res.status === 410 ? "El archivo caducó. Pulsa «Renovar» para prepararlo otra vez sin coste." : (j.error?.message ?? "No se pudo preparar la descarga."));
     setBusy(null); void load();
   }

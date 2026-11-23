@@ -3,7 +3,7 @@
 // POST /api/exports/:id/renew  → si el archivo se purgó, lo vuelve a renderizar desde su versión (sin coste)
 // GET  /api/exports/:id/url    → URL firmada tras comprobar acceso; marca la primera descarga
 import { runAfter } from "../after.ts";
-import { r2FromEnv, r2Url } from "@rafaga/providers/r2";
+import { attachmentQuery, r2FromEnv, r2Url } from "@rafaga/providers/r2";
 import { bearer, rpc, json, fail, mapDbError, idempotencyKey, sessionUser, type Fetch } from "../api.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -54,7 +54,8 @@ export async function handleExports(req: Request, slug: string[], d: ExportDeps 
     if (o.purged || o.expired || !o.key) return fail("download_expired", { renewable: true });
     const cfg = r2FromEnv(env); if (!cfg) return json({ error: { code: "not_configured", message: "El almacenamiento no está configurado." } }, 503);
     await rpc(token, "mark_export_downloaded", { p_render: id }, f);
-    return json({ url: await r2Url(cfg, "GET", o.key, 3600), expires_at: new Date(Date.now() + 3600_000).toISOString() });
+    const u = new URL(req.url), dl = u.searchParams.get("download") === "1";   // ?download=1&name=… → la URL fuerza «guardar como» con nombre legible
+    return json({ url: await r2Url(cfg, "GET", o.key, 3600, undefined, dl ? attachmentQuery(u.searchParams.get("name") ?? "clip") : undefined), expires_at: new Date(Date.now() + 3600_000).toISOString() });
   }
   return notFound();
 }

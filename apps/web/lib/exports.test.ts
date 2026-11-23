@@ -12,7 +12,7 @@ const ENV = { R2_ACCOUNT_ID: "acc", R2_BUCKET: "b", R2_ACCESS_KEY_ID: "AK", R2_S
 const woken: string[] = [];
 const call = (uid: string, method: string, path: string, body?: unknown, idem?: string) => {
   const req = new Request(`https://app/api/exports${path}`, { method, headers: { Authorization: `Bearer ${tokenFor(uid)}`, "Content-Type": "application/json", ...(idem ? { "Idempotency-Key": idem } : {}) }, body: body ? JSON.stringify(body) : undefined });
-  return handleExports(req, path.split("/").filter(Boolean), { f: fakeSupabaseFetch(db), env: ENV, wake: (_r, j) => woken.push(j) });
+  return handleExports(req, path.split("?")[0].split("/").filter(Boolean), { f: fakeSupabaseFetch(db), env: ENV, wake: (_r, j) => woken.push(j) });
 };
 const spec = (t = "hablante_seguimiento") => viralTemplate(t as never, "9:16", { duration: 8, fragments: [{ start: 10, end: 18 }] });
 const one = async (q: string) => (await db.query<{ id: string }>(q)).rows[0].id;
@@ -70,6 +70,11 @@ test("URL: lista → firmada y marca la primera descarga; ajena → 404 sin firm
   await db.exec(`select public.finish_render('${id}','ready','${wsA}/${c2}/v1-bbbbbbbbbbbb.srt',null,10,8000,null,null,null)`);
   const ok = await call(A, "GET", `/${id}/url`); assert.equal(ok.status, 200);
   assert.match(((await ok.json()) as { url: string }).url, /X-Amz-Signature/);
+  assert.doesNotMatch(((await (await call(A, "GET", `/${id}/url`)).json()) as { url: string }).url, /response-content-disposition/, "sin ?download=1 no fuerza descarga (miniaturas y vista previa)");
+  const dl = ((await (await call(A, "GET", `/${id}/url?download=1&name=${encodeURIComponent('Mi "clip"/ñ.mp4')}`)).json()) as { url: string }).url;
+  const cd = decodeURIComponent(new URL(dl).searchParams.get("response-content-disposition") ?? "");
+  assert.match(cd, /^attachment; filename="[^"\/]+\.mp4"; filename\*=UTF-8''/, "descarga forzada con nombre seguro y extensión .mp4");
+  assert.ok(!/["\\/]clip["\\/]/.test(cd.split(";")[1]), "el nombre no conserva comillas ni barras");
   assert.notEqual((await db.query<{ d: string | null }>(`select downloaded_at d from renders where id='${id}'`)).rows[0].d, null);
   assert.equal((await call(B, "GET", `/${id}/url`)).status, 404);
   await db.exec(`update renders set expires_at = now() - interval '1 day' where id='${id}'`);
