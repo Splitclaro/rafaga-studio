@@ -103,9 +103,9 @@ export default function AppShell({ children }: { children: ReactNode }) {
           <span className="font-display text-2xl font-extrabold tracking-[-0.03em] text-[var(--ink)]">ráfaga</span>
         </Link>
         <div className="relative hidden md:block">
-          <button onClick={() => setMenu(!menu)} aria-expanded={menu} aria-label="Cambiar de espacio de trabajo" className="flex w-full items-center gap-2.5 rounded-xl p-2 text-left hover:bg-[var(--hover)]">
+          <button onClick={() => setMenu(!menu)} aria-expanded={menu} className="flex w-full items-center gap-2.5 rounded-xl p-2 text-left hover:bg-[var(--hover)]">
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[9px] text-lg font-bold text-white" style={{ background: "linear-gradient(135deg,#3B1EFF,#5DF9C0)" }}>{(ws[0] ?? "A").toUpperCase()}</span>
-            <span className="min-w-0 flex-1 leading-tight"><b className="block truncate text-sm font-semibold text-[var(--ink)]">{ws}</b><span className="text-xs text-[var(--muted)]">{ROLE[role] ?? "Gratis"} · {act?.members ?? 1} miembro{(act?.members ?? 1) === 1 ? "" : "s"}</span></span>
+            <span className="min-w-0 flex-1 leading-tight"><span className="sr-only">Cambiar de espacio de trabajo: </span><b className="block truncate text-sm font-semibold text-[var(--ink)]">{ws}</b><span className="text-xs text-[var(--muted)]">{ROLE[role] ?? "Gratis"} · {act?.members ?? 1} miembro{(act?.members ?? 1) === 1 ? "" : "s"}</span></span>
             <Icon n="chevR" className="h-3.5 w-3.5 text-[var(--muted)]" />
           </button>
           {menu && (
@@ -140,12 +140,12 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
       <div className="min-w-0 flex-1">
         <header className="sticky top-0 z-10 flex flex-wrap items-center gap-3 bg-[var(--bg)]/95 px-4 py-3 backdrop-blur md:px-8">
-          <button onClick={() => setPalette(true)} className="flex min-h-11 min-w-0 flex-1 items-center gap-2.5 rounded-xl border hairline bg-[var(--card)] px-3.5 text-sm text-[var(--muted)] md:w-[360px] md:flex-none" aria-label="Buscar (Cmd+K)">
+          <button onClick={() => setPalette(true)} className="flex min-h-11 min-w-0 flex-1 items-center gap-2.5 rounded-xl border hairline bg-[var(--card)] px-3.5 text-sm text-[var(--muted)] md:w-[360px] md:flex-none">
             <Icon n="search" className="h-4 w-4 shrink-0" /><span className="min-w-0 flex-1 truncate text-left">Buscar</span><span className="kbd hidden md:inline">⌘ K</span>
           </button>
           <span className="ml-auto flex items-center gap-2.5">
-            {running > 0 && <Link href="/app/proyectos" className="chip" aria-label={`${running} trabajos en curso`}><span className="pulse" aria-hidden /> <span className="tnum">{running}</span> en curso</Link>}
-            {usage && <Link href="/app/ajustes" className="hidden min-h-11 items-center gap-2 rounded-xl border hairline bg-[var(--card)] px-3.5 text-sm font-medium md:inline-flex" aria-label="Consumo del plan"><span aria-hidden className="text-[var(--accent)]">✦</span><span className="tnum">{Math.max(0, Math.round(usage.limit - usage.used))} min restantes</span></Link>}
+            {running > 0 && <Link href="/app/proyectos" className="chip"><span className="pulse" aria-hidden /> <span className="tnum">{running}</span> en curso</Link>}
+            {usage && <Link href="/app/ajustes" className="hidden min-h-11 items-center gap-2 rounded-xl border hairline bg-[var(--card)] px-3.5 text-sm font-medium md:inline-flex"><span aria-hidden className="text-[var(--accent)]">✦</span><span className="tnum">{Math.max(0, Math.round(usage.limit - usage.used))} min restantes<span className="sr-only"> del plan</span></span></Link>}
             <Link href="/app/equipo" className="btn btn-ghost !min-h-11 hidden md:inline-flex"><Icon n="plus" className="h-4 w-4" />Invitar</Link>
             <Link href="/app/conexiones" aria-label="Conexiones" className="card hidden h-11 w-11 place-items-center hover:bg-[var(--hover)] md:grid"><Icon n="link" className="h-[18px] w-[18px]" /></Link>
             <Link href="/app/demos" aria-label="Ayuda" className="card hidden h-11 w-11 place-items-center hover:bg-[var(--hover)] md:grid">?</Link>
@@ -165,7 +165,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
                     </li>))}</ul>
                 </div>)}
             </div>
-            <Link href="/app/ajustes" aria-label="Cuenta y uso" className="grid h-10 w-10 place-items-center rounded-full bg-[var(--charcoal)] text-sm font-semibold text-[var(--lime)] ring-2 ring-white">{initials}</Link>
+            <Link href="/app/ajustes" className="grid h-10 w-10 place-items-center rounded-full bg-[var(--charcoal)] text-sm font-semibold text-[var(--lime)] ring-2 ring-white">{initials}<span className="sr-only"> · Cuenta y uso</span></Link>
           </span>
         </header>
         {children}

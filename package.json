@@ -7,9 +7,12 @@
   "engines": { "node": ">=24" },
   "scripts": {
     "test": "node --test packages/composition/src/*.test.ts packages/selection/src/*.test.ts packages/lyrics/src/*.test.ts packages/providers/src/*.test.ts apps/web/lib/*.test.ts workers/media/src/*.test.ts supabase/tests/*.test.ts",
-    "spike:subs": "node scripts/spike-subs.ts"
+    "spike:subs": "node scripts/spike-subs.ts",
+    "e2e": "playwright test"
   },
   "devDependencies": {
-    "@electric-sql/pglite": "0.5.15"
+    "@axe-core/playwright": "4.14.0",
+    "@electric-sql/pglite": "0.5.15",
+    "@playwright/test": "1.65.0"
   }
 }

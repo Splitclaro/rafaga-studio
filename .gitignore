@@ -23,3 +23,7 @@ evidence/
 
 # Capturas internas de la auditoría de paridad (contienen datos de cuentas)
 replica/evidencia/
+
+# Playwright
+test-results/
+playwright-report/
