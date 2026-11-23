@@ -18,7 +18,7 @@ export default function LyricResults({ exportIds, generationId, projectId, batch
   }, [exportIds, generationId]);
   useEffect(() => { void load(); const t = setInterval(() => void load(), 4000); return () => clearInterval(t); }, [load]);
   const call = async (path: string, method: "GET" | "POST") => fetch(`/api/exports${path}`, { method, headers: { Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token ?? ""}`, "Idempotency-Key": `lr-${crypto.randomUUID()}` } });
-  async function download(r: R) { setBusy(r.id); const res = await call(`/${r.id}/url`, "GET"), j = await res.json().catch(() => ({})); if (res.ok && j.url) window.open(j.url, "_blank", "noopener"); else setMsg(j?.error?.message ?? "No se pudo preparar la descarga."); setBusy(null); }
+  async function download(r: R) { setBusy(r.id); const res = await call(`/${r.id}/url?download=1&name=${encodeURIComponent(r.clips?.title ?? "video")}`, "GET"), j = await res.json().catch(() => ({})); if (res.ok && j.url) { const a = document.createElement("a"); a.href = j.url; a.download = `${r.clips?.title ?? "video"}.mp4`; document.body.appendChild(a); a.click(); a.remove(); } else setMsg(j?.error?.message ?? "No se pudo preparar la descarga."); setBusy(null); }
   async function retry(r: R) { setBusy(r.id); const res = await call(`/${r.id}/retry`, "POST"); setMsg(res.ok ? "Reintentando solo esta variante. No consume unidades." : "No se pudo reintentar."); setBusy(null); void load(); }
   /** Pide el formato de letra elegido para todas las variantes (misma versión, sin coste). */
   async function exportText() {

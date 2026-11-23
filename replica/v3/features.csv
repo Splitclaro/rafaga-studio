@@ -1,6 +1,6 @@
 id,herramienta,capacidad,prioridad,fuente_publica,ruta_rafaga,estado_rafaga,prueba
-ED-01,Editor de vídeos,Subir canción ≤50 MB (MP3 WAV FLAC AAC OGG M4A),must,P6,/app/editor,parcial (subida existe; límite 60 MB y 10 min),V3-ED-01
-ED-02,Editor de vídeos,Elegir tramo de la canción (canción completa solo en pago),must,P6 P8,/app/editor paso Audio,no (pasos no separados),V3-ED-10
+ED-01,Editor de vídeos,Subir canción ≤50 MB (MP3 WAV FLAC AAC OGG M4A),must,P6,/app/editor,sí en local (50 MB en el cliente; subida reanudable),V3-ED-01
+ED-02,Editor de vídeos,Elegir tramo de la canción (canción completa solo en pago),must,P6 P8,/app/editor paso Audio,sí en local (4 pasos, tramo m:ss.d, guardado y recarga; e2e),V3-ED-10
 ED-03,Editor de vídeos,Letra automática y cambiar cualquier palabra,must,P6,/app/editor paso Letras,parcial,V3-ED-20
 ED-04,Editor de vídeos,Sincronía automática palabra a palabra con ajuste fino,must,P6,/app/editor paso Letras,parcial (LyricSyncEditor),V3-ED-24
 ED-05,Editor de vídeos,Fondo de biblioteca o propio,must,P6,/app/editor paso Estilo,parcial,V3-ED-30
@@ -8,7 +8,7 @@ ED-06,Editor de vídeos,Animación color posición fuente tamaño y capa de la l
 ED-07,Editor de vídeos,Catálogo de estilos de letra,must,P6,/app/editor paso Estilo,sí (estilos propios),V3-ED-33
 ED-08,Editor de vídeos,Renderizar y guardar,must,P6,/app/editor paso Render,parcial (render en worker; Modal sin crédito),V3-ED-52
 ED-09,Editor de vídeos,Exportación 1080p gratis y 4K de pago,should,P8,/app/editor paso Render,parcial (720/1080),V3-ED-50
-ED-10,Editor de vídeos,Vídeos creados (dónde quedan los guardados),must,P6 (diseño Ráfaga),/app/editor/videos,no,V3-ED-04
+ED-10,Editor de vídeos,Vídeos creados (dónde quedan los guardados),must,P6 (diseño Ráfaga),/app/editor/videos,sí en local (e2e),V3-ED-04
 AV-01,Editor avanzado,Nuevo proyecto y formatos 9:16 16:9 4:5 1:1,must,P1 P2,/app/avanzado,no,V3-AV-01
 AV-02,Editor avanzado,Línea de tiempo con capas de vídeo texto y sonido,must,P3 P7,/app/avanzado/[id],no,V3-AV-10
 AV-03,Editor avanzado,Dividir quitar silencios y ajustar entre clips,must,P3,/app/avanzado/[id],no,V3-AV-10
