@@ -15,12 +15,12 @@ export default function Inicio() {
   useEffect(() => { (async () => {
     const [s, c] = await Promise.all([
       supabase.from("songs").select("id,title,created_at").order("created_at", { ascending: false }).limit(3),
-      supabase.from("clips").select("id,title,created_at").order("created_at", { ascending: false }).limit(3),
+      supabase.from("clips").select("id,title,created_at,projects!inner(mode)").neq("projects.mode", "lyrics").order("created_at", { ascending: false }).limit(3),
     ]);
     setSongs(((s.data ?? []) as { id: string; title: string; created_at: string }[]).map((x) => ({ id: x.id, title: x.title || "Canción sin título", href: `/app/editor?song=${x.id}`, when: x.created_at })));
-    setClips(((c.data ?? []) as { id: string; title: string; created_at: string }[]).map((x) => ({ id: x.id, title: x.title, href: `/app/c/${x.id}`, when: x.created_at })));
+    setClips(((c.data ?? []) as unknown as { id: string; title: string; created_at: string }[]).map((x) => ({ id: x.id, title: x.title, href: `/app/c/${x.id}`, when: x.created_at })));
   })(); }, []);
-  const analyzed: Item[] | null = rows ? rows.filter((p) => !p.archived_at).slice(0, 3).map((p) => ({ id: p.id, title: p.name, href: `/app/autoclip/${p.id}`, when: p.created_at, note: isActive(p.status) ? "Analizando" : p.clips ? `${p.clips} clip${p.clips === 1 ? "" : "s"}` : undefined })) : null;
+  const analyzed: Item[] | null = rows ? rows.filter((p) => !p.archived_at && p.mode !== "lyrics").slice(0, 3).map((p) => ({ id: p.id, title: p.name, href: `/app/autoclip/${p.id}`, when: p.created_at, note: isActive(p.status) ? "Analizando" : p.clips ? `${p.clips} clip${p.clips === 1 ? "" : "s"}` : undefined })) : null;
 
   const TOOLS = [
     { id: "editor", href: "/app/editor", icon: "music", name: "Editor de vídeos", what: "Convierte una canción en un vídeo con la letra sincronizada: audio, letras, estilo y render.", cta: "Crear un vídeo con letra", recent: songs, empty: "Aún no has subido canciones." },

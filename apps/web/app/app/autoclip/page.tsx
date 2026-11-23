@@ -6,7 +6,7 @@ import { useProjects, ProjectCard } from "../../../components/ProjectList";
 
 export default function Autoclip() {
   const { rows, err } = useProjects();
-  const list = (rows ?? []).filter((p) => !p.archived_at);
+  const list = (rows ?? []).filter((p) => !p.archived_at && p.mode !== "lyrics");   // las piezas de letra viven en el Editor de vídeos
   return (
     <main className="mx-auto max-w-6xl px-4 pb-20 pt-8 md:px-8">
       <header className="mb-6 flex flex-wrap items-end justify-between gap-3">

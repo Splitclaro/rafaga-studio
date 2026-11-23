@@ -12,8 +12,8 @@ const STATE: Record<string, string> = { preparando: "Preparando", disponible: "L
 export default function Avanzado() {
   const [clips, setClips] = useState<Clip[] | null>(null), [err, setErr] = useState<string | null>(null), [q, setQ] = useState("");
   useEffect(() => { (async () => {
-    const { data, error } = await supabase.from("clips").select("id,title,created_at,technical_state,project_id").order("created_at", { ascending: false }).limit(120);
-    if (error) setErr(error.message); else setClips((data ?? []) as Clip[]);
+    const { data, error } = await supabase.from("clips").select("id,title,created_at,technical_state,project_id,projects!inner(mode)").neq("projects.mode", "lyrics").order("created_at", { ascending: false }).limit(120);
+    if (error) setErr(error.message); else setClips((data ?? []) as unknown as Clip[]);
   })(); }, []);
   const list = useMemo(() => (clips ?? []).filter((c) => !q.trim() || c.title.toLowerCase().includes(q.trim().toLowerCase())), [clips, q]);
   const NEW = [

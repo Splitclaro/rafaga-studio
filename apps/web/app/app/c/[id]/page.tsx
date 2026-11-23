@@ -567,15 +567,17 @@ function ClipEditorV1({ params }: { params: Promise<{ id: string }> }) {
 /** Elige el editor: v2 si la versión vigente del clip es una composición v2; si no, el editor de siempre (clips de proyectos v1 sin cambios). */
 export default function ClipEditor({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const [v2, setV2] = useState<boolean | null>(null);
+  const [v2, setV2] = useState<boolean | null>(null), [lyric, setLyric] = useState(false);
   useEffect(() => {
     (async () => {
       const { data: c } = await supabase.from("clips").select("current_version").eq("id", id).single();
       if (!c) return setV2(false);
-      const { data: v, error } = await supabase.from("clip_versions").select("aspect,layout").eq("clip_id", id).eq("version", c.current_version).single();
+      const { data: v, error } = await supabase.from("clip_versions").select("aspect,layout,kind:composition->>kind").eq("clip_id", id).eq("version", c.current_version).single();
+      if ((v as { kind?: string } | null)?.kind === "lyric") return setLyric(true);   // pieza de letra: se edita en el Editor de vídeos
       setV2(!error && !!v?.layout);          // las versiones v2 llevan aspect y layout; las v1 no
     })();
   }, [id]);
+  if (lyric) return <main className="mx-auto max-w-[1100px] px-4 pb-20 pt-6 md:px-8"><div className="card p-6"><h1 className="text-xl">Esta pieza es un vídeo con letra</h1><p className="mt-1 text-sm text-[var(--muted)]">Se edita en el Editor de vídeos, donde están su canción, su letra y su estilo.</p><Link href="/app/editor" className="btn btn-primary mt-4">Abrir el Editor de vídeos</Link></div></main>;
   if (v2 === null) return <main className="mx-auto max-w-[1100px] px-4 pb-20 pt-6 md:px-8"><div className="skeleton h-40 w-full" /></main>;
   return v2 ? <EditorV2 clipId={id} /> : <ClipEditorV1 params={params} />;
 }
